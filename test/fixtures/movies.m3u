@@ -1,0 +1,3 @@
+#EXTM3U
+#EXTINF:-1 group-title="Movies",Example Movie (2025)
+https://stream.example.test/vod/example.mp4

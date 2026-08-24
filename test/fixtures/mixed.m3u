@@ -1,0 +1,9 @@
+#EXTM3U
+#EXTINF:-1 group-title="Live",Demo Channel
+https://stream.example.test/live/demo.m3u8
+#EXTINF:-1 group-title="Movies",Demo Movie (2025)
+https://stream.example.test/vod/demo.mp4
+#EXTINF:-1 group-title="Series",Demo Show 1x02
+https://stream.example.test/series/demo.mkv
+#EXTINF:-1,Unclassified Demo
+https://stream.example.test/resource

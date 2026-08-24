@@ -1,0 +1,42 @@
+name: tvium_workspace
+description: Workspace tooling for Tvium, The Modern IPTV Player.
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  tvium_m3u: ^1.0.0
+
+workspace:
+  - apps/tvium_app
+  - packages/tvium_core
+  - packages/tvium_database
+  - packages/tvium_design_system
+  - packages/tvium_m3u
+  - packages/tvium_playback
+
+dev_dependencies:
+  lints: ^6.1.0
+  melos: ^7.8.2
+
+melos:
+  command:
+    bootstrap:
+      runPubGetInParallel: false
+  scripts:
+    format:
+      description: Format every Dart source file.
+      run: dart format .
+    format:check:
+      description: Verify formatting without changing files.
+      run: dart format --output=none --set-exit-if-changed .
+    analyze:
+      description: Run static analysis in every package.
+      run: dart run melos exec --fail-fast -- "dart analyze --fatal-infos"
+    test:
+      description: Run all package tests.
+      run: dart run melos exec --concurrency=1 --fail-fast --dir-exists=test -- "flutter test"
+    benchmark:
+      description: Run the M3U parser benchmark at the default size.
+      run: dart run melos exec --scope=tvium_m3u -- "dart run benchmark/parser_benchmark.dart --entries 10000"

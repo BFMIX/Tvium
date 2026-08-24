@@ -1,0 +1,5 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="demo.one" tvg-name="Demo One" tvg-logo="https://images.example.test/one.png" group-title="Demo",Demo One
+https://stream.example.test/live/one.m3u8
+#EXTINF:-1 group-title="Cinema",Demo Film (2025)
+https://stream.example.test/vod/demo-film.mp4

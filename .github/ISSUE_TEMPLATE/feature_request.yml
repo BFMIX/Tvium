@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest an improvement to the Tvium experience.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What user need would this solve?
+      description: Explain the problem before describing a solution.
+    validations:
+      required: true
+  - type: textarea
+    id: experience
+    attributes:
+      label: Proposed experience
+      description: Describe how it should work across the relevant screens or devices.
+    validations:
+      required: true
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Primary screen
+      options:
+        - All screens
+        - Web
+        - Phone or tablet
+        - TV or streaming box
+        - Desktop
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv>
+  <channel id="demo.live"><display-name>Demo Live</display-name></channel>
+  <programme start="20260818180000 +0000" stop="20260818190000 +0000" channel="demo.live">
+    <title>Demo Programme</title>
+  </programme>
+</tv>

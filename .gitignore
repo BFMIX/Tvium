@@ -1,0 +1,56 @@
+.worktrees/
+
+# Local development assistants and indexes
+AGENTS.md
+CLAUDE.md
+CODEX.md
+GEMINI.md
+.mcp.json
+.agents/
+.claude/
+.codegraph/
+.codex/
+.continue/
+.cursor/
+.superpowers/
+.windsurf/
+.aider*
+docs/superpowers/
+
+# Flutter and Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+coverage/
+*.log
+
+# Editors and operating systems
+.DS_Store
+.idea/
+*.iml
+.vscode/
+
+# Local data and secrets
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pem
+*.pfx
+credentials.*
+key.properties
+local.properties
+secrets.*
+
+# User playlists and private media sources
+*.m3u
+*.m3u8
+*.playlist
+*.xtream
+!test/fixtures/*.m3u
+test/fixtures/generated/
+*.m3u.local

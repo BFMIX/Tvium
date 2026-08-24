@@ -1,0 +1,3 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="demo.live" group-title="Live",Demo Live
+https://stream.example.test/live/demo.m3u8
