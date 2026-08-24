@@ -28,3 +28,10 @@ jobs:
         run: dart run melos run analyze
       - name: Test
         run: dart run melos run test
+      - name: Build macOS app
+        working-directory: apps/tvium_app
+        run: flutter build macos --debug
+      - name: Verify macOS entitlements
+        run: >-
+          dart run scripts/verify_macos_entitlements.dart
+          apps/tvium_app/build/macos/Build/Products/Debug/Tvium.app

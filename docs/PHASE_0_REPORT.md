@@ -53,6 +53,10 @@ Fixtures use reserved `.test` hosts. Tests verify removal of credentials, URL pa
 - Flutter reports that the current `media_kit` macOS plugins do not yet support Swift Package Manager; CocoaPods works now, but this becomes a future compatibility risk.
 - Persistence, EPG, Xtream, source refresh/diffing, parental controls, and Store release work remain outside Phase 0.
 
+## Post-Phase 0 Corrections
+
+The macOS sandbox now grants outbound network access and read-only access to files explicitly selected by the user. A signed debug build passed an entitlement audit, and a manual import of the fictional `small.m3u` fixture opened the native file chooser and populated the library. Playlist URLs are concealed by default, credential-bearing errors remain sanitized, and file-picker failures now produce a localized safe message. CI builds the macOS app and audits these entitlements to prevent regressions.
+
 ## Recommendation
 
 Proceed to the next milestone only after installing the Android SDK and adding real-device playback spikes using explicitly authorized test streams. Keep the playback and repository abstractions until platform evidence justifies native adapter choices and a durable schema.

@@ -38,6 +38,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get urlHint => 'https://exemple.fr/playlist.m3u';
 
   @override
+  String get showPlaylistUrl => 'Afficher l’URL de la playlist';
+
+  @override
+  String get hidePlaylistUrl => 'Masquer l’URL de la playlist';
+
+  @override
+  String get filePickerFailed =>
+      'Le fichier de playlist n’a pas pu être ouvert';
+
+  @override
   String get analyzePlaylist => 'Analyser la playlist';
 
   @override

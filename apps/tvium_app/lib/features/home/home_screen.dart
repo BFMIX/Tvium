@@ -1,8 +1,6 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tvium_design_system/tvium_design_system.dart';
@@ -10,6 +8,7 @@ import 'package:tvium_m3u/tvium_m3u.dart';
 import 'package:tvium_playback/tvium_playback.dart';
 
 import '../../l10n/generated/app_localizations.dart';
+import '../import/local_playlist_picker.dart';
 import '../import/playlist_import_controller.dart';
 import '../import/playlist_import_provider.dart';
 import 'signal_rail.dart';
@@ -28,6 +27,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   final FocusNode _fileActionFocus = FocusNode(debugLabel: 'M3U file action');
   final FocusNode _xtreamActionFocus = FocusNode(debugLabel: 'Xtream action');
   var _showUrlField = false;
+  var _obscureUrl = true;
   String? _selectedGroup;
   M3uEntry? _selectedEntry;
   MediaKitPlaybackEngine? _playbackEngine;
@@ -147,9 +147,27 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                         controller: _urlController,
                         enabled: !importing,
                         keyboardType: TextInputType.url,
+                        obscureText: _obscureUrl,
+                        enableSuggestions: false,
+                        autocorrect: false,
                         decoration: InputDecoration(
                           hintText: strings.urlHint,
                           prefixIcon: const Icon(Icons.language_rounded),
+                          suffixIcon: IconButton(
+                            key: const ValueKey<String>(
+                              'url-visibility-toggle',
+                            ),
+                            tooltip: _obscureUrl
+                                ? strings.showPlaylistUrl
+                                : strings.hidePlaylistUrl,
+                            onPressed: () =>
+                                setState(() => _obscureUrl = !_obscureUrl),
+                            icon: Icon(
+                              _obscureUrl
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
                         ),
                         onSubmitted: (_) => _analyzeUrl(controller),
                       ),
@@ -207,19 +225,15 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _pickLocalFile(PlaylistImportController controller) async {
-    final file = await FilePicker.pickFile(
-      type: FileType.custom,
-      allowedExtensions: const <String>['m3u', 'm3u8'],
-    );
-    if (file == null) {
-      return;
+    final strings = AppLocalizations.of(context);
+    try {
+      final source = await ref.read(localPlaylistPickerProvider)();
+      if (source != null) {
+        await controller.importSource(source);
+      }
+    } on Object {
+      controller.reportValidationFailure(strings.filePickerFailed);
     }
-    final path = file.path;
-    if (!kIsWeb && path != null) {
-      await controller.importSource(M3uFileSource(path));
-      return;
-    }
-    await controller.importSource(M3uBytesSource(await file.readAsBytes()));
   }
 
   Future<void> _play(M3uEntry entry) async {

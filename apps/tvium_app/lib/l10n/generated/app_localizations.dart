@@ -152,6 +152,24 @@ abstract class AppLocalizations {
   /// **'https://example.com/playlist.m3u'**
   String get urlHint;
 
+  /// No description provided for @showPlaylistUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Show playlist URL'**
+  String get showPlaylistUrl;
+
+  /// No description provided for @hidePlaylistUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide playlist URL'**
+  String get hidePlaylistUrl;
+
+  /// No description provided for @filePickerFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The playlist file could not be opened'**
+  String get filePickerFailed;
+
   /// No description provided for @analyzePlaylist.
   ///
   /// In en, this message translates to:
