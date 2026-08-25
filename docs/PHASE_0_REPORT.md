@@ -12,9 +12,10 @@ Phase 0 validates Tvium's Flutter/Dart workspace and a local-first vertical prot
 - Flutter 3.47.0 stable; Dart 3.13.0; Melos 7.8.2.
 - macOS 27.0 prerelease on Apple Silicon through Rosetta.
 - Xcode 27.0 beta and CocoaPods 1.17.0.
-- Chrome installed; Android SDK absent; iOS 27 simulator absent.
+- Chrome installed; Xcode includes iOS 26.4 and iOS 27.0 simulator runtimes.
+- Android command-line tools are installed, but platform packages and `adb` remain unavailable until the Android SDK license is explicitly accepted.
 
-The final workspace passed `dart run melos run format:check`, strict analysis across six packages, and all 20 automated tests. `flutter build web --debug` produced `build/web`; `flutter build macos --debug` produced `Tvium.app`. The native onboarding window was launched and visually inspected in French at 800 × 632.
+The current workspace passes `dart run melos run format:check`, strict analysis across six packages, and all 23 automated tests. `flutter build web --debug` produced `build/web`; macOS release and iOS 27 simulator debug builds completed successfully. Native onboarding was visually inspected on macOS and iOS 27.
 
 ## Parser Measurements
 
@@ -45,10 +46,11 @@ Fixtures use reserved `.test` hosts. Tests verify removal of credentials, URL pa
 
 ## Limits and Risks
 
-- Android builds and runtime behavior are blocked locally by the missing Android SDK.
-- iOS/tvOS runtime behavior is unverified; the iOS 27 simulator is not installed. tvOS is a product target, not a generated Phase 0 runner.
+- Android builds and runtime behavior remain blocked until the Android SDK license is explicitly accepted and the platform packages are installed.
+- iOS 27 build, installation, launch, and M3U URL import are verified. Playback after the compact-layout correction still requires a reliable simulator or physical-device run.
+- Flutter does not officially support tvOS. A native Apple TV companion or an explicitly accepted third-party toolchain is required.
 - Windows build/runtime behavior is unverified on this macOS host.
-- The HLS adapter, lifecycle contract, Web build, and macOS integration compile are verified; actual network decoding, codecs, tracks, subtitles, DRM, and recovery were not exercised with a stream in the final run.
+- Real network HLS decoding is verified with Apple's public Bip Bop stream on macOS and Chrome. Codec breadth, alternate tracks, subtitles, DRM, lifecycle recovery, and provider-specific streams remain unverified.
 - Web playback remains subject to browser codec support, CORS, HTTPS/mixed-content rules, and provider headers. Tvium will not add a proxy to bypass these restrictions.
 - Flutter reports that the current `media_kit` macOS plugins do not yet support Swift Package Manager; CocoaPods works now, but this becomes a future compatibility risk.
 - Persistence, EPG, Xtream, source refresh/diffing, parental controls, and Store release work remain outside Phase 0.
@@ -56,6 +58,8 @@ Fixtures use reserved `.test` hosts. Tests verify removal of credentials, URL pa
 ## Post-Phase 0 Corrections
 
 The macOS sandbox now grants outbound network access and read-only access to files explicitly selected by the user. A signed debug build passed an entitlement audit, and a manual import of the fictional `small.m3u` fixture opened the native file chooser and populated the library. Playlist URLs are concealed by default, credential-bearing errors remain sanitized, and file-picker failures now produce a localized safe message. CI builds the macOS app and audits these entitlements to prevent regressions.
+
+An iOS 27 simulator build exposed a compact-layout defect: media selection invoked playback but no video surface was rendered below 900 logical pixels. The compact library now keeps a player surface above the media list, with a widget regression test. The build installs and launches on an iPhone 17 Pro simulator running iOS 27.0.
 
 ## Recommendation
 
