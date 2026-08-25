@@ -362,6 +362,15 @@ final class _LibraryView extends StatelessWidget {
                     ),
                     const SizedBox(height: TviumSpacing.sm),
                     Expanded(
+                      flex: 4,
+                      child: _PlayerPanel(
+                        selectedEntry: selectedEntry,
+                        engine: playbackEngine,
+                      ),
+                    ),
+                    const SizedBox(height: TviumSpacing.sm),
+                    Expanded(
+                      flex: 5,
                       child: _EntryList(
                         entries: visibleEntries,
                         onSelected: onEntrySelected,

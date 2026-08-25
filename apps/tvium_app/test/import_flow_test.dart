@@ -25,6 +25,19 @@ void main() {
     expect(find.text('Cinema'), findsOneWidget);
     expect(find.text('Demo Movie (2025)'), findsOneWidget);
   });
+
+  testWidgets('keeps the player surface visible in compact layouts', (
+    tester,
+  ) async {
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+
+    unawaited(controller.importSource(const _MemorySource()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose an item to start playback'), findsOneWidget);
+  });
 }
 
 final class _MemorySource implements M3uSource {
