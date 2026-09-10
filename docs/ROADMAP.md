@@ -19,9 +19,10 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: Google TV ARM64 profile-build launch, 1080p adaptive layout, initial remote focus, and D-pad activation. The stock emulator has no usable local-document provider.
 - In progress: Android public-HLS playback and a TV-friendly source-transfer path. Windows and tvOS runtime evidence remains outstanding.
 
-## M2 — Library engine (planned)
+## M2 — Library engine (in progress)
 
-Normalization, classification, variants, duplicates, series reconstruction, SQLite indexing, and indexed search.
+- In progress: versioned Drift/SQLite persistence with transactional playlist replacement, stable ordering, and migration coverage.
+- Planned: normalization, variants, duplicate handling, series reconstruction, and indexed library search.
 
 ## M3 — UX foundation (planned)
 
