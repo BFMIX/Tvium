@@ -28,4 +28,25 @@ void main() {
 
     expect(find.byType(TextField), findsOneWidget);
   });
+
+  testWidgets('keeps every source action visible on a compact phone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const TviumApp());
+
+    for (final key in const <String>[
+      'm3u-url-action',
+      'm3u-file-action',
+      'xtream-action',
+    ]) {
+      final rect = tester.getRect(find.byKey(ValueKey<String>(key)));
+      expect(rect.left, greaterThanOrEqualTo(0));
+      expect(rect.right, lessThanOrEqualTo(390));
+    }
+  });
 }

@@ -103,38 +103,48 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: TviumSpacing.xl),
               FocusTraversalGroup(
                 policy: OrderedTraversalPolicy(),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: <Widget>[
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 600;
+                    final cardWidth = compact ? double.infinity : 210.0;
+                    final cards = <Widget>[
                       SourceActionCard(
                         key: const ValueKey<String>('m3u-url-action'),
                         title: strings.m3uUrl,
                         description: strings.analyzePlaylist,
                         icon: Icons.link_rounded,
                         focusNode: _urlActionFocus,
+                        width: cardWidth,
                         onActivate: () => setState(() => _showUrlField = true),
                       ),
-                      const SizedBox(width: TviumSpacing.sm),
                       SourceActionCard(
                         key: const ValueKey<String>('m3u-file-action'),
                         title: strings.importLocalM3u,
                         description: '.m3u · .m3u8',
                         icon: Icons.folder_open_rounded,
                         focusNode: _fileActionFocus,
+                        width: cardWidth,
                         onActivate: () => unawaited(_pickLocalFile(controller)),
                       ),
-                      const SizedBox(width: TviumSpacing.sm),
                       SourceActionCard(
+                        key: const ValueKey<String>('xtream-action'),
                         title: strings.xtreamCodes,
                         description: strings.comingLater,
                         icon: Icons.dns_outlined,
                         focusNode: _xtreamActionFocus,
+                        width: cardWidth,
                         enabled: false,
                         onActivate: () {},
                       ),
-                    ],
-                  ),
+                    ];
+                    if (compact) {
+                      return Column(spacing: TviumSpacing.sm, children: cards);
+                    }
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(spacing: TviumSpacing.sm, children: cards),
+                    );
+                  },
                 ),
               ),
               if (_showUrlField) ...<Widget>[

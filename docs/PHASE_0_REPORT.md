@@ -13,9 +13,10 @@ Phase 0 validates Tvium's Flutter/Dart workspace and a local-first vertical prot
 - macOS 27.0 prerelease on Apple Silicon through Rosetta.
 - Xcode 27.0 beta and CocoaPods 1.17.0.
 - Chrome installed; Xcode includes iOS 26.4 and iOS 27.0 simulator runtimes.
-- Android command-line tools are installed, but platform packages and `adb` remain unavailable until the Android SDK license is explicitly accepted.
+- Android SDK 36, Build Tools 36.0.0, Platform Tools, NDK 28.2, CMake 3.22.1, and the Android Emulator are installed; all SDK licenses are accepted.
+- ARM64 Android 16 phone and Google TV emulator images are installed on the Apple Silicon host.
 
-The current workspace passes `dart run melos run format:check`, strict analysis across six packages, and all 23 automated tests. `flutter build web --debug` produced `build/web`; macOS release and iOS 27 simulator debug builds completed successfully. Native onboarding was visually inspected on macOS and iOS 27.
+The current workspace passes `dart run melos run format:check`, strict analysis across six packages, and all 24 automated tests. `flutter build web --debug` produced `build/web`; macOS release, iOS 27 simulator debug, and Android debug/profile builds completed successfully. Native onboarding was visually inspected on macOS, iOS 27, and an Android 16 phone emulator.
 
 ## Parser Measurements
 
@@ -46,7 +47,7 @@ Fixtures use reserved `.test` hosts. Tests verify removal of credentials, URL pa
 
 ## Limits and Risks
 
-- Android builds and runtime behavior remain blocked until the Android SDK license is explicitly accepted and the platform packages are installed.
+- Android debug and profile APK builds, installation, launch, local M3U selection, and a 12,808-entry import are verified on an Android 16 ARM64 phone emulator. Public HLS decoding and Google TV runtime behavior still require a conclusive run.
 - iOS 27 build, installation, launch, and M3U URL import are verified. Playback after the compact-layout correction still requires a reliable simulator or physical-device run.
 - Flutter does not officially support tvOS. A native Apple TV companion or an explicitly accepted third-party toolchain is required.
 - Windows build/runtime behavior is unverified on this macOS host.
@@ -61,6 +62,8 @@ The macOS sandbox now grants outbound network access and read-only access to fil
 
 An iOS 27 simulator build exposed a compact-layout defect: media selection invoked playback but no video surface was rendered below 900 logical pixels. The compact library now keeps a player surface above the media list, with a widget regression test. The build installs and launches on an iPhone 17 Pro simulator running iOS 27.0.
 
+Android verification exposed a second compact-layout issue: source cards were arranged in a horizontally clipped row on phones. Widths below 600 logical pixels now use full-width stacked actions, while wider layouts retain the remote-friendly horizontal row. A widget regression test covers all three source actions, and the corrected screen was inspected in an Android profile build.
+
 ## Recommendation
 
-Proceed to the next milestone only after installing the Android SDK and adding real-device playback spikes using explicitly authorized test streams. Keep the playback and repository abstractions until platform evidence justifies native adapter choices and a durable schema.
+Proceed to the next milestone after approving the platform playback and persistence architecture. Keep the engine-neutral playback and repository contracts, add conclusive Android/Google TV playback evidence, and validate each durable schema migration before enabling source refresh, Xtream, EPG, history, or parental controls.

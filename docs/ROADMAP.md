@@ -15,7 +15,8 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: deterministic synthetic playlists plus timing and RSS observations through 100,000 entries.
 - Verified: macOS and Web builds plus real HLS playback using an authorized public stream.
 - Verified: iOS 27 simulator build, install, launch, M3U URL import, and compact player-surface regression coverage. Post-correction iOS video playback remains to be re-run reliably.
-- Blocked: Android platform installation requires explicit acceptance of the Android SDK license. Windows and tvOS runtime evidence remains outstanding.
+- Verified: Android SDK/licensing setup, debug and profile APK builds, Android 16 phone launch, native file selection, a 12,808-entry local import, and compact onboarding regression coverage.
+- In progress: Android public-HLS playback and Google TV runtime verification. Windows and tvOS runtime evidence remains outstanding.
 
 ## M2 — Library engine (planned)
 

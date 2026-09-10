@@ -9,6 +9,7 @@ final class SourceActionCard extends StatelessWidget {
     required this.onActivate,
     required this.focusNode,
     this.enabled = true,
+    this.width = 210,
     super.key,
   });
 
@@ -18,6 +19,7 @@ final class SourceActionCard extends StatelessWidget {
   final VoidCallback onActivate;
   final FocusNode focusNode;
   final bool enabled;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +33,7 @@ final class SourceActionCard extends StatelessWidget {
         onActivate();
       },
       child: Container(
-        width: 210,
+        width: width,
         padding: const EdgeInsets.all(TviumSpacing.md),
         decoration: BoxDecoration(
           color: enabled
