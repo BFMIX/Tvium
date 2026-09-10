@@ -38,7 +38,8 @@ VOD details, seasons/episodes, progress, continue watching, history, and favorit
 
 ## M6 — Playlist management (planned)
 
-Multiple sources, refresh, incremental diff, durable user overlays, bulk organization, and Xtream integration.
+- In progress: credential-safe Xtream authentication and tolerant Live TV, VOD, and Series catalog mapping.
+- Planned: secure platform storage, profile UI, multiple sources, refresh, incremental diff, durable user overlays, and bulk organization.
 
 ## M7 — Parental controls (planned)
 

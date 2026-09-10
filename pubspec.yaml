@@ -15,6 +15,7 @@ workspace:
   - packages/tvium_design_system
   - packages/tvium_m3u
   - packages/tvium_playback
+  - packages/tvium_xtream
 
 dev_dependencies:
   lints: ^6.1.0
