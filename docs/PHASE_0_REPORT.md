@@ -18,6 +18,8 @@ Phase 0 validates Tvium's Flutter/Dart workspace and a local-first vertical prot
 
 The current workspace passes `dart run melos run format:check`, strict analysis across six packages, and all 26 automated tests. `flutter build web --debug` produced `build/web`; macOS release, iOS 27 simulator debug, and Android debug/profile/release builds completed successfully. The ARM64 Android release APK is 60.3 MB and its merged manifest contains the production Internet permission. Native onboarding was visually inspected on macOS, iOS 27, Android 16 phone, and Google TV emulators.
 
+Continuous integration retains the macOS build and entitlement audit and now adds Linux-hosted Android ARM64 release and Web release builds. These gates detect packaging regressions without distributing unsigned or development-signed binaries.
+
 ## Parser Measurements
 
 Each command used `dart run benchmark/parser_benchmark.dart --entries N` in a fresh Dart process. Results are observations from this machine, not performance guarantees.
