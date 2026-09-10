@@ -114,6 +114,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                         description: strings.analyzePlaylist,
                         icon: Icons.link_rounded,
                         focusNode: _urlActionFocus,
+                        autofocus: !compact,
                         width: cardWidth,
                         onActivate: () => setState(() => _showUrlField = true),
                       ),

@@ -16,7 +16,8 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: macOS and Web builds plus real HLS playback using an authorized public stream.
 - Verified: iOS 27 simulator build, install, launch, M3U URL import, and compact player-surface regression coverage. Post-correction iOS video playback remains to be re-run reliably.
 - Verified: Android SDK/licensing setup, debug and profile APK builds, Android 16 phone launch, native file selection, a 12,808-entry local import, and compact onboarding regression coverage.
-- In progress: Android public-HLS playback and Google TV runtime verification. Windows and tvOS runtime evidence remains outstanding.
+- Verified: Google TV ARM64 profile-build launch, 1080p adaptive layout, initial remote focus, and D-pad activation. The stock emulator has no usable local-document provider.
+- In progress: Android public-HLS playback and a TV-friendly source-transfer path. Windows and tvOS runtime evidence remains outstanding.
 
 ## M2 — Library engine (planned)
 
