@@ -35,6 +35,71 @@ class AppLocalizationsEn extends AppLocalizations {
   String get comingLater => 'Coming later';
 
   @override
+  String get connectProvider => 'Connect your provider';
+
+  @override
+  String get profileName => 'Profile name';
+
+  @override
+  String get serverUrl => 'Server URL';
+
+  @override
+  String get username => 'Username';
+
+  @override
+  String get password => 'Password';
+
+  @override
+  String get showServerUrl => 'Show server URL';
+
+  @override
+  String get hideServerUrl => 'Hide server URL';
+
+  @override
+  String get showPassword => 'Show password';
+
+  @override
+  String get hidePassword => 'Hide password';
+
+  @override
+  String get testConnection => 'Test connection';
+
+  @override
+  String get addPlaylist => 'Add playlist';
+
+  @override
+  String get invalidXtreamFields =>
+      'Complete every field with a valid HTTP or HTTPS server URL';
+
+  @override
+  String get connectionSuccessful => 'Connection successful';
+
+  @override
+  String get connectionFailed => 'The connection could not be completed';
+
+  @override
+  String get incorrectCredentials => 'Incorrect username or password';
+
+  @override
+  String get networkTimeout => 'The server took too long to respond';
+
+  @override
+  String get serverUnreachable => 'The server is currently unreachable';
+
+  @override
+  String get invalidProviderResponse =>
+      'The provider returned an unsupported response';
+
+  @override
+  String xtreamPlaylistAdded(int count) {
+    return 'Playlist added: $count items';
+  }
+
+  @override
+  String get webSessionStorageNotice =>
+      'On the Web, connection details are kept for this browser session only.';
+
+  @override
   String get urlHint => 'https://example.com/playlist.m3u';
 
   @override

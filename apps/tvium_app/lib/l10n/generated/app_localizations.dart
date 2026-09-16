@@ -146,6 +146,126 @@ abstract class AppLocalizations {
   /// **'Coming later'**
   String get comingLater;
 
+  /// No description provided for @connectProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect your provider'**
+  String get connectProvider;
+
+  /// No description provided for @profileName.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile name'**
+  String get profileName;
+
+  /// No description provided for @serverUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Server URL'**
+  String get serverUrl;
+
+  /// No description provided for @username.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get username;
+
+  /// No description provided for @password.
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get password;
+
+  /// No description provided for @showServerUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Show server URL'**
+  String get showServerUrl;
+
+  /// No description provided for @hideServerUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide server URL'**
+  String get hideServerUrl;
+
+  /// No description provided for @showPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Show password'**
+  String get showPassword;
+
+  /// No description provided for @hidePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide password'**
+  String get hidePassword;
+
+  /// No description provided for @testConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Test connection'**
+  String get testConnection;
+
+  /// No description provided for @addPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Add playlist'**
+  String get addPlaylist;
+
+  /// No description provided for @invalidXtreamFields.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete every field with a valid HTTP or HTTPS server URL'**
+  String get invalidXtreamFields;
+
+  /// No description provided for @connectionSuccessful.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection successful'**
+  String get connectionSuccessful;
+
+  /// No description provided for @connectionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection could not be completed'**
+  String get connectionFailed;
+
+  /// No description provided for @incorrectCredentials.
+  ///
+  /// In en, this message translates to:
+  /// **'Incorrect username or password'**
+  String get incorrectCredentials;
+
+  /// No description provided for @networkTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'The server took too long to respond'**
+  String get networkTimeout;
+
+  /// No description provided for @serverUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'The server is currently unreachable'**
+  String get serverUnreachable;
+
+  /// No description provided for @invalidProviderResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'The provider returned an unsupported response'**
+  String get invalidProviderResponse;
+
+  /// No description provided for @xtreamPlaylistAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist added: {count} items'**
+  String xtreamPlaylistAdded(int count);
+
+  /// No description provided for @webSessionStorageNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'On the Web, connection details are kept for this browser session only.'**
+  String get webSessionStorageNotice;
+
   /// No description provided for @urlHint.
   ///
   /// In en, this message translates to:

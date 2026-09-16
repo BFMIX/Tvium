@@ -49,4 +49,29 @@ void main() {
       expect(rect.right, lessThanOrEqualTo(390));
     }
   });
+
+  testWidgets('opens a protected Xtream connection form', (tester) async {
+    await tester.pumpWidget(const TviumApp());
+
+    await tester.tap(find.byKey(const ValueKey<String>('xtream-action')));
+    await tester.pump();
+
+    expect(find.text('Profile name'), findsOneWidget);
+    expect(find.text('Server URL'), findsOneWidget);
+    expect(find.text('Username'), findsOneWidget);
+    expect(find.text('Password'), findsOneWidget);
+    expect(find.text('Test connection'), findsOneWidget);
+    expect(find.text('Add playlist'), findsOneWidget);
+
+    final serverField = tester.widget<TextField>(
+      find.byKey(const ValueKey<String>('xtream-server-url')),
+    );
+    final passwordField = tester.widget<TextField>(
+      find.byKey(const ValueKey<String>('xtream-password')),
+    );
+    expect(serverField.obscureText, isTrue);
+    expect(serverField.enableSuggestions, isFalse);
+    expect(passwordField.obscureText, isTrue);
+    expect(passwordField.enableSuggestions, isFalse);
+  });
 }

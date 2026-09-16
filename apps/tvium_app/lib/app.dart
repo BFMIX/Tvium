@@ -8,6 +8,7 @@ import 'features/home/home_screen.dart';
 import 'features/import/local_playlist_picker.dart';
 import 'features/import/playlist_import_controller.dart';
 import 'features/import/playlist_import_provider.dart';
+import 'features/xtream/xtream_connection_service.dart';
 import 'l10n/generated/app_localizations.dart';
 
 final GoRouter _router = GoRouter(
@@ -17,15 +18,22 @@ final GoRouter _router = GoRouter(
 );
 
 final class TviumApp extends StatelessWidget {
-  const TviumApp({this.importController, this.localPlaylistPicker, super.key});
+  const TviumApp({
+    this.importController,
+    this.localPlaylistPicker,
+    this.xtreamConnectionService,
+    super.key,
+  });
 
   final PlaylistImportController? importController;
   final LocalPlaylistPicker? localPlaylistPicker;
+  final XtreamConnectionService? xtreamConnectionService;
 
   @override
   Widget build(BuildContext context) {
     final controller = importController;
     final picker = localPlaylistPicker;
+    final xtreamService = xtreamConnectionService;
     return ProviderScope(
       overrides: [
         if (controller != null)
@@ -35,6 +43,8 @@ final class TviumApp extends StatelessWidget {
           ),
         if (picker != null)
           localPlaylistPickerProvider.overrideWithValue(picker),
+        if (xtreamService != null)
+          xtreamConnectionServiceProvider.overrideWithValue(xtreamService),
       ],
       child: MaterialApp.router(
         title: 'Tvium',

@@ -11,6 +11,7 @@ import '../../l10n/generated/app_localizations.dart';
 import '../import/local_playlist_picker.dart';
 import '../import/playlist_import_controller.dart';
 import '../import/playlist_import_provider.dart';
+import '../xtream/xtream_connection_form.dart';
 import 'signal_rail.dart';
 import 'source_action_card.dart';
 
@@ -27,6 +28,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   final FocusNode _fileActionFocus = FocusNode(debugLabel: 'M3U file action');
   final FocusNode _xtreamActionFocus = FocusNode(debugLabel: 'Xtream action');
   var _showUrlField = false;
+  var _showXtreamForm = false;
   var _obscureUrl = true;
   String? _selectedGroup;
   M3uEntry? _selectedEntry;
@@ -116,7 +118,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                         focusNode: _urlActionFocus,
                         autofocus: !compact,
                         width: cardWidth,
-                        onActivate: () => setState(() => _showUrlField = true),
+                        onActivate: () => setState(() {
+                          _showUrlField = true;
+                          _showXtreamForm = false;
+                        }),
                       ),
                       SourceActionCard(
                         key: const ValueKey<String>('m3u-file-action'),
@@ -130,12 +135,14 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                       SourceActionCard(
                         key: const ValueKey<String>('xtream-action'),
                         title: strings.xtreamCodes,
-                        description: strings.comingLater,
+                        description: strings.connectProvider,
                         icon: Icons.dns_outlined,
                         focusNode: _xtreamActionFocus,
                         width: cardWidth,
-                        enabled: false,
-                        onActivate: () {},
+                        onActivate: () => setState(() {
+                          _showUrlField = false;
+                          _showXtreamForm = true;
+                        }),
                       ),
                     ];
                     if (compact) {
@@ -192,6 +199,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ],
                 ),
+              ],
+              if (_showXtreamForm) ...<Widget>[
+                const SizedBox(height: TviumSpacing.lg),
+                const XtreamConnectionForm(),
               ],
               if (importing) ...<Widget>[
                 const SizedBox(height: TviumSpacing.lg),
