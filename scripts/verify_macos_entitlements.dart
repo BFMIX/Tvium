@@ -50,5 +50,14 @@ void main(List<String> arguments) {
     return;
   }
 
-  stdout.writeln('Required macOS entitlements are present.');
+  if (!RegExp(
+    '<key>keychain-access-groups</key>\\s*<array(?:\\s*/>|>.*?</array>)',
+    dotAll: true,
+  ).hasMatch(output)) {
+    stderr.writeln('Missing required macOS Keychain access entitlement.');
+    exitCode = 1;
+    return;
+  }
+
+  stdout.writeln('Required macOS and Keychain entitlements are present.');
 }

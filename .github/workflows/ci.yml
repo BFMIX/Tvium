@@ -30,7 +30,21 @@ jobs:
         run: dart run melos run test
       - name: Build macOS app
         working-directory: apps/tvium_app
-        run: flutter build macos --debug
+        run: |
+          flutter build macos --debug --config-only
+          xcodebuild \
+            -workspace macos/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Debug \
+            -derivedDataPath build/macos \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          codesign \
+            --force \
+            --deep \
+            --sign - \
+            --entitlements macos/Runner/DebugProfile.entitlements \
+            build/macos/Build/Products/Debug/Tvium.app
       - name: Verify macOS entitlements
         run: >-
           dart run scripts/verify_macos_entitlements.dart
