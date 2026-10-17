@@ -102,6 +102,8 @@ jobs:
     name: Build Web and Pages artifact
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      pages-enabled: ${{ steps.pages.outcome == 'success' }}
     permissions:
       contents: read
       pages: write
@@ -117,6 +119,8 @@ jobs:
           dart pub get
           dart run melos bootstrap
       - name: Configure GitHub Pages
+        id: pages
+        continue-on-error: true
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - name: Build Web release for GitHub Pages
         working-directory: ${{ env.APP_DIRECTORY }}
@@ -136,12 +140,14 @@ jobs:
           path: dist/Tvium-Web.zip
           if-no-files-found: error
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        if: steps.pages.outcome == 'success'
         with:
           path: apps/tvium_app/build/web
 
   deploy-pages:
     name: Deploy GitHub Pages
     needs: web
+    if: needs.web.outputs.pages-enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

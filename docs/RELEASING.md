@@ -18,7 +18,9 @@ base path `/Tvium/`.
 5. Download the files from the generated GitHub Release.
 
 The repository's Pages source must be set to **GitHub Actions**. Private
-repository Pages availability depends on the GitHub account plan.
+repository Pages availability depends on the GitHub account plan. When Pages
+is unavailable, the workflow still publishes the downloadable Web archive and
+skips only the deployment job.
 
 ## Signing Status
 
