@@ -148,6 +148,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chooseChannel => 'Choisissez un élément pour lancer la lecture';
 
   @override
+  String get playbackUnavailable =>
+      'La lecture est indisponible. Reconnectez cette source puis réessayez.';
+
+  @override
   String get importFailed => 'La playlist n’a pas pu être importée';
 
   @override

@@ -19,7 +19,7 @@ Architecture decisions are immutable records under `docs/adr/`. New evidence cre
 - `media_kit` is provisional for the HLS spike and will be replaced per platform after equivalent behavior is verified.
 - The Phase 0 in-memory repository proves the persistence boundary; it is not a substitute for the planned indexed Drift/SQLite adapter.
 - `file_picker`, `http`, and `cached_network_image` support the vertical prototype only behind app/service boundaries.
-- Flutter 3.47.0 still builds the macOS adapter through CocoaPods, but warns that the selected `media_kit` plugins lack Swift Package Manager support.
+- Apple builds use Swift Package Manager with the upstream `media_kit` packages pinned to a reviewed commit that includes SPM manifests. CocoaPods integration has been removed from the iOS and macOS runners.
 - No final open-source license is selected.
 
 ## Change policy

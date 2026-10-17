@@ -21,16 +21,22 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 
 ## M2 — Library engine (in progress)
 
-- In progress: versioned Drift/SQLite persistence with transactional playlist replacement, stable ordering, and migration coverage.
-- Planned: normalization, variants, duplicate handling, series reconstruction, and indexed library search.
+- Verified: versioned Drift/SQLite persistence with transactional catalog replacement, stable ordering, and migration coverage.
+- Verified: conservative local title normalization and metadata matching preserve the original playlist data.
+- Verified: the optional metadata gateway accepts cleaned identity fields only, with TMDB, TVmaze, and IPTV-org adapters behind a strict privacy boundary.
+- In progress: variants, episode persistence, and indexed library search. Tolerant Xtream season/episode retrieval is verified at the adapter boundary.
 
-## M3 — UX foundation (planned)
+## M3 — UX foundation (in progress)
 
-Production design system, adaptive layouts, onboarding, home, accessibility, and D-pad/remote navigation.
+- Verified: approved Tvium logo family, application icons, visual reference screens, and brand color tokens are organized and integrated into the prototype.
+- Verified: production color and typography foundations, adaptive four-destination navigation shell, onboarding, Home, compact touch navigation, and wide-screen focus states.
+- In progress: accessibility audits and full D-pad/remote runtime coverage.
 
-## M4 — Live TV (planned)
+## M4 — Live TV (in progress)
 
-Groups, search, favorites, EPG, zapping, quick switcher, variant selection, and targeted health checks.
+- Verified: grouped browsing and scoped search.
+- Verified: safe XMLTV file/HTTPS import, deterministic channel matching, local EPG persistence, and honest Now/Next display.
+- In progress: profile-scoped favorite/history persistence. Zapping, quick switcher, variant selection, and targeted health checks remain planned.
 
 ## M5 — Movies and TV Shows (planned)
 
@@ -38,18 +44,21 @@ VOD details, seasons/episodes, progress, continue watching, history, and favorit
 
 ## M6 — Playlist management (planned)
 
-- In progress: credential-safe Xtream authentication and tolerant Live TV, VOD, and Series catalog mapping.
+- Verified: credential-safe Xtream authentication, tolerant Live TV/VOD/Series catalog mapping, direct library transition after sign-in, and secure on-demand stream URL resolution for playable Live TV and VOD items.
 - Verified: deterministic added/changed/removed/unchanged diffing rejects ambiguous duplicate identities before replacing a stored playlist.
-- Planned: secure platform storage, profile UI, multiple sources, durable user overlays, and bulk organization.
+- Verified: connected Xtream sources can be refreshed from Settings with aggregate change counts; failed refreshes keep the last working catalog.
+- Verified: native profile persistence, active-catalog restoration, compact profile switching, and shared Xtream sources without duplicate catalogs.
+- Verified: tolerant Series season/episode retrieval plus durable profile-scoped favorite, history, and parental-policy repositories.
+- Planned: per-source reconnect/removal controls, catalog integration for episodes, overlay UX, and bulk organization.
 
-## M7 — Parental controls (planned)
+## M7 — Parental controls (in progress)
 
-Protected playlists/items/categories, hashed PIN, visibility modes, search exclusion, poster blur, and timeout.
+Verified: durable profile-scoped parental-policy persistence. Planned: hashed PIN service, protected playlists/items/categories, visibility modes, search exclusion, poster blur, and timeout UX.
 
 ## M8 — Hardening (planned)
 
 Performance, accessibility, security review, crash isolation, profiling, native player adapters, and real-device matrices.
 
-## M9 — Release preparation (planned)
+## M9 — Release preparation (in progress)
 
-Packaging, Store metadata using authorized demo content, final legal/privacy review, signing, and release builds.
+Verified: reproducible macOS DMG, Android TV ARM64 APK, Web archive, Apple Swift Package Manager builds, TV launcher assets, and automated prerelease workflow. Planned: Store metadata using authorized demo content, final legal/privacy review, protected signing, notarization, and production release builds.

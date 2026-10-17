@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="apps/tvium_app/assets/branding/logo-primary-dark.png" alt="Tvium" width="320">
+
 # Tvium
 
 ### One IPTV player. Every screen.
@@ -44,7 +46,7 @@ Platform availability will be announced only after testing on the relevant devic
 
 ## Sources and organization
 
-Tvium currently focuses on progressive **M3U and M3U8** import. The product roadmap also covers Xtream-compatible connections, programme guides, source refresh, favorites, history, parental controls, and richer organization for movies and series.
+Tvium accepts progressive **M3U and M3U8** imports and protected **Xtream-compatible** connections. Optional XMLTV programme guides can be imported from a local file or private HTTPS address to show the current and next programme for matched live channels. The product roadmap also covers favorites, history, parental controls, and richer organization for movies and series.
 
 Source metadata is preserved so Tvium can improve presentation without silently changing the user's playlist.
 
@@ -53,10 +55,12 @@ Source metadata is preserved so Tvium can improve presentation without silently 
 Tvium is in active development and is **not yet available as a public download**. The Phase 0 prototype has validated:
 
 - M3U file and URL import;
+- secure Xtream-compatible profiles and shared family sources without duplicate catalogs;
+- local XMLTV programme guides with honest Now/Next information;
 - grouped Live, Movies, and TV Shows views;
 - keyboard and TV-style focus navigation;
 - a cross-platform HLS playback foundation;
-- Web and macOS development builds;
+- Web, macOS, Android, and unsigned iOS development builds;
 - progressive parsing of synthetic playlists containing up to 100,000 entries.
 
 See the [Phase 0 report](docs/PHASE_0_REPORT.md) for verified results and current limitations, or follow the [product roadmap](docs/ROADMAP.md).

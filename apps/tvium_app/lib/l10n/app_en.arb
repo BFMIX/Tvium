@@ -45,6 +45,7 @@
   "all": "All",
   "noItems": "No items found in this playlist",
   "chooseChannel": "Choose an item to start playback",
+  "playbackUnavailable": "Playback is unavailable. Reconnect this source and try again.",
   "importFailed": "The playlist could not be imported",
   "invalidUrl": "Enter a valid HTTP or HTTPS playlist URL",
   "unknownGroup": "Unclassified",

@@ -9,7 +9,9 @@ import '../../l10n/generated/app_localizations.dart';
 import 'xtream_connection_service.dart';
 
 final class XtreamConnectionForm extends ConsumerStatefulWidget {
-  const XtreamConnectionForm({super.key});
+  const XtreamConnectionForm({required this.onPlaylistAdded, super.key});
+
+  final ValueChanged<XtreamAddedProfile> onPlaylistAdded;
 
   @override
   ConsumerState<XtreamConnectionForm> createState() =>
@@ -187,6 +189,7 @@ final class _XtreamConnectionFormState
           _status = strings.xtreamPlaylistAdded(result.itemCount);
           _statusIsError = false;
         });
+        widget.onPlaylistAdded(result);
       } else {
         await service.testConnection(input);
         if (!mounted) return;

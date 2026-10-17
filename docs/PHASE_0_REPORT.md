@@ -11,7 +11,7 @@ Phase 0 validates Tvium's Flutter/Dart workspace and a local-first vertical prot
 
 - Flutter 3.47.0 stable; Dart 3.13.0; Melos 7.8.2.
 - macOS 27.0 prerelease on Apple Silicon through Rosetta.
-- Xcode 27.0 beta and CocoaPods 1.17.0.
+- Xcode 27.0 beta with Swift Package Manager integration.
 - Chrome installed; Xcode includes iOS 26.4 and iOS 27.0 simulator runtimes.
 - Android SDK 36, Build Tools 36.0.0, Platform Tools, NDK 28.2, CMake 3.22.1, and the Android Emulator are installed; all SDK licenses are accepted.
 - ARM64 Android 16 phone and Google TV emulator images are installed on the Apple Silicon host.
@@ -55,8 +55,8 @@ Fixtures use reserved `.test` hosts. Tests verify removal of credentials, URL pa
 - Windows build/runtime behavior is unverified on this macOS host.
 - Real network HLS decoding is verified with Apple's public Bip Bop stream on macOS and Chrome. Codec breadth, alternate tracks, subtitles, DRM, lifecycle recovery, and provider-specific streams remain unverified.
 - Web playback remains subject to browser codec support, CORS, HTTPS/mixed-content rules, and provider headers. Tvium will not add a proxy to bypass these restrictions.
-- Flutter reports that the current `media_kit` macOS plugins do not yet support Swift Package Manager; CocoaPods works now, but this becomes a future compatibility risk.
-- Persistence, EPG, Xtream, source refresh/diffing, parental controls, and Store release work remain outside Phase 0.
+- The Apple runners now use pinned upstream `media_kit` packages with Swift Package Manager support; CocoaPods integration has been removed and release builds are verified locally.
+- Persistence, EPG, Xtream, and source refresh/diffing have advanced beyond Phase 0. Favorites, history, parental-control UX, and production Store signing remain later release work.
 
 ## Post-Phase 0 Corrections
 

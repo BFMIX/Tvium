@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_design_system/tvium_design_system.dart';
 
 import 'features/home/home_screen.dart';
 import 'features/import/local_playlist_picker.dart';
 import 'features/import/playlist_import_controller.dart';
 import 'features/import/playlist_import_provider.dart';
+import 'features/library/library_bootstrap_controller.dart';
 import 'features/xtream/xtream_connection_service.dart';
 import 'l10n/generated/app_localizations.dart';
 
@@ -22,12 +24,14 @@ final class TviumApp extends StatelessWidget {
     this.importController,
     this.localPlaylistPicker,
     this.xtreamConnectionService,
+    this.profileSourceRepository,
     super.key,
   });
 
   final PlaylistImportController? importController;
   final LocalPlaylistPicker? localPlaylistPicker;
   final XtreamConnectionService? xtreamConnectionService;
+  final ProfileSourceRepository? profileSourceRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +40,10 @@ final class TviumApp extends StatelessWidget {
     final xtreamService = xtreamConnectionService;
     return ProviderScope(
       overrides: [
+        if (profileSourceRepository != null)
+          libraryRepositoryProvider.overrideWith(
+            (ref) async => profileSourceRepository!,
+          ),
         if (controller != null)
           playlistImportControllerProvider.overrideWith(
             (ref) => controller,

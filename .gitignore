@@ -17,12 +17,16 @@ GEMINI.md
 .aider*
 docs/superpowers/
 
+# Local working design source containing tool-specific notes
+docs/design/tvium-branding-kit.pdf
+
 # Flutter and Dart
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
 build/
+dist/
 coverage/
 *.log
 

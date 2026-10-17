@@ -3,12 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
 import 'package:tvium_app/features/xtream/xtream_connection_service.dart';
 import 'package:tvium_core/tvium_core.dart';
+import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_xtream/tvium_xtream.dart';
 
 void main() {
   testWidgets('tests and securely adds an Xtream profile', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final service = _FakeXtreamConnectionService();
-    await tester.pumpWidget(TviumApp(xtreamConnectionService: service));
+    final repository = InMemoryProfileSourceRepository();
+    await repository.ensureDefaultProfile();
+    await repository.createProfile('Kids');
+    await tester.pumpWidget(
+      TviumApp(
+        xtreamConnectionService: service,
+        profileSourceRepository: repository,
+      ),
+    );
 
     await tester.tap(find.byKey(const ValueKey<String>('xtream-action')));
     await tester.pump();
@@ -47,16 +60,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(service.added?.credentials.password, 'fixture-password');
-    expect(find.text('Playlist added: 3 items'), findsOneWidget);
-    expect(
-      tester
-          .widget<TextField>(
-            find.byKey(const ValueKey<String>('xtream-password')),
-          )
-          .controller!
-          .text,
-      isEmpty,
-    );
+
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    expect(find.text('News'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Movies'));
+    await tester.pumpAndSettle();
+    expect(find.text('Movie'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'TV Shows'));
+    await tester.pumpAndSettle();
+    expect(find.text('Series'), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('xtream-password')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('profile-action')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Kids'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('News'), findsNothing);
+    expect(find.text('Welcome to Tvium'), findsOneWidget);
   });
 }
 
@@ -114,6 +138,10 @@ final class _FakeXtreamConnectionService implements XtreamConnectionService {
       ),
     );
   }
+
+  @override
+  Future<Uri> resolveStreamUri(String profileId, XtreamMediaItem item) async =>
+      Uri.parse('https://stream.example.test/${item.id}');
 }
 
 const _account = XtreamAccountInfo(

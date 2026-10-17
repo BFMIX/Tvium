@@ -8,6 +8,11 @@ void main() {
   ) async {
     await tester.pumpWidget(const TviumApp());
 
+    expect(
+      find.byKey(const ValueKey<String>('tvium-brand-logo')),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('Tvium'), findsOneWidget);
     expect(find.text('Welcome to Tvium'), findsOneWidget);
     expect(
       find.text('Add your own IPTV source to get started.'),

@@ -43,12 +43,16 @@ dependencies:
   file_picker: ^12.0.0
   flutter_secure_storage: ^11.0.0
   http: ^1.6.0
+  crypto: ^3.0.6
+  path_provider: ^2.1.5
   cached_network_image: ^3.4.1
   intl: ^0.20.3
   tvium_core:
     path: ../../packages/tvium_core
   tvium_database:
     path: ../../packages/tvium_database
+  tvium_epg:
+    path: ../../packages/tvium_epg
   tvium_design_system:
     path: ../../packages/tvium_design_system
   tvium_m3u:
@@ -69,12 +73,36 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+# The published Apple plugins do not yet include the Swift Package Manager
+# manifests already available upstream. Pin the reviewed upstream revision so
+# Apple builds use SwiftPM without waiting for a pub.dev release.
+dependency_overrides:
+  media_kit_video:
+    git:
+      url: https://github.com/media-kit/media-kit.git
+      ref: c533e446755f51cf53c7e57aea873f2aa5355f81
+      path: media_kit_video
+  media_kit_libs_ios_video:
+    git:
+      url: https://github.com/media-kit/media-kit.git
+      ref: c533e446755f51cf53c7e57aea873f2aa5355f81
+      path: libs/ios/media_kit_libs_ios_video
+  media_kit_libs_macos_video:
+    git:
+      url: https://github.com/media-kit/media-kit.git
+      ref: c533e446755f51cf53c7e57aea873f2aa5355f81
+      path: libs/macos/media_kit_libs_macos_video
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
 flutter:
+  config:
+    enable-swift-package-manager: true
   generate: true
+  assets:
+    - assets/branding/
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

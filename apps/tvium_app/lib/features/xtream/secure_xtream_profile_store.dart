@@ -3,6 +3,11 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:tvium_xtream/tvium_xtream.dart';
 
+FlutterSecureStorage createTviumSecureStorage() => const FlutterSecureStorage(
+  webOptions: WebOptions(useSessionStorage: true),
+  mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+);
+
 abstract interface class SecureKeyValueStore {
   Future<void> write(String key, String value);
 
@@ -13,11 +18,7 @@ abstract interface class SecureKeyValueStore {
 
 final class FlutterSecureKeyValueStore implements SecureKeyValueStore {
   FlutterSecureKeyValueStore({FlutterSecureStorage? storage})
-    : _storage =
-          storage ??
-          const FlutterSecureStorage(
-            webOptions: WebOptions(useSessionStorage: true),
-          );
+    : _storage = storage ?? createTviumSecureStorage();
 
   final FlutterSecureStorage _storage;
 

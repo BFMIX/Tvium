@@ -356,6 +356,12 @@ abstract class AppLocalizations {
   /// **'Choose an item to start playback'**
   String get chooseChannel;
 
+  /// No description provided for @playbackUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback is unavailable. Reconnect this source and try again.'**
+  String get playbackUnavailable;
+
   /// No description provided for @importFailed.
   ///
   /// In en, this message translates to:

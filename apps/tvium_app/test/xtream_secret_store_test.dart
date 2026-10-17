@@ -3,6 +3,12 @@ import 'package:tvium_app/features/xtream/secure_xtream_profile_store.dart';
 import 'package:tvium_xtream/tvium_xtream.dart';
 
 void main() {
+  test('uses a distributable macOS keychain configuration', () {
+    final storage = createTviumSecureStorage();
+
+    expect(storage.mOptions.toMap()['usesDataProtectionKeychain'], 'false');
+  });
+
   test('round-trips an Xtream connection through the secure backend', () async {
     final backend = _MemorySecureKeyValueStore();
     final store = SecureXtreamProfileStore(backend);

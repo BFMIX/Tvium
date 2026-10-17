@@ -45,6 +45,7 @@
   "all": "Tout",
   "noItems": "Aucun élément trouvé dans cette playlist",
   "chooseChannel": "Choisissez un élément pour lancer la lecture",
+  "playbackUnavailable": "La lecture est indisponible. Reconnectez cette source puis réessayez.",
   "importFailed": "La playlist n’a pas pu être importée",
   "invalidUrl": "Saisissez une URL HTTP ou HTTPS valide",
   "unknownGroup": "Non classé",

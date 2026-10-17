@@ -36,6 +36,27 @@ void main() {
     expect(entries.first.sourceReference, 'source-news');
   });
 
+  test('preserves the non-secret EPG channel identifier', () async {
+    final repository = SqlitePlaylistRepository.open(databasePath);
+    addTearDown(repository.close);
+    await repository.replaceEntries('primary', <PersistedMediaEntry>[
+      PersistedMediaEntry(
+        id: 'news',
+        playlistId: 'primary',
+        sourceReference: 'source-news',
+        originalName: 'Fixture News',
+        displayName: 'Fixture News',
+        groupName: 'News',
+        kind: MediaKind.live,
+        epgChannelId: 'fixture.news.test',
+      ),
+    ]);
+
+    final entries = await repository.entriesForPlaylist('primary');
+
+    expect(entries.single.epgChannelId, 'fixture.news.test');
+  });
+
   test('migrates a version one database without losing entries', () async {
     _createVersionOneDatabase(databasePath);
 
@@ -48,7 +69,7 @@ void main() {
 
     final migrated = sqlite3.open(databasePath);
     addTearDown(migrated.close);
-    expect(migrated.userVersion, 2);
+    expect(migrated.userVersion, 5);
     final columns = migrated.select('PRAGMA table_info(media_entries)');
     expect(columns.map((row) => row['name']), contains('search_name'));
   });
