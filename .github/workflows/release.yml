@@ -44,7 +44,16 @@ jobs:
           dart run melos bootstrap
       - name: Build macOS release
         working-directory: ${{ env.APP_DIRECTORY }}
-        run: flutter build macos --release
+        run: |
+          flutter build macos --release --config-only
+          xcodebuild \
+            -workspace macos/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -derivedDataPath build/macos \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM= \
+            build
       - name: Ad-hoc sign macOS app
         working-directory: ${{ env.APP_DIRECTORY }}
         run: |
