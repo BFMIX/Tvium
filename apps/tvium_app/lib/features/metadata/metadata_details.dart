@@ -20,10 +20,18 @@ Future<void> showLibrarySettings(
   Future<String> Function()? onImportEpgFile,
   Future<String> Function(Uri uri)? onImportEpgUrl,
   Future<String> Function()? onRefreshSources,
+  bool parentalConfigured = false,
+  bool parentalUnlocked = false,
+  Future<String> Function(String pin)? onSaveParentalPin,
+  Future<String> Function(String pin)? onUnlockParental,
 }) async {
   final epgUrlController = TextEditingController();
+  final parentalPinController = TextEditingController();
   String? epgStatus;
+  String? parentalStatus;
   var importingEpg = false;
+  var dialogParentalConfigured = parentalConfigured;
+  var dialogParentalUnlocked = parentalUnlocked;
   await showDialog<void>(
     context: context,
     builder: (context) => StatefulBuilder(
@@ -74,6 +82,84 @@ Future<void> showLibrarySettings(
                         : null,
                   ),
                 ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Parental controls',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  dialogParentalConfigured
+                      ? dialogParentalUnlocked
+                            ? 'Protected content is unlocked for this session.'
+                            : 'Protected categories are hidden.'
+                      : 'Set a PIN to hide protected categories.',
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const ValueKey('parental-pin-field'),
+                  controller: parentalPinController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 8,
+                  decoration: const InputDecoration(
+                    labelText: '4 to 8 digit PIN',
+                  ),
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    FilledButton.icon(
+                      key: const ValueKey('parental-primary-action'),
+                      onPressed:
+                          (dialogParentalConfigured && !dialogParentalUnlocked
+                                  ? onUnlockParental
+                                  : onSaveParentalPin) ==
+                              null
+                          ? null
+                          : () async {
+                              final action =
+                                  dialogParentalConfigured &&
+                                      !dialogParentalUnlocked
+                                  ? onUnlockParental
+                                  : onSaveParentalPin;
+                              final message = await action!(
+                                parentalPinController.text,
+                              );
+                              parentalPinController.clear();
+                              if (context.mounted) {
+                                setDialogState(() {
+                                  parentalStatus = message;
+                                  if (message == 'Parental controls enabled.') {
+                                    dialogParentalConfigured = true;
+                                    dialogParentalUnlocked = false;
+                                  } else if (message ==
+                                      'Protected content unlocked for this session.') {
+                                    dialogParentalUnlocked = true;
+                                  }
+                                });
+                              }
+                            },
+                      icon: Icon(
+                        dialogParentalConfigured && !dialogParentalUnlocked
+                            ? Icons.lock_open_rounded
+                            : Icons.shield_outlined,
+                      ),
+                      label: Text(
+                        dialogParentalConfigured && !dialogParentalUnlocked
+                            ? 'Unlock'
+                            : dialogParentalConfigured
+                            ? 'Change PIN'
+                            : 'Enable',
+                      ),
+                    ),
+                  ],
+                ),
+                if (parentalStatus != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(parentalStatus!),
+                  ),
                 const SizedBox(height: 16),
                 const Text(
                   'Programme guide',
@@ -173,6 +259,7 @@ Future<void> showLibrarySettings(
     ),
   );
   epgUrlController.dispose();
+  parentalPinController.dispose();
 }
 
 final class MetadataDetails extends ConsumerStatefulWidget {

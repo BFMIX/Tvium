@@ -36,11 +36,14 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 
 - Verified: grouped browsing and scoped search.
 - Verified: safe XMLTV file/HTTPS import, deterministic channel matching, local EPG persistence, and honest Now/Next display.
-- In progress: profile-scoped favorite/history persistence. Zapping, quick switcher, variant selection, and targeted health checks remain planned.
+- Verified: profile-scoped favorites and recently played history are persistent and exposed in the library UI.
+- In progress: playback progress/resume. Zapping, quick switcher, variant selection, and targeted health checks remain planned.
 
-## M5 — Movies and TV Shows (planned)
+## M5 — Movies and TV Shows (in progress)
 
-VOD details, seasons/episodes, progress, continue watching, history, and favorites.
+- Verified: Xtream series details load on demand and expose ordered seasons and playable episodes without persisting stream URLs.
+- Verified: favorites and recently played history work across Live TV, Movies, and TV Shows.
+- Planned: enriched VOD details, durable episode catalogs, playback progress, and continue watching.
 
 ## M6 — Playlist management (planned)
 
@@ -49,11 +52,12 @@ VOD details, seasons/episodes, progress, continue watching, history, and favorit
 - Verified: connected Xtream sources can be refreshed from Settings with aggregate change counts; failed refreshes keep the last working catalog.
 - Verified: native profile persistence, active-catalog restoration, compact profile switching, and shared Xtream sources without duplicate catalogs.
 - Verified: tolerant Series season/episode retrieval plus durable profile-scoped favorite, history, and parental-policy repositories.
-- Planned: per-source reconnect/removal controls, catalog integration for episodes, overlay UX, and bulk organization.
+- Verified: on-demand Xtream episode catalog and playback integration plus profile-scoped overlay UX.
+- Planned: per-source reconnect/removal controls and bulk organization.
 
 ## M7 — Parental controls (in progress)
 
-Verified: durable profile-scoped parental-policy persistence. Planned: hashed PIN service, protected playlists/items/categories, visibility modes, search exclusion, poster blur, and timeout UX.
+Verified: durable profile-scoped parental-policy persistence, salted iterative PIN hashing, protected-category filtering, and session unlock. Planned: explicit category controls, search exclusion, poster blur, and configurable timeout UX.
 
 ## M8 — Hardening (planned)
 

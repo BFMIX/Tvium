@@ -236,6 +236,54 @@ void main() {
       expect(result.toString(), isNot(contains('provider.example.test')));
     },
   );
+
+  test('loads and resolves Xtream series episodes on demand', () async {
+    final backend = _MemorySecureKeyValueStore();
+    final secureStore = SecureXtreamProfileStore(backend);
+    await secureStore.write(
+      'fixture-reference',
+      XtreamConnectionSecret(
+        serverUri: _input.serverUri,
+        credentials: _input.credentials,
+      ),
+    );
+    final service = DefaultXtreamConnectionService(
+      httpClient: MockClient((request) async {
+        expect(request.url.queryParameters['action'], 'get_series_info');
+        expect(request.url.queryParameters['series_id'], '7');
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            'info': <String, Object?>{'name': 'Fixture show'},
+            'episodes': <String, Object?>{
+              '1': <Object?>[
+                <String, Object?>{
+                  'id': '71',
+                  'episode_num': 1,
+                  'season': 1,
+                  'title': 'Pilot',
+                  'container_extension': 'mkv',
+                },
+              ],
+            },
+          }),
+          200,
+        );
+      }),
+      secretStore: secureStore,
+    );
+
+    final details = await service.loadSeriesDetails('fixture-reference', '7');
+    final episode = details.seasons.single.episodes.single;
+
+    expect(episode.title, 'Pilot');
+    expect(
+      await service.resolveEpisodeStreamUri('fixture-reference', episode),
+      Uri.parse(
+        'https://provider.example.test/series/fixture-user/'
+        'fixture-password/71.mkv',
+      ),
+    );
+  });
 }
 
 final _input = XtreamConnectionInput(

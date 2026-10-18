@@ -76,6 +76,15 @@ abstract interface class XtreamSourceRefreshService {
   Future<XtreamRefreshResult> refreshSource(String sourceId);
 }
 
+abstract interface class XtreamSeriesService {
+  Future<XtreamSeriesDetails> loadSeriesDetails(
+    String profileId,
+    String seriesId,
+  );
+
+  Future<Uri> resolveEpisodeStreamUri(String profileId, XtreamEpisode episode);
+}
+
 final class XtreamRefreshResult {
   const XtreamRefreshResult({
     required this.addedCount,
@@ -96,7 +105,10 @@ final class XtreamRefreshResult {
 }
 
 final class DefaultXtreamConnectionService
-    implements XtreamConnectionService, XtreamSourceRefreshService {
+    implements
+        XtreamConnectionService,
+        XtreamSourceRefreshService,
+        XtreamSeriesService {
   DefaultXtreamConnectionService({
     http.Client? httpClient,
     SecureXtreamProfileStore? secretStore,
@@ -276,21 +288,55 @@ final class DefaultXtreamConnectionService
 
   @override
   Future<Uri> resolveStreamUri(String profileId, XtreamMediaItem item) async {
-    final secret = await _secretStore.read(profileId);
-    if (secret == null) {
-      throw const XtreamSecretStoreException();
-    }
+    final secret = await _requiredSecret(profileId);
     return XtreamStreamUriBuilder.build(
-      profile: XtreamProfile(
-        id: profileId,
-        displayName: 'Tvium',
-        serverUri: secret.serverUri,
-        credentialReference: profileId,
-      ),
+      profile: _storedProfile(profileId, secret),
       credentials: secret.credentials,
       item: item,
     );
   }
+
+  @override
+  Future<XtreamSeriesDetails> loadSeriesDetails(
+    String profileId,
+    String seriesId,
+  ) async {
+    final secret = await _requiredSecret(profileId);
+    return XtreamClient(_httpClient).loadSeriesDetails(
+      _storedProfile(profileId, secret),
+      secret.credentials,
+      seriesId: seriesId,
+    );
+  }
+
+  @override
+  Future<Uri> resolveEpisodeStreamUri(
+    String profileId,
+    XtreamEpisode episode,
+  ) async {
+    final secret = await _requiredSecret(profileId);
+    return XtreamStreamUriBuilder.buildEpisode(
+      profile: _storedProfile(profileId, secret),
+      credentials: secret.credentials,
+      episode: episode,
+    );
+  }
+
+  Future<XtreamConnectionSecret> _requiredSecret(String profileId) async {
+    final secret = await _secretStore.read(profileId);
+    if (secret == null) throw const XtreamSecretStoreException();
+    return secret;
+  }
+
+  XtreamProfile _storedProfile(
+    String profileId,
+    XtreamConnectionSecret secret,
+  ) => XtreamProfile(
+    id: profileId,
+    displayName: 'Tvium',
+    serverUri: secret.serverUri,
+    credentialReference: profileId,
+  );
 
   XtreamProfile _profile(XtreamConnectionInput input, String reference) {
     return XtreamProfile(

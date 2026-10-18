@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tvium_core/tvium_core.dart';
@@ -20,7 +21,9 @@ import '../import/local_playlist_picker.dart';
 import '../import/playlist_import_controller.dart';
 import '../import/playlist_import_provider.dart';
 import '../library/library_bootstrap_controller.dart';
+import '../library/user_overlays_controller.dart';
 import '../metadata/metadata_details.dart';
+import '../parental/parental_pin_service.dart';
 import '../profiles/profile_switcher.dart';
 import '../xtream/xtream_connection_form.dart';
 import '../xtream/xtream_connection_service.dart';
@@ -46,6 +49,8 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   _LibraryEntry? _selectedEntry;
   MediaKitPlaybackEngine? _playbackEngine;
   String? _playbackError;
+  String? _unlockedParentalProfileId;
+  var _profileSessionGeneration = 0;
 
   @override
   void dispose() {
@@ -65,7 +70,22 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     final controller = ref.watch(playlistImportControllerProvider);
     final state = controller.state;
     final persistedLibrary = ref.watch(libraryBootstrapProvider).asData?.value;
-    final entries = _libraryEntries(state, persistedLibrary);
+    final profileId =
+        persistedLibrary?.activeProfile.id ??
+        _xtreamProfile?.targetProfileId ??
+        'session.profile';
+    final overlays = ref
+        .watch(userOverlaysControllerProvider(profileId))
+        .asData
+        ?.value;
+    final parentalPolicy = overlays?.parentalPolicy;
+    final allEntries = _libraryEntries(state, persistedLibrary);
+    final parentalUnlocked = _unlockedParentalProfileId == profileId;
+    final entries = parentalPolicy != null && !parentalUnlocked
+        ? allEntries
+              .where((entry) => !_blockedByParentalPolicy(entry))
+              .toList(growable: false)
+        : allEntries;
     final sessionEpgEntries = _sessionEpgEntries(state);
     final epgSchedules = <String, EpgNowNext?>{};
     final epgEntries = <PersistedMediaEntry>[
@@ -135,13 +155,24 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                       selectedGroup: _selectedGroup,
                       selectedEntry: _selectedEntry,
                       playbackEngine: _playbackEngine,
+                      profileId: profileId,
+                      favorites: overlays?.favorites ?? const {},
+                      history: overlays?.history ?? const [],
                       onGroupSelected: (group) =>
                           setState(() => _selectedGroup = group),
-                      onEntrySelected: _play,
+                      onEntrySelected: (entry) => _play(profileId, entry),
+                      onFavoriteToggled: (entry) =>
+                          _toggleFavorite(profileId, entry),
                       onProfileChanged: _resetProfileSession,
                       onImportEpgFile: _importEpgFile,
                       onImportEpgUrl: _importEpgUrl,
                       onRefreshSources: _refreshSources,
+                      parentalConfigured: parentalPolicy != null,
+                      parentalUnlocked: parentalUnlocked,
+                      onSaveParentalPin: (pin) =>
+                          _saveParentalPin(profileId, pin),
+                      onUnlockParental: (pin) =>
+                          _unlockParental(parentalPolicy, pin),
                     ),
                   ),
                 ],
@@ -461,11 +492,13 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _resetProfileSession() {
     final engine = _playbackEngine;
     setState(() {
+      _profileSessionGeneration += 1;
       _xtreamProfile = null;
       _selectedGroup = null;
       _selectedEntry = null;
       _playbackEngine = null;
       _playbackError = null;
+      _unlockedParentalProfileId = null;
     });
     if (engine != null) {
       unawaited(engine.dispose());
@@ -508,6 +541,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       for (final series in catalog.series)
         _LibraryEntry.fromSeries(
           series,
+          profileId: xtreamProfile.profileId,
           group: series.categoryId == null
               ? null
               : categories[series.categoryId],
@@ -515,12 +549,13 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     ];
   }
 
-  Future<void> _play(_LibraryEntry entry) async {
+  Future<void> _play(String profileId, _LibraryEntry entry) async {
+    final sessionGeneration = _profileSessionGeneration;
     try {
       final uri = await entry.resolveUri(
         ref.read(xtreamConnectionServiceProvider),
       );
-      if (uri == null) {
+      if (uri == null || sessionGeneration != _profileSessionGeneration) {
         return;
       }
       final engine = _playbackEngine ??= MediaKitPlaybackEngine();
@@ -529,7 +564,19 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
         _playbackError = null;
       });
       await engine.open(MediaSource(uri: uri, title: entry.name));
+      if (sessionGeneration != _profileSessionGeneration) return;
       await engine.play();
+      if (sessionGeneration != _profileSessionGeneration) return;
+      await ref
+          .read(userOverlaysControllerProvider(profileId).notifier)
+          .recordPlayback(
+            PlaybackHistoryEntry(
+              media: entry.locator(profileId),
+              lastPlayedAtUtc: DateTime.now().toUtc(),
+              position: Duration.zero,
+              duration: Duration.zero,
+            ),
+          );
       if (mounted) {
         setState(() {});
       }
@@ -542,7 +589,53 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     }
   }
+
+  Future<void> _toggleFavorite(String profileId, _LibraryEntry entry) => ref
+      .read(userOverlaysControllerProvider(profileId).notifier)
+      .toggleFavorite(entry.locator(profileId));
+
+  Future<String> _saveParentalPin(String profileId, String pin) async {
+    try {
+      final digest = await compute(_hashParentalPin, pin);
+      await ref
+          .read(userOverlaysControllerProvider(profileId).notifier)
+          .saveParentalPolicy(
+            ParentalPolicy(
+              profileId: profileId,
+              pinDigest: digest,
+              blockedContent: const {'adult'},
+            ),
+          );
+      if (mounted) setState(() => _unlockedParentalProfileId = null);
+      return 'Parental controls enabled.';
+    } on ArgumentError {
+      return 'Use a PIN containing 4 to 8 digits.';
+    }
+  }
+
+  Future<String> _unlockParental(ParentalPolicy? policy, String pin) async {
+    if (policy == null) return 'Set a parental PIN first.';
+    final verified = await compute(_verifyParentalPin, (
+      pin: pin,
+      digest: policy.pinDigest,
+    ));
+    if (!verified) return 'Incorrect PIN.';
+    if (mounted) {
+      setState(() => _unlockedParentalProfileId = policy.profileId);
+    }
+    return 'Protected content unlocked for this session.';
+  }
+
+  bool _blockedByParentalPolicy(_LibraryEntry entry) {
+    final value = '${entry.group ?? ''} ${entry.name}'.toLowerCase();
+    return const <String>['adult', 'xxx', '18+', 'porn'].any(value.contains);
+  }
 }
+
+String _hashParentalPin(String pin) => ParentalPinService().hash(pin);
+
+bool _verifyParentalPin(({String pin, String digest}) input) =>
+    ParentalPinService().verify(input.pin, input.digest);
 
 final class _LibraryView extends ConsumerStatefulWidget {
   const _LibraryView({
@@ -551,12 +644,20 @@ final class _LibraryView extends ConsumerStatefulWidget {
     required this.selectedGroup,
     required this.selectedEntry,
     required this.playbackEngine,
+    required this.profileId,
+    required this.favorites,
+    required this.history,
     required this.onGroupSelected,
     required this.onEntrySelected,
+    required this.onFavoriteToggled,
     required this.onProfileChanged,
     required this.onImportEpgFile,
     required this.onImportEpgUrl,
     required this.onRefreshSources,
+    required this.parentalConfigured,
+    required this.parentalUnlocked,
+    required this.onSaveParentalPin,
+    required this.onUnlockParental,
   });
 
   final List<_LibraryEntry> entries;
@@ -564,12 +665,20 @@ final class _LibraryView extends ConsumerStatefulWidget {
   final String? selectedGroup;
   final _LibraryEntry? selectedEntry;
   final MediaKitPlaybackEngine? playbackEngine;
+  final String profileId;
+  final Set<MediaLocator> favorites;
+  final List<PlaybackHistoryEntry> history;
   final ValueChanged<String?> onGroupSelected;
   final ValueChanged<_LibraryEntry> onEntrySelected;
+  final ValueChanged<_LibraryEntry> onFavoriteToggled;
   final VoidCallback onProfileChanged;
   final Future<String> Function() onImportEpgFile;
   final Future<String> Function(Uri uri) onImportEpgUrl;
   final Future<String> Function() onRefreshSources;
+  final bool parentalConfigured;
+  final bool parentalUnlocked;
+  final Future<String> Function(String pin) onSaveParentalPin;
+  final Future<String> Function(String pin) onUnlockParental;
 
   @override
   ConsumerState<_LibraryView> createState() => _LibraryViewState();
@@ -615,6 +724,10 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                   onImportEpgFile: widget.onImportEpgFile,
                   onImportEpgUrl: widget.onImportEpgUrl,
                   onRefreshSources: widget.onRefreshSources,
+                  parentalConfigured: widget.parentalConfigured,
+                  parentalUnlocked: widget.parentalUnlocked,
+                  onSaveParentalPin: widget.onSaveParentalPin,
+                  onUnlockParental: widget.onUnlockParental,
                 ),
                 onProfileChanged: widget.onProfileChanged,
               ),
@@ -645,7 +758,10 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                     _CatalogDestination.home => _DestinationHome(
                       key: const ValueKey('page-home'),
                       entries: entries,
+                      profileId: widget.profileId,
+                      history: widget.history,
                       onSelected: _selectDestination,
+                      onPlay: widget.onEntrySelected,
                     ),
                     _CatalogDestination.live => _CatalogPage(
                       key: const ValueKey('page-live'),
@@ -658,6 +774,9 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       playbackEngine: widget.playbackEngine,
                       onGroupSelected: widget.onGroupSelected,
                       onPlay: widget.onEntrySelected,
+                      profileId: widget.profileId,
+                      favorites: widget.favorites,
+                      onFavoriteToggled: widget.onFavoriteToggled,
                     ),
                     _CatalogDestination.movies => _CatalogPage(
                       key: const ValueKey('page-movies'),
@@ -670,6 +789,9 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       playbackEngine: widget.playbackEngine,
                       onGroupSelected: widget.onGroupSelected,
                       onPlay: widget.onEntrySelected,
+                      profileId: widget.profileId,
+                      favorites: widget.favorites,
+                      onFavoriteToggled: widget.onFavoriteToggled,
                     ),
                     _CatalogDestination.shows => _CatalogPage(
                       key: const ValueKey('page-shows'),
@@ -682,6 +804,9 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       playbackEngine: widget.playbackEngine,
                       onGroupSelected: widget.onGroupSelected,
                       onPlay: widget.onEntrySelected,
+                      profileId: widget.profileId,
+                      favorites: widget.favorites,
+                      onFavoriteToggled: widget.onFavoriteToggled,
                     ),
                   },
                 ),
@@ -926,11 +1051,17 @@ final class _DestinationHome extends StatelessWidget {
   const _DestinationHome({
     super.key,
     required this.entries,
+    required this.profileId,
+    required this.history,
     required this.onSelected,
+    required this.onPlay,
   });
 
   final List<_LibraryEntry> entries;
+  final String profileId;
+  final List<PlaybackHistoryEntry> history;
   final ValueChanged<_CatalogDestination> onSelected;
+  final ValueChanged<_LibraryEntry> onPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -969,7 +1100,15 @@ final class _DestinationHome extends StatelessWidget {
                     onPressed: () => onSelected(destination),
                   ),
               ];
-              return horizontal
+              final entriesByLocator = <MediaLocator, _LibraryEntry>{
+                for (final entry in entries) entry.locator(profileId): entry,
+              };
+              final recent = history
+                  .map((item) => entriesByLocator[item.media])
+                  .whereType<_LibraryEntry>()
+                  .take(8)
+                  .toList(growable: false);
+              final destinationCards = horizontal
                   ? SizedBox(
                       height: 240,
                       child: Row(
@@ -1000,6 +1139,50 @@ final class _DestinationHome extends StatelessWidget {
                         ],
                       ],
                     );
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  destinationCards,
+                  if (recent.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: TviumSpacing.xl),
+                    Text(
+                      'Recently played',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: TviumSpacing.sm),
+                    SizedBox(
+                      height: 96,
+                      child: ListView.separated(
+                        key: const ValueKey('recently-played'),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: recent.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(width: TviumSpacing.sm),
+                        itemBuilder: (context, index) {
+                          final entry = recent[index];
+                          return SizedBox(
+                            width: 230,
+                            child: Card(
+                              child: ListTile(
+                                leading: Icon(_mediaIcon(entry.kind)),
+                                title: Text(
+                                  entry.displayName,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: const Icon(Icons.play_arrow_rounded),
+                                onTap: entry.isPlayable
+                                    ? () => onPlay(entry)
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ],
+              );
             },
           ),
         ),
@@ -1079,7 +1262,7 @@ final class _DestinationCard extends StatelessWidget {
   }
 }
 
-final class _CatalogPage extends StatelessWidget {
+final class _CatalogPage extends ConsumerWidget {
   const _CatalogPage({
     super.key,
     required this.destination,
@@ -1091,6 +1274,9 @@ final class _CatalogPage extends StatelessWidget {
     required this.playbackEngine,
     required this.onGroupSelected,
     required this.onPlay,
+    required this.profileId,
+    required this.favorites,
+    required this.onFavoriteToggled,
   });
 
   final _CatalogDestination destination;
@@ -1102,9 +1288,12 @@ final class _CatalogPage extends StatelessWidget {
   final MediaKitPlaybackEngine? playbackEngine;
   final ValueChanged<String?> onGroupSelected;
   final ValueChanged<_LibraryEntry> onPlay;
+  final String profileId;
+  final Set<MediaLocator> favorites;
+  final ValueChanged<_LibraryEntry> onFavoriteToggled;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final unknownGroup = AppLocalizations.of(context).unknownGroup;
     final groups =
         entries.map((entry) => entry.group ?? unknownGroup).toSet().toList()
@@ -1197,11 +1386,18 @@ final class _CatalogPage extends StatelessWidget {
                         entry: entry,
                         schedule: epgSchedules[entry.id],
                         destination: destination,
+                        favorite: favorites.contains(entry.locator(profileId)),
+                        onFavorite: () => onFavoriteToggled(entry),
                         onTap: destination == _CatalogDestination.live
                             ? entry.isPlayable
                                   ? () => onPlay(entry)
                                   : null
-                            : () => _showTitleDetails(context, entry, onPlay),
+                            : () => _showTitleDetails(
+                                context,
+                                entry,
+                                onPlay,
+                                ref.read(xtreamConnectionServiceProvider),
+                              ),
                       );
                     },
                   ),
@@ -1219,12 +1415,16 @@ final class _MediaCard extends StatelessWidget {
     required this.schedule,
     required this.destination,
     required this.onTap,
+    required this.favorite,
+    required this.onFavorite,
   });
 
   final _LibraryEntry entry;
   final EpgNowNext? schedule;
   final _CatalogDestination destination;
   final VoidCallback? onTap;
+  final bool favorite;
+  final VoidCallback onFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -1237,7 +1437,29 @@ final class _MediaCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Expanded(child: _CatalogArtwork(entry: entry)),
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  _CatalogArtwork(entry: entry),
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: IconButton.filledTonal(
+                      key: ValueKey('favorite-${entry.id}'),
+                      tooltip: favorite
+                          ? 'Remove from favorites'
+                          : 'Add to favorites',
+                      onPressed: onFavorite,
+                      icon: Icon(
+                        favorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.all(TviumSpacing.sm),
               child: Column(
@@ -1329,7 +1551,17 @@ Future<void> _showTitleDetails(
   BuildContext context,
   _LibraryEntry entry,
   ValueChanged<_LibraryEntry> onPlay,
+  XtreamConnectionService service,
 ) {
+  final XtreamSeriesService? seriesService = service is XtreamSeriesService
+      ? service as XtreamSeriesService
+      : null;
+  final seriesId = entry.xtreamSeriesId;
+  if (seriesId != null &&
+      entry.xtreamProfileId != null &&
+      seriesService != null) {
+    return _showSeriesDetails(context, entry, onPlay, seriesService, seriesId);
+  }
   return showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
@@ -1365,6 +1597,88 @@ Future<void> _showTitleDetails(
                 }
               : null,
           child: const Text('Play'),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> _showSeriesDetails(
+  BuildContext context,
+  _LibraryEntry entry,
+  ValueChanged<_LibraryEntry> onPlay,
+  XtreamSeriesService service,
+  String seriesId,
+) {
+  final profileId = entry.xtreamProfileId!;
+  final details = service.loadSeriesDetails(profileId, seriesId);
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      key: const ValueKey('title-details'),
+      title: Text(entry.displayName),
+      content: SizedBox(
+        width: 560,
+        height: 480,
+        child: FutureBuilder<XtreamSeriesDetails>(
+          future: details,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final series = snapshot.data;
+            if (series == null) {
+              return const Center(
+                child: Text('Episodes are temporarily unavailable.'),
+              );
+            }
+            return ListView(
+              children: <Widget>[
+                if (series.plot case final plot?) ...<Widget>[
+                  Text(plot),
+                  const SizedBox(height: TviumSpacing.sm),
+                ],
+                for (final season in series.seasons)
+                  ExpansionTile(
+                    key: ValueKey('season-${season.number}'),
+                    initiallyExpanded: season == series.seasons.first,
+                    title: Text(season.name),
+                    subtitle: Text(
+                      '${season.episodes.length} ${season.episodes.length == 1 ? 'episode' : 'episodes'}',
+                    ),
+                    children: <Widget>[
+                      for (final episode in season.episodes)
+                        ListTile(
+                          key: ValueKey('episode-${episode.id}'),
+                          leading: Text('${episode.number}'),
+                          title: Text(episode.title),
+                          subtitle: episode.duration == null
+                              ? null
+                              : Text('${episode.duration!.inMinutes} min'),
+                          trailing: const Icon(Icons.play_arrow_rounded),
+                          onTap: () {
+                            Navigator.of(dialogContext).pop();
+                            onPlay(
+                              _LibraryEntry.fromEpisode(
+                                profileId: profileId,
+                                seriesId: seriesId,
+                                seriesName: series.name,
+                                episode: episode,
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Close'),
         ),
       ],
     ),
@@ -1469,6 +1783,9 @@ final class _LibraryEntry {
     required this.m3uUri,
     required this.xtreamProfileId,
     required this.xtreamItem,
+    required this.xtreamSeriesId,
+    required this.xtreamEpisode,
+    required this.sourceId,
   });
 
   factory _LibraryEntry.fromM3u(M3uEntry entry) => _LibraryEntry(
@@ -1480,6 +1797,9 @@ final class _LibraryEntry {
     m3uUri: entry.originalUri,
     xtreamProfileId: null,
     xtreamItem: null,
+    xtreamSeriesId: null,
+    xtreamEpisode: null,
+    sourceId: 'session.m3u',
   );
 
   factory _LibraryEntry.fromXtream({
@@ -1495,10 +1815,14 @@ final class _LibraryEntry {
     m3uUri: null,
     xtreamProfileId: profileId,
     xtreamItem: item,
+    xtreamSeriesId: null,
+    xtreamEpisode: null,
+    sourceId: profileId,
   );
 
   factory _LibraryEntry.fromSeries(
     XtreamSeriesSummary series, {
+    required String profileId,
     required String? group,
   }) => _LibraryEntry(
     id: 'series:${series.id}',
@@ -1507,8 +1831,30 @@ final class _LibraryEntry {
     group: group,
     imageUri: series.coverUri,
     m3uUri: null,
-    xtreamProfileId: null,
+    xtreamProfileId: profileId,
     xtreamItem: null,
+    xtreamSeriesId: series.id,
+    xtreamEpisode: null,
+    sourceId: profileId,
+  );
+
+  factory _LibraryEntry.fromEpisode({
+    required String profileId,
+    required String seriesId,
+    required String seriesName,
+    required XtreamEpisode episode,
+  }) => _LibraryEntry(
+    id: 'episode:${episode.id}',
+    name: episode.title,
+    kind: MediaKind.episode,
+    group: seriesName,
+    imageUri: episode.imageUri,
+    m3uUri: null,
+    xtreamProfileId: profileId,
+    xtreamItem: null,
+    xtreamSeriesId: seriesId,
+    xtreamEpisode: episode,
+    sourceId: profileId,
   );
 
   factory _LibraryEntry.fromPersisted(PersistedMediaEntry entry) {
@@ -1523,7 +1869,7 @@ final class _LibraryEntry {
       group: entry.groupName,
       imageUri: null,
       m3uUri: null,
-      xtreamProfileId: playable ? entry.sourceReference : null,
+      xtreamProfileId: externalId == null ? null : entry.sourceReference,
       xtreamItem: playable
           ? XtreamMediaItem(
               id: externalId,
@@ -1535,6 +1881,11 @@ final class _LibraryEntry {
               epgChannelId: entry.epgChannelId,
             )
           : null,
+      xtreamSeriesId: !playable && entry.kind == MediaKind.episode
+          ? externalId
+          : null,
+      xtreamEpisode: null,
+      sourceId: entry.playlistId,
     );
   }
 
@@ -1546,11 +1897,18 @@ final class _LibraryEntry {
   final Uri? m3uUri;
   final String? xtreamProfileId;
   final XtreamMediaItem? xtreamItem;
+  final String? xtreamSeriesId;
+  final XtreamEpisode? xtreamEpisode;
+  final String sourceId;
 
-  bool get isPlayable => m3uUri != null || xtreamItem != null;
+  bool get isPlayable =>
+      m3uUri != null || xtreamItem != null || xtreamEpisode != null;
 
   String get displayName =>
       const PlaylistTitleNormalizer().normalize(name, kind: kind).title;
+
+  MediaLocator locator(String profileId) =>
+      MediaLocator(profileId: profileId, sourceId: sourceId, entryId: id);
 
   Future<Uri?> resolveUri(XtreamConnectionService service) {
     final directUri = m3uUri;
@@ -1558,6 +1916,15 @@ final class _LibraryEntry {
       return Future<Uri?>.value(directUri);
     }
     final profileId = xtreamProfileId;
+    final episode = xtreamEpisode;
+    if (profileId != null && episode != null) {
+      final XtreamSeriesService? seriesService = service is XtreamSeriesService
+          ? service as XtreamSeriesService
+          : null;
+      if (seriesService != null) {
+        return seriesService.resolveEpisodeStreamUri(profileId, episode);
+      }
+    }
     final item = xtreamItem;
     if (profileId == null || item == null) {
       return Future<Uri?>.value();
