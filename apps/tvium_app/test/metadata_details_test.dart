@@ -147,7 +147,9 @@ void main() {
     );
     await tester.tap(find.text('Open settings'));
     await tester.pumpAndSettle();
-    final toggle = tester.widget<SwitchListTile>(find.byType(SwitchListTile));
+    final toggle = tester.widget<SwitchListTile>(
+      find.byKey(const ValueKey('online-metadata-toggle')),
+    );
     expect(toggle.value, isFalse);
     expect(toggle.onChanged, isNull);
     expect(
@@ -241,5 +243,81 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('add-playlist')));
     await tester.pumpAndSettle();
     expect(added, isTrue);
+  });
+
+  testWidgets('settings refreshes one connected playlist', (tester) async {
+    IptvSource? refreshed;
+    const source = IptvSource(
+      id: 'source-1',
+      displayName: 'Family TV',
+      identityDigest: 'digest',
+      secretReference: 'secret',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showLibrarySettings(
+              context,
+              configured: false,
+              sources: const [source],
+              onRefreshSource: (source) async {
+                refreshed = source;
+                return 'Playlist refreshed: no changes.';
+              },
+            ),
+            child: const Text('Open settings'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('refresh-source-source-1')));
+    await tester.pumpAndSettle();
+
+    expect(refreshed, source);
+    expect(find.text('Playlist refreshed: no changes.'), findsOneWidget);
+  });
+
+  testWidgets('settings saves explicit protected categories', (tester) async {
+    Set<String>? savedCategories;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showLibrarySettings(
+              context,
+              configured: false,
+              availableParentalCategories: const ['Kids', 'Sports'],
+              initialBlockedContent: const {'adult'},
+              onSaveParentalPin: (pin, blockedContent) async {
+                savedCategories = blockedContent;
+                return 'Parental controls enabled.';
+              },
+            ),
+            child: const Text('Open settings'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    final kidsCategory = find.byKey(const ValueKey('parental-category-kids'));
+    await tester.ensureVisible(kidsCategory);
+    await tester.pumpAndSettle();
+    await tester.tap(kidsCategory);
+    final pinField = find.byKey(const ValueKey('parental-pin-field'));
+    await tester.ensureVisible(pinField);
+    await tester.enterText(pinField, '1234');
+    final saveButton = find.byKey(const ValueKey('parental-primary-action'));
+    await tester.ensureVisible(saveButton);
+    await tester.pumpAndSettle();
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(savedCategories, {'adult', 'kids'});
   });
 }
