@@ -305,6 +305,36 @@ void main() {
     expect(progress.value, closeTo(0.35, 0.001));
   });
 
+  testWidgets('Home presents a cinematic hero with timed controls', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('home-hero')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-hero-play')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-hero-details')), findsOneWidget);
+    final initialTitle = tester.widget<Text>(
+      find.byKey(const ValueKey('home-hero-title')),
+    );
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final nextTitle = tester.widget<Text>(
+      find.byKey(const ValueKey('home-hero-title')),
+    );
+    expect(nextTitle.data, isNot(initialTitle.data));
+  });
+
   testWidgets(
     'compact layouts expose all four destinations in bottom navigation',
     (tester) async {

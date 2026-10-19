@@ -30,6 +30,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 
 - Verified: approved Tvium logo family, application icons, visual reference screens, and brand color tokens are organized and integrated into the prototype.
 - Verified: production color and typography foundations, adaptive four-destination navigation shell, onboarding, Home, compact touch navigation, and wide-screen focus states.
+- Verified: the production Home screen includes a cinematic, five-second controllable feature carousel with adjacent Play and View details actions.
 - Highest current priority: apply the approved cinematic Home, Live TV, Movies, and TV Shows designs to the production Flutter screens.
 - In progress: accessibility audits and full D-pad/remote runtime coverage.
 

@@ -1072,6 +1072,12 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       history: widget.history,
                       onSelected: _selectDestination,
                       onPlay: widget.onEntrySelected,
+                      onDetails: (entry) => _showTitleDetails(
+                        context,
+                        entry,
+                        widget.onEntrySelected,
+                        ref.read(xtreamConnectionServiceProvider),
+                      ),
                     ),
                     _CatalogDestination.live => _CatalogPage(
                       key: const ValueKey('page-live'),
@@ -1369,7 +1375,7 @@ final class _HeaderDestination extends StatelessWidget {
   }
 }
 
-final class _DestinationHome extends StatelessWidget {
+final class _DestinationHome extends StatefulWidget {
   const _DestinationHome({
     super.key,
     required this.entries,
@@ -1377,6 +1383,7 @@ final class _DestinationHome extends StatelessWidget {
     required this.history,
     required this.onSelected,
     required this.onPlay,
+    required this.onDetails,
   });
 
   final List<_LibraryEntry> entries;
@@ -1384,9 +1391,60 @@ final class _DestinationHome extends StatelessWidget {
   final List<PlaybackHistoryEntry> history;
   final ValueChanged<_CatalogDestination> onSelected;
   final ValueChanged<_LibraryEntry> onPlay;
+  final ValueChanged<_LibraryEntry> onDetails;
+
+  @override
+  State<_DestinationHome> createState() => _DestinationHomeState();
+}
+
+final class _DestinationHomeState extends State<_DestinationHome> {
+  Timer? _heroTimer;
+  var _heroIndex = 0;
+
+  List<_LibraryEntry> get _heroEntries => widget.entries
+      .where((entry) => entry.kind != MediaKind.live && entry.isPlayable)
+      .take(5)
+      .toList(growable: false);
+
+  @override
+  void initState() {
+    super.initState();
+    _startHeroTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DestinationHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final previousIds = oldWidget.entries
+        .map((entry) => entry.id)
+        .join('\u0000');
+    final currentIds = widget.entries.map((entry) => entry.id).join('\u0000');
+    if (previousIds != currentIds) {
+      _heroIndex = 0;
+      _startHeroTimer();
+    }
+  }
+
+  void _startHeroTimer() {
+    _heroTimer?.cancel();
+    if (_heroEntries.length < 2) return;
+    _heroTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      setState(() => _heroIndex = (_heroIndex + 1) % _heroEntries.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _heroTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final entries = widget.entries;
+    final profileId = widget.profileId;
+    final history = widget.history;
     final destinations = const <_CatalogDestination>[
       _CatalogDestination.live,
       _CatalogDestination.movies,
@@ -1419,7 +1477,7 @@ final class _DestinationHome extends StatelessWidget {
                         )
                         .length,
                     artwork: _firstArtwork(entries, destination),
-                    onPressed: () => onSelected(destination),
+                    onPressed: () => widget.onSelected(destination),
                   ),
               ];
               final entriesByLocator = <MediaLocator, _LibraryEntry>{
@@ -1445,6 +1503,17 @@ final class _DestinationHome extends StatelessWidget {
               final displayedHistory = continueWatching.isNotEmpty
                   ? continueWatching
                   : recent;
+              final heroEntries = _heroEntries;
+              final hero = heroEntries.isEmpty
+                  ? null
+                  : _HomeHero(
+                      entry: heroEntries[_heroIndex % heroEntries.length],
+                      entries: heroEntries,
+                      selectedIndex: _heroIndex % heroEntries.length,
+                      onSelected: (index) => setState(() => _heroIndex = index),
+                      onPlay: widget.onPlay,
+                      onDetails: widget.onDetails,
+                    );
               final destinationCards = horizontal
                   ? SizedBox(
                       height: 240,
@@ -1479,6 +1548,17 @@ final class _DestinationHome extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  if (hero != null) ...<Widget>[
+                    SizedBox(
+                      height: horizontal
+                          ? MediaQuery.sizeOf(context).height >= 760
+                                ? 300
+                                : 190
+                          : 220,
+                      child: hero,
+                    ),
+                    const SizedBox(height: TviumSpacing.lg),
+                  ],
                   destinationCards,
                   if (displayedHistory.isNotEmpty) ...<Widget>[
                     const SizedBox(height: TviumSpacing.xl),
@@ -1530,7 +1610,7 @@ final class _DestinationHome extends StatelessWidget {
                                     : null,
                                 trailing: const Icon(Icons.play_arrow_rounded),
                                 onTap: entry.isPlayable
-                                    ? () => onPlay(entry)
+                                    ? () => widget.onPlay(entry)
                                     : null,
                               ),
                             ),
@@ -1545,6 +1625,193 @@ final class _DestinationHome extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+final class _HomeHero extends StatelessWidget {
+  const _HomeHero({
+    required this.entry,
+    required this.entries,
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.onPlay,
+    required this.onDetails,
+  });
+
+  final _LibraryEntry entry;
+  final List<_LibraryEntry> entries;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final ValueChanged<_LibraryEntry> onPlay;
+  final ValueChanged<_LibraryEntry> onDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      key: const ValueKey('home-hero'),
+      borderRadius: BorderRadius.circular(TviumRadius.hero),
+      child: AnimatedSwitcher(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 280),
+        child: Stack(
+          key: ValueKey('home-hero-${entry.id}'),
+          fit: StackFit.expand,
+          children: <Widget>[
+            if (entry.imageUri case final artwork?)
+              CachedNetworkImage(
+                imageUrl: artwork.toString(),
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+                errorWidget: (context, url, error) => const SizedBox.shrink(),
+              ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerRight,
+                  end: Alignment.centerLeft,
+                  colors: <Color>[
+                    Color(0x3318C7F0),
+                    Color(0xD90A1B2B),
+                    Color(0xFF06101B),
+                  ],
+                ),
+              ),
+            ),
+            _HomeHeroContent(
+              entry: entry,
+              entries: entries,
+              selectedIndex: selectedIndex,
+              onSelected: onSelected,
+              onPlay: onPlay,
+              onDetails: onDetails,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _HomeHeroContent extends StatelessWidget {
+  const _HomeHeroContent({
+    required this.entry,
+    required this.entries,
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.onPlay,
+    required this.onDetails,
+  });
+
+  final _LibraryEntry entry;
+  final List<_LibraryEntry> entries;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final ValueChanged<_LibraryEntry> onPlay;
+  final ValueChanged<_LibraryEntry> onDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxHeight < 260 || constraints.maxWidth < 600;
+        return Padding(
+          padding: EdgeInsets.all(compact ? TviumSpacing.md : TviumSpacing.xl),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (!compact) ...<Widget>[
+                    Text(
+                      entry.kind == MediaKind.movie
+                          ? 'Featured movie'
+                          : 'Featured series',
+                      style: Theme.of(context).textTheme.labelLarge
+                          ?.copyWith(color: TviumColors.accentDark),
+                    ),
+                    const SizedBox(height: TviumSpacing.xs),
+                  ],
+                  Text(
+                    entry.displayName,
+                    key: const ValueKey('home-hero-title'),
+                    maxLines: compact ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: compact
+                        ? Theme.of(context).textTheme.headlineMedium
+                        : Theme.of(context).textTheme.displaySmall,
+                  ),
+                  if (!compact) ...<Widget>[
+                    const SizedBox(height: TviumSpacing.xs),
+                    Text(
+                      entry.group ?? 'Your library',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ],
+                  SizedBox(height: compact ? TviumSpacing.sm : TviumSpacing.md),
+                  Wrap(
+                    spacing: TviumSpacing.sm,
+                    runSpacing: TviumSpacing.xs,
+                    children: <Widget>[
+                      FilledButton.icon(
+                        key: const ValueKey('home-hero-play'),
+                        onPressed: () => onPlay(entry),
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: const Text('Play'),
+                      ),
+                      OutlinedButton.icon(
+                        key: const ValueKey('home-hero-details'),
+                        onPressed: () => onDetails(entry),
+                        icon: const Icon(Icons.info_outline_rounded),
+                        label: const Text('View details'),
+                      ),
+                    ],
+                  ),
+                  if (!compact) ...<Widget>[
+                    const SizedBox(height: TviumSpacing.md),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        for (var index = 0; index < entries.length; index++)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 7),
+                            child: InkWell(
+                              key: ValueKey('home-hero-page-$index'),
+                              borderRadius: BorderRadius.circular(
+                                TviumRadius.pill,
+                              ),
+                              onTap: () => onSelected(index),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                width: index == selectedIndex ? 24 : 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: index == selectedIndex
+                                      ? TviumColors.accentDark
+                                      : Colors.white38,
+                                  borderRadius: BorderRadius.circular(
+                                    TviumRadius.pill,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
