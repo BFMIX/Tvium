@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
 import 'package:tvium_app/features/import/playlist_import_controller.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
+import 'package:tvium_playback/tvium_playback.dart';
 
 void main() {
   testWidgets('home leads with exactly the three catalog destinations', (
@@ -43,10 +44,20 @@ void main() {
     expect(find.text('Program guide unavailable'), findsOneWidget);
   });
 
-  testWidgets('movie cards open title details before playback', (tester) async {
+  testWidgets('movie Play now opens a visible playback surface', (
+    tester,
+  ) async {
     final controller = PlaylistImportController();
     addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
+    final playback = _FakePlaybackEngine();
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        playbackEngineFactory: () => playback,
+        playbackViewBuilder: (_) =>
+            const SizedBox(key: ValueKey('test-playback-view')),
+      ),
+    );
 
     unawaited(controller.importSource(const _DesignFixtureSource()));
     await tester.pumpAndSettle();
@@ -58,6 +69,40 @@ void main() {
     expect(find.byKey(const ValueKey('title-details')), findsOneWidget);
     expect(find.text('Demo Movie'), findsWidgets);
     expect(find.widgetWithText(FilledButton, 'Play now'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Play now'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('catalog-player')), findsOneWidget);
+    expect(find.byKey(const ValueKey('test-playback-view')), findsOneWidget);
+  });
+
+  testWidgets('TV show Play now opens a visible playback surface', (
+    tester,
+  ) async {
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    final playback = _FakePlaybackEngine();
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        playbackEngineFactory: () => playback,
+        playbackViewBuilder: (_) =>
+            const SizedBox(key: ValueKey('test-playback-view')),
+      ),
+    );
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Demo Show'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Play now'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('catalog-player')), findsOneWidget);
+    expect(find.byKey(const ValueKey('test-playback-view')), findsOneWidget);
   });
 
   testWidgets(
@@ -113,6 +158,44 @@ void main() {
       greaterThan(logoCenter.dx),
     );
   });
+}
+
+final class _FakePlaybackEngine implements PlaybackEngine {
+  @override
+  PlaybackState get currentState => const PlaybackState();
+
+  @override
+  Stream<PlaybackState> get state => const Stream<PlaybackState>.empty();
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> open(MediaSource source) async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> seek(Duration position) async {}
+
+  @override
+  Future<void> selectAudioTrack(String id) async {}
+
+  @override
+  Future<void> selectSubtitleTrack(String id) async {}
+
+  @override
+  Future<void> setPlaybackSpeed(double speed) async {}
+
+  @override
+  Future<void> setVolume(double volume) async {}
+
+  @override
+  Future<void> stop() async {}
 }
 
 final class _DesignFixtureSource implements M3uSource {

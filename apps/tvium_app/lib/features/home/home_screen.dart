@@ -31,6 +31,22 @@ import '../xtream/xtream_connection_form.dart';
 import '../xtream/xtream_connection_service.dart';
 import 'source_action_card.dart';
 
+typedef PlaybackEngineFactory = PlaybackEngine Function();
+typedef PlaybackViewBuilder = Widget Function(PlaybackEngine engine);
+
+final playbackEngineFactoryProvider = Provider<PlaybackEngineFactory>(
+  (ref) => MediaKitPlaybackEngine.new,
+);
+
+final playbackViewBuilderProvider = Provider<PlaybackViewBuilder>(
+  (ref) => (engine) {
+    if (engine is! MediaKitPlaybackEngine) {
+      throw StateError('Unsupported playback engine.');
+    }
+    return MediaKitPlaybackView(engine: engine);
+  },
+);
+
 final class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -49,7 +65,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _selectedGroup;
   XtreamAddedProfile? _xtreamProfile;
   _LibraryEntry? _selectedEntry;
-  MediaKitPlaybackEngine? _playbackEngine;
+  PlaybackEngine? _playbackEngine;
   String? _playbackError;
   String? _unlockedParentalProfileId;
   var _profileSessionGeneration = 0;
@@ -660,7 +676,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (uri == null || sessionGeneration != _profileSessionGeneration) {
         return;
       }
-      final engine = _playbackEngine ??= MediaKitPlaybackEngine();
+      final engine = _playbackEngine ??= ref.read(
+        playbackEngineFactoryProvider,
+      )();
       setState(() {
         _selectedEntry = entry;
         _playbackError = null;
@@ -887,7 +905,7 @@ final class _LibraryView extends ConsumerStatefulWidget {
   final Map<String, EpgNowNext?> epgSchedules;
   final String? selectedGroup;
   final _LibraryEntry? selectedEntry;
-  final MediaKitPlaybackEngine? playbackEngine;
+  final PlaybackEngine? playbackEngine;
   final String profileId;
   final Set<MediaLocator> favorites;
   final List<PlaybackHistoryEntry> history;
@@ -1526,7 +1544,7 @@ final class _CatalogPage extends ConsumerWidget {
   final String query;
   final String? selectedGroup;
   final _LibraryEntry? selectedEntry;
-  final MediaKitPlaybackEngine? playbackEngine;
+  final PlaybackEngine? playbackEngine;
   final ValueChanged<String?> onGroupSelected;
   final ValueChanged<_LibraryEntry> onPlay;
   final String profileId;
@@ -1550,7 +1568,14 @@ final class _CatalogPage extends ConsumerWidget {
                   entry.displayName.toLowerCase().contains(normalizedQuery));
         })
         .toList(growable: false);
-
+    final showPlayer =
+        selectedEntry != null &&
+        switch (destination) {
+          _CatalogDestination.live => selectedEntry!.kind == MediaKind.live,
+          _CatalogDestination.movies => selectedEntry!.kind == MediaKind.movie,
+          _CatalogDestination.shows => selectedEntry!.kind == MediaKind.episode,
+          _CatalogDestination.home => false,
+        };
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         TviumSpacing.lg,
@@ -1588,9 +1613,9 @@ final class _CatalogPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: TviumSpacing.sm),
-          if (destination == _CatalogDestination.live &&
-              selectedEntry != null) ...<Widget>[
+          if (showPlayer) ...<Widget>[
             SizedBox(
+              key: const ValueKey('catalog-player'),
               height: 210,
               child: _PlayerPanel(
                 selectedEntry: selectedEntry,
@@ -2075,14 +2100,14 @@ Uri? _firstArtwork(
   return null;
 }
 
-final class _PlayerPanel extends StatelessWidget {
+final class _PlayerPanel extends ConsumerWidget {
   const _PlayerPanel({required this.selectedEntry, required this.engine});
 
   final _LibraryEntry? selectedEntry;
-  final MediaKitPlaybackEngine? engine;
+  final PlaybackEngine? engine;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final playbackEngine = engine;
     return Container(
       decoration: BoxDecoration(
@@ -2103,7 +2128,7 @@ final class _PlayerPanel extends StatelessWidget {
           : Stack(
               fit: StackFit.expand,
               children: <Widget>[
-                MediaKitPlaybackView(engine: playbackEngine),
+                ref.watch(playbackViewBuilderProvider)(playbackEngine),
                 Align(
                   alignment: Alignment.bottomLeft,
                   child: Container(

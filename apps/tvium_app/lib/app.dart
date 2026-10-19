@@ -25,6 +25,8 @@ final class TviumApp extends StatelessWidget {
     this.localPlaylistPicker,
     this.xtreamConnectionService,
     this.profileSourceRepository,
+    this.playbackEngineFactory,
+    this.playbackViewBuilder,
     super.key,
   });
 
@@ -32,6 +34,8 @@ final class TviumApp extends StatelessWidget {
   final LocalPlaylistPicker? localPlaylistPicker;
   final XtreamConnectionService? xtreamConnectionService;
   final ProfileSourceRepository? profileSourceRepository;
+  final PlaybackEngineFactory? playbackEngineFactory;
+  final PlaybackViewBuilder? playbackViewBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +57,12 @@ final class TviumApp extends StatelessWidget {
           localPlaylistPickerProvider.overrideWithValue(picker),
         if (xtreamService != null)
           xtreamConnectionServiceProvider.overrideWithValue(xtreamService),
+        if (playbackEngineFactory != null)
+          playbackEngineFactoryProvider.overrideWithValue(
+            playbackEngineFactory!,
+          ),
+        if (playbackViewBuilder != null)
+          playbackViewBuilderProvider.overrideWithValue(playbackViewBuilder!),
       ],
       child: MaterialApp.router(
         title: 'Tvium',
