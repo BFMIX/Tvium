@@ -57,11 +57,12 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: native profile persistence, active-catalog restoration, compact profile switching, and shared Xtream sources without duplicate catalogs.
 - Verified: tolerant Series season/episode retrieval plus durable profile-scoped favorite, history, and parental-policy repositories.
 - Verified: on-demand Xtream episode catalog and playback integration plus profile-scoped overlay UX.
-- Planned: per-source reconnect/removal controls and bulk organization.
+- Verified: per-source rename, refresh, and profile-aware removal controls.
+- Planned: credential reconnect and bulk organization.
 
 ## M7 — Parental controls (in progress)
 
-Verified: durable profile-scoped parental-policy persistence, salted iterative PIN hashing, protected-category filtering, and session unlock. Planned: explicit category controls, search exclusion, poster blur, and configurable timeout UX.
+Verified: durable profile-scoped parental-policy persistence, salted iterative PIN hashing, explicit category controls, protected-category filtering, locked-library search exclusion, and session unlock. Planned: poster blur and configurable timeout UX.
 
 ## M8 — Hardening (planned)
 

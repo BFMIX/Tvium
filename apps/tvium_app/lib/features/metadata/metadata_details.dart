@@ -111,13 +111,17 @@ Future<void> showLibrarySettings(
   Future<String> Function()? onImportEpgFile,
   Future<String> Function(Uri uri)? onImportEpgUrl,
   Future<String> Function()? onRefreshSources,
+  Future<String> Function(IptvSource source)? onRefreshSource,
   List<IptvSource> sources = const <IptvSource>[],
   Future<void> Function()? onAddPlaylist,
   Future<void> Function(IptvSource source, String name)? onRenameSource,
   Future<void> Function(IptvSource source)? onRemoveSource,
   bool parentalConfigured = false,
   bool parentalUnlocked = false,
-  Future<String> Function(String pin)? onSaveParentalPin,
+  List<String> availableParentalCategories = const <String>[],
+  Set<String> initialBlockedContent = const <String>{'adult'},
+  Future<String> Function(String pin, Set<String> blockedContent)?
+  onSaveParentalPin,
   Future<String> Function(String pin)? onUnlockParental,
 }) async {
   final epgUrlController = TextEditingController();
@@ -125,8 +129,13 @@ Future<void> showLibrarySettings(
   String? epgStatus;
   String? parentalStatus;
   var importingEpg = false;
+  String? refreshingSourceId;
   var dialogParentalConfigured = parentalConfigured;
   var dialogParentalUnlocked = parentalUnlocked;
+  final dialogBlockedContent = initialBlockedContent
+      .map((value) => value.trim().toLowerCase())
+      .where((value) => value.isNotEmpty)
+      .toSet();
   final dialogSources = List<IptvSource>.of(sources);
   await showDialog<void>(
     context: context,
@@ -156,6 +165,37 @@ Future<void> showLibrarySettings(
                       trailing: Wrap(
                         spacing: 4,
                         children: <Widget>[
+                          IconButton(
+                            key: ValueKey('refresh-source-${source.id}'),
+                            tooltip: 'Refresh playlist',
+                            onPressed:
+                                onRefreshSource == null ||
+                                    importingEpg ||
+                                    refreshingSourceId != null
+                                ? null
+                                : () async {
+                                    setDialogState(
+                                      () => refreshingSourceId = source.id,
+                                    );
+                                    final message = await onRefreshSource(
+                                      source,
+                                    );
+                                    if (context.mounted) {
+                                      setDialogState(() {
+                                        refreshingSourceId = null;
+                                        epgStatus = message;
+                                      });
+                                    }
+                                  },
+                            icon: refreshingSourceId == source.id
+                                ? const SizedBox.square(
+                                    dimension: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.sync_rounded),
+                          ),
                           IconButton(
                             key: ValueKey('rename-source-${source.id}'),
                             tooltip: 'Rename playlist',
@@ -246,6 +286,7 @@ Future<void> showLibrarySettings(
                 ValueListenableBuilder<bool>(
                   valueListenable: metadataEnabled,
                   builder: (context, enabled, _) => SwitchListTile(
+                    key: const ValueKey('online-metadata-toggle'),
                     title: const Text('Online metadata'),
                     subtitle: Text(
                       configured
@@ -271,6 +312,48 @@ Future<void> showLibrarySettings(
                       : 'Set a PIN to hide protected categories.',
                 ),
                 const SizedBox(height: 8),
+                SwitchListTile(
+                  key: const ValueKey('parental-adult-labels'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Hide adult-labelled content'),
+                  value: dialogBlockedContent.contains('adult'),
+                  onChanged: (selected) => setDialogState(() {
+                    if (selected) {
+                      dialogBlockedContent.add('adult');
+                    } else {
+                      dialogBlockedContent.remove('adult');
+                    }
+                  }),
+                ),
+                if (availableParentalCategories.isNotEmpty) ...<Widget>[
+                  const Text('Protected categories'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      for (final category in availableParentalCategories)
+                        FilterChip(
+                          key: ValueKey(
+                            'parental-category-${category.toLowerCase()}',
+                          ),
+                          label: Text(category),
+                          selected: dialogBlockedContent.contains(
+                            category.toLowerCase(),
+                          ),
+                          onSelected: (selected) => setDialogState(() {
+                            final value = category.toLowerCase();
+                            if (selected) {
+                              dialogBlockedContent.add(value);
+                            } else {
+                              dialogBlockedContent.remove(value);
+                            }
+                          }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 TextField(
                   key: const ValueKey('parental-pin-field'),
                   controller: parentalPinController,
@@ -289,19 +372,23 @@ Future<void> showLibrarySettings(
                       key: const ValueKey('parental-primary-action'),
                       onPressed:
                           (dialogParentalConfigured && !dialogParentalUnlocked
-                                  ? onUnlockParental
-                                  : onSaveParentalPin) ==
-                              null
+                              ? onUnlockParental == null
+                              : onSaveParentalPin == null)
                           ? null
                           : () async {
-                              final action =
+                              final unlocking =
                                   dialogParentalConfigured &&
-                                      !dialogParentalUnlocked
-                                  ? onUnlockParental
-                                  : onSaveParentalPin;
-                              final message = await action!(
-                                parentalPinController.text,
-                              );
+                                  !dialogParentalUnlocked;
+                              final message = unlocking
+                                  ? await onUnlockParental!(
+                                      parentalPinController.text,
+                                    )
+                                  : await onSaveParentalPin!(
+                                      parentalPinController.text,
+                                      Set<String>.unmodifiable(
+                                        dialogBlockedContent,
+                                      ),
+                                    );
                               parentalPinController.clear();
                               if (context.mounted) {
                                 setDialogState(() {
