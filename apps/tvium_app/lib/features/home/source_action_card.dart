@@ -8,7 +8,9 @@ final class SourceActionCard extends StatelessWidget {
     required this.icon,
     required this.onActivate,
     required this.focusNode,
+    this.autofocus = false,
     this.enabled = true,
+    this.width = 210,
     super.key,
   });
 
@@ -17,13 +19,16 @@ final class SourceActionCard extends StatelessWidget {
   final IconData icon;
   final VoidCallback onActivate;
   final FocusNode focusNode;
+  final bool autofocus;
   final bool enabled;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return TviumFocusable(
       focusNode: focusNode,
+      autofocus: autofocus,
       enabled: enabled,
       semanticLabel: title,
       onActivate: () {
@@ -31,7 +36,7 @@ final class SourceActionCard extends StatelessWidget {
         onActivate();
       },
       child: Container(
-        width: 210,
+        width: width,
         padding: const EdgeInsets.all(TviumSpacing.md),
         decoration: BoxDecoration(
           color: enabled

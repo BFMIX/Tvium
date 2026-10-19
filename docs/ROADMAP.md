@@ -13,36 +13,60 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: progressive M3U file/URL import, grouping, lazy lists, and logo fallbacks.
 - Verified: playback abstraction, state contract, and provisional `media_kit` integration builds.
 - Verified: deterministic synthetic playlists plus timing and RSS observations through 100,000 entries.
-- Verified: macOS and Web debug builds. Network HLS playback remains unverified; Android is blocked locally until its SDK exists.
+- Verified: macOS and Web builds plus real HLS playback using an authorized public stream.
+- Verified: iOS 27 simulator build, install, launch, M3U URL import, and compact player-surface regression coverage. Post-correction iOS video playback remains to be re-run reliably.
+- Verified: Android SDK/licensing setup, debug and profile APK builds, Android 16 phone launch, native file selection, a 12,808-entry local import, and compact onboarding regression coverage.
+- Verified: Google TV ARM64 profile-build launch, 1080p adaptive layout, initial remote focus, and D-pad activation. The stock emulator has no usable local-document provider.
+- In progress: Android public-HLS playback and a TV-friendly source-transfer path. Windows and tvOS runtime evidence remains outstanding.
 
-## M2 — Library engine (planned)
+## M2 — Library engine (in progress)
 
-Normalization, classification, variants, duplicates, series reconstruction, SQLite indexing, and indexed search.
+- Verified: versioned Drift/SQLite persistence with transactional catalog replacement, stable ordering, and migration coverage.
+- Verified: conservative local title normalization and metadata matching preserve the original playlist data.
+- Verified: the optional metadata gateway accepts cleaned identity fields only, with TMDB, TVmaze, and IPTV-org adapters behind a strict privacy boundary.
+- In progress: variants, episode persistence, and indexed library search. Tolerant Xtream season/episode retrieval is verified at the adapter boundary.
 
-## M3 — UX foundation (planned)
+## M3 — UX foundation (in progress)
 
-Production design system, adaptive layouts, onboarding, home, accessibility, and D-pad/remote navigation.
+- Verified: approved Tvium logo family, application icons, visual reference screens, and brand color tokens are organized and integrated into the prototype.
+- Verified: production color and typography foundations, adaptive four-destination navigation shell, onboarding, Home, compact touch navigation, and wide-screen focus states.
+- Verified: the production Home screen includes a cinematic, five-second controllable feature carousel with adjacent Play and View details actions.
+- Highest current priority: apply the approved cinematic Home, Live TV, Movies, and TV Shows designs to the production Flutter screens.
+- In progress: accessibility audits and full D-pad/remote runtime coverage.
 
-## M4 — Live TV (planned)
+## M4 — Live TV (in progress)
 
-Groups, search, favorites, EPG, zapping, quick switcher, variant selection, and targeted health checks.
+- Verified: grouped browsing and scoped search.
+- Verified: safe XMLTV file/HTTPS import, deterministic channel matching, local EPG persistence, and honest Now/Next display.
+- Verified: profile-scoped favorites and recently played history are persistent and exposed in the library UI.
+- In progress: zapping, quick switcher, variant selection, and targeted health checks remain planned.
 
-## M5 — Movies and TV Shows (planned)
+## M5 — Movies and TV Shows (in progress)
 
-VOD details, seasons/episodes, progress, continue watching, history, and favorites.
+- Verified: Xtream series details load on demand and expose ordered seasons and playable episodes without persisting stream URLs.
+- Verified: favorites and recently played history work across Live TV, Movies, and TV Shows.
+- Verified by automated coverage: movie and episode playback surfaces, local progress checkpoints, automatic resume, and Continue Watching.
+- Verified by automated coverage: M3U episode titles using common provider conventions are grouped locally into series, seasons, and episodes; native Xtream series structure remains authoritative when available.
+- In progress: physical-device playback validation. Enriched VOD details and durable episode catalogs remain planned.
 
 ## M6 — Playlist management (planned)
 
-Multiple sources, refresh, incremental diff, durable user overlays, bulk organization, and Xtream integration.
+- Verified: credential-safe Xtream authentication, tolerant Live TV/VOD/Series catalog mapping, direct library transition after sign-in, and secure on-demand stream URL resolution for playable Live TV and VOD items.
+- Verified: deterministic added/changed/removed/unchanged diffing rejects ambiguous duplicate identities before replacing a stored playlist.
+- Verified: connected Xtream sources can be refreshed from Settings with aggregate change counts; failed refreshes keep the last working catalog.
+- Verified: native profile persistence, active-catalog restoration, compact profile switching, and shared Xtream sources without duplicate catalogs.
+- Verified: tolerant Series season/episode retrieval plus durable profile-scoped favorite, history, and parental-policy repositories.
+- Verified: on-demand Xtream episode catalog and playback integration plus profile-scoped overlay UX.
+- Planned: per-source reconnect/removal controls and bulk organization.
 
-## M7 — Parental controls (planned)
+## M7 — Parental controls (in progress)
 
-Protected playlists/items/categories, hashed PIN, visibility modes, search exclusion, poster blur, and timeout.
+Verified: durable profile-scoped parental-policy persistence, salted iterative PIN hashing, protected-category filtering, and session unlock. Planned: explicit category controls, search exclusion, poster blur, and configurable timeout UX.
 
 ## M8 — Hardening (planned)
 
 Performance, accessibility, security review, crash isolation, profiling, native player adapters, and real-device matrices.
 
-## M9 — Release preparation (planned)
+## M9 — Release preparation (in progress)
 
-Packaging, Store metadata using authorized demo content, final legal/privacy review, signing, and release builds.
+Verified: reproducible macOS DMG, Android TV ARM64 APK, Web archive, Apple Swift Package Manager builds, TV launcher assets, and automated prerelease workflow. Planned: Store metadata using authorized demo content, final legal/privacy review, protected signing, notarization, and production release builds.

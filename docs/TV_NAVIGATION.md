@@ -23,6 +23,6 @@ The design-system primitive owns hover, press, focus outline, optional scale, se
 
 ## Test matrix
 
-Widget tests send arrow, Enter, Escape, and media-key events and assert the focused semantic target. Real-device checks are still required for Android TV and Apple TV remotes, long-press behavior, platform Back/Menu semantics, safe areas, and focus-engine interoperability.
+Widget tests send arrow, Enter, Escape, and media-key events and assert the focused semantic target. A Google TV ARM64 emulator verifies initial focus and centre-button/D-pad activation on the onboarding screen. Physical Android TV and Apple TV checks are still required for long-press behavior, platform Back/Menu semantics, safe areas, and focus-engine interoperability.
 
 Text input should be avoidable for common TV tasks. QR/deep-link setup may be explored later but is not part of Phase 0.

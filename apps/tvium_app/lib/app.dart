@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_design_system/tvium_design_system.dart';
 
 import 'features/home/home_screen.dart';
+import 'features/import/local_playlist_picker.dart';
 import 'features/import/playlist_import_controller.dart';
 import 'features/import/playlist_import_provider.dart';
+import 'features/library/library_bootstrap_controller.dart';
+import 'features/xtream/xtream_connection_service.dart';
 import 'l10n/generated/app_localizations.dart';
 
 final GoRouter _router = GoRouter(
@@ -16,20 +20,49 @@ final GoRouter _router = GoRouter(
 );
 
 final class TviumApp extends StatelessWidget {
-  const TviumApp({this.importController, super.key});
+  const TviumApp({
+    this.importController,
+    this.localPlaylistPicker,
+    this.xtreamConnectionService,
+    this.profileSourceRepository,
+    this.playbackEngineFactory,
+    this.playbackViewBuilder,
+    super.key,
+  });
 
   final PlaylistImportController? importController;
+  final LocalPlaylistPicker? localPlaylistPicker;
+  final XtreamConnectionService? xtreamConnectionService;
+  final ProfileSourceRepository? profileSourceRepository;
+  final PlaybackEngineFactory? playbackEngineFactory;
+  final PlaybackViewBuilder? playbackViewBuilder;
 
   @override
   Widget build(BuildContext context) {
     final controller = importController;
+    final picker = localPlaylistPicker;
+    final xtreamService = xtreamConnectionService;
     return ProviderScope(
       overrides: [
+        if (profileSourceRepository != null)
+          libraryRepositoryProvider.overrideWith(
+            (ref) async => profileSourceRepository!,
+          ),
         if (controller != null)
           playlistImportControllerProvider.overrideWith(
             (ref) => controller,
             disposeNotifier: false,
           ),
+        if (picker != null)
+          localPlaylistPickerProvider.overrideWithValue(picker),
+        if (xtreamService != null)
+          xtreamConnectionServiceProvider.overrideWithValue(xtreamService),
+        if (playbackEngineFactory != null)
+          playbackEngineFactoryProvider.overrideWithValue(
+            playbackEngineFactory!,
+          ),
+        if (playbackViewBuilder != null)
+          playbackViewBuilderProvider.overrideWithValue(playbackViewBuilder!),
       ],
       child: MaterialApp.router(
         title: 'Tvium',

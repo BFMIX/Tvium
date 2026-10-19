@@ -20,4 +20,6 @@ Large-import acceptance requires a responsive UI isolate, bounded batches, virtu
 
 Every behavior change includes a test or a documented reason. Fixes require regression tests. Before commit and CI: format check, strict analysis, all tests, and `git diff --check`. Player compatibility claims require runtime evidence on the named platform and stream format.
 
+CI also compiles the macOS debug app, the Android ARM64 release APK, and the Web release bundle. The macOS job audits sandbox entitlements. Build success is a packaging gate, not proof of playback or device behavior.
+
 Fixtures use `.test` hosts, fictional names, and no recognizable protected marketing assets.

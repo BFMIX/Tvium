@@ -33,9 +33,11 @@ final class M3uSourceException implements Exception {
 }
 
 final class M3uFileSource implements M3uSource {
-  const M3uFileSource(this.path);
+  const M3uFileSource(this.path, {this.displayName, this.originalPath});
 
   final String path;
+  final String? displayName;
+  final String? originalPath;
 
   @override
   Stream<String> readLines() {

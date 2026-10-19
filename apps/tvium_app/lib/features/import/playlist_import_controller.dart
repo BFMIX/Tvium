@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
 
+import 'm3u_import_persistence.dart';
+
 enum PlaylistImportPhase { empty, importing, ready, failed }
 
 final class PlaylistImportState {
@@ -41,15 +43,24 @@ final class PlaylistImportState {
 }
 
 final class PlaylistImportController extends ChangeNotifier {
-  PlaylistImportController([this._parser = const M3uParser()]);
+  factory PlaylistImportController({
+    M3uParser parser = const M3uParser(),
+    M3uImportPersistence? persistence,
+  }) => PlaylistImportController._(parser, persistence);
+
+  PlaylistImportController._(this._parser, this._persistence);
 
   final M3uParser _parser;
+  final M3uImportPersistence? _persistence;
   PlaylistImportState _state = const PlaylistImportState();
   var _generation = 0;
 
   PlaylistImportState get state => _state;
 
-  Future<void> importSource(M3uSource source) async {
+  Future<void> importSource(
+    M3uSource source, {
+    M3uSourceDescriptor? descriptor,
+  }) async {
     final generation = ++_generation;
     final entries = <M3uEntry>[];
     _setState(const PlaylistImportState(phase: PlaylistImportPhase.importing));
@@ -72,6 +83,9 @@ final class PlaylistImportController extends ChangeNotifier {
           case M3uWarning():
             _setState(_state.copyWith(warningCount: _state.warningCount + 1));
           case M3uCompleted(:final summary):
+            if (descriptor != null) {
+              await _persistence?.persist(descriptor, entries);
+            }
             _setState(
               PlaylistImportState(
                 phase: PlaylistImportPhase.ready,

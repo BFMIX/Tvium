@@ -11,10 +11,14 @@ Phase 0 validates Tvium's Flutter/Dart workspace and a local-first vertical prot
 
 - Flutter 3.47.0 stable; Dart 3.13.0; Melos 7.8.2.
 - macOS 27.0 prerelease on Apple Silicon through Rosetta.
-- Xcode 27.0 beta and CocoaPods 1.17.0.
-- Chrome installed; Android SDK absent; iOS 27 simulator absent.
+- Xcode 27.0 beta with Swift Package Manager integration.
+- Chrome installed; Xcode includes iOS 26.4 and iOS 27.0 simulator runtimes.
+- Android SDK 36, Build Tools 36.0.0, Platform Tools, NDK 28.2, CMake 3.22.1, and the Android Emulator are installed; all SDK licenses are accepted.
+- ARM64 Android 16 phone and Google TV emulator images are installed on the Apple Silicon host.
 
-The final workspace passed `dart run melos run format:check`, strict analysis across six packages, and all 20 automated tests. `flutter build web --debug` produced `build/web`; `flutter build macos --debug` produced `Tvium.app`. The native onboarding window was launched and visually inspected in French at 800 × 632.
+The current workspace passes `dart run melos run format:check`, strict analysis across six packages, and all 26 automated tests. `flutter build web --debug` produced `build/web`; macOS release, iOS 27 simulator debug, and Android debug/profile/release builds completed successfully. The ARM64 Android release APK is 60.3 MB and its merged manifest contains the production Internet permission. Native onboarding was visually inspected on macOS, iOS 27, Android 16 phone, and Google TV emulators.
+
+Continuous integration retains the macOS build and entitlement audit and now adds Linux-hosted Android ARM64 release and Web release builds. These gates detect packaging regressions without distributing unsigned or development-signed binaries.
 
 ## Parser Measurements
 
@@ -45,14 +49,25 @@ Fixtures use reserved `.test` hosts. Tests verify removal of credentials, URL pa
 
 ## Limits and Risks
 
-- Android builds and runtime behavior are blocked locally by the missing Android SDK.
-- iOS/tvOS runtime behavior is unverified; the iOS 27 simulator is not installed. tvOS is a product target, not a generated Phase 0 runner.
+- Android debug and profile APK builds, installation, launch, local M3U selection, and a 12,808-entry import are verified on an Android 16 ARM64 phone emulator. A Google TV ARM64 emulator also launches the profile build at 1080p and accepts D-pad activation. Its stock image exposes no usable document provider for local M3U selection; public HLS decoding remains to be verified conclusively.
+- iOS 27 build, installation, launch, and M3U URL import are verified. Playback after the compact-layout correction still requires a reliable simulator or physical-device run.
+- Flutter does not officially support tvOS. A native Apple TV companion or an explicitly accepted third-party toolchain is required.
 - Windows build/runtime behavior is unverified on this macOS host.
-- The HLS adapter, lifecycle contract, Web build, and macOS integration compile are verified; actual network decoding, codecs, tracks, subtitles, DRM, and recovery were not exercised with a stream in the final run.
+- Real network HLS decoding is verified with Apple's public Bip Bop stream on macOS and Chrome. Codec breadth, alternate tracks, subtitles, DRM, lifecycle recovery, and provider-specific streams remain unverified.
 - Web playback remains subject to browser codec support, CORS, HTTPS/mixed-content rules, and provider headers. Tvium will not add a proxy to bypass these restrictions.
-- Flutter reports that the current `media_kit` macOS plugins do not yet support Swift Package Manager; CocoaPods works now, but this becomes a future compatibility risk.
-- Persistence, EPG, Xtream, source refresh/diffing, parental controls, and Store release work remain outside Phase 0.
+- The Apple runners now use pinned upstream `media_kit` packages with Swift Package Manager support; CocoaPods integration has been removed and release builds are verified locally.
+- Persistence, EPG, Xtream, and source refresh/diffing have advanced beyond Phase 0. Favorites, history, parental-control UX, and production Store signing remain later release work.
+
+## Post-Phase 0 Corrections
+
+The macOS sandbox now grants outbound network access and read-only access to files explicitly selected by the user. A signed debug build passed an entitlement audit, and a manual import of the fictional `small.m3u` fixture opened the native file chooser and populated the library. Playlist URLs are concealed by default, credential-bearing errors remain sanitized, and file-picker failures now produce a localized safe message. CI builds the macOS app and audits these entitlements to prevent regressions.
+
+An iOS 27 simulator build exposed a compact-layout defect: media selection invoked playback but no video surface was rendered below 900 logical pixels. The compact library now keeps a player surface above the media list, with a widget regression test. The build installs and launches on an iPhone 17 Pro simulator running iOS 27.0.
+
+Android verification exposed a second compact-layout issue: source cards were arranged in a horizontally clipped row on phones. Widths below 600 logical pixels now use full-width stacked actions, while wider layouts retain the remote-friendly horizontal row. A widget regression test covers all three source actions, and the corrected screen was inspected in an Android profile build.
+
+Google TV verification exposed an initial-focus issue. Wide layouts now focus the first source action automatically, so a remote user can open the URL flow with the centre button and move between sources with the D-pad. Local-file UX on TV still needs a product path that does not depend on a document provider being installed.
 
 ## Recommendation
 
-Proceed to the next milestone only after installing the Android SDK and adding real-device playback spikes using explicitly authorized test streams. Keep the playback and repository abstractions until platform evidence justifies native adapter choices and a durable schema.
+Proceed to the next milestone after approving the platform playback and persistence architecture. Keep the engine-neutral playback and repository contracts, add conclusive Android/Google TV playback evidence, and validate each durable schema migration before enabling source refresh, Xtream, EPG, history, or parental controls.

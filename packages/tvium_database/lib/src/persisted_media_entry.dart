@@ -10,6 +10,9 @@ final class PersistedMediaEntry {
     required this.displayName,
     required this.groupName,
     required this.kind,
+    this.externalId,
+    this.containerExtension,
+    this.epgChannelId,
   });
 
   final String id;
@@ -22,4 +25,7 @@ final class PersistedMediaEntry {
   final String displayName;
   final String? groupName;
   final MediaKind kind;
+  final String? externalId;
+  final String? containerExtension;
+  final String? epgChannelId;
 }

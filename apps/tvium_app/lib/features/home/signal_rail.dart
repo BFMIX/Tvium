@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_design_system/tvium_design_system.dart';
-import 'package:tvium_m3u/tvium_m3u.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 
 final class SignalRail extends StatelessWidget {
-  const SignalRail({required this.entries, super.key});
+  const SignalRail({required this.kinds, super.key});
 
-  final List<M3uEntry> entries;
+  final Iterable<MediaKind> kinds;
 
   @override
   Widget build(BuildContext context) {
@@ -35,8 +34,8 @@ final class SignalRail extends StatelessWidget {
             separatorBuilder: (context, index) =>
                 const SizedBox(width: TviumSpacing.sm),
             itemBuilder: (context, index) {
-              final count = entries
-                  .where((entry) => entry.kind == kinds[index])
+              final count = this.kinds
+                  .where((kind) => kind == kinds[index])
                   .length;
               return Container(
                 width: cardWidth,
