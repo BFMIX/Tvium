@@ -66,6 +66,11 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   XtreamAddedProfile? _xtreamProfile;
   _LibraryEntry? _selectedEntry;
   PlaybackEngine? _playbackEngine;
+  StreamSubscription<PlaybackState>? _playbackStateSubscription;
+  MediaLocator? _activePlaybackLocator;
+  MediaKind? _activePlaybackKind;
+  Duration _lastCheckpointPosition = Duration.zero;
+  Future<void> _checkpointTail = Future<void>.value();
   String? _playbackError;
   String? _unlockedParentalProfileId;
   var _profileSessionGeneration = 0;
@@ -76,6 +81,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     _urlActionFocus.dispose();
     _fileActionFocus.dispose();
     _xtreamActionFocus.dispose();
+    final subscription = _playbackStateSubscription;
+    if (subscription != null) {
+      unawaited(subscription.cancel());
+    }
     final engine = _playbackEngine;
     if (engine != null) {
       unawaited(engine.dispose());
@@ -669,6 +678,15 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _play(String profileId, _LibraryEntry entry) async {
     final sessionGeneration = _profileSessionGeneration;
     try {
+      _activePlaybackLocator = null;
+      _activePlaybackKind = null;
+      final locator = entry.locator(profileId);
+      final overlays = await ref.read(
+        userOverlaysControllerProvider(profileId).future,
+      );
+      final previous = overlays.history
+          .where((item) => item.media == locator)
+          .firstOrNull;
       final uri = await entry.resolveUri(
         ref.read(xtreamConnectionServiceProvider),
         ref.read(m3uPlaybackResolverProvider),
@@ -676,27 +694,37 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (uri == null || sessionGeneration != _profileSessionGeneration) {
         return;
       }
-      final engine = _playbackEngine ??= ref.read(
-        playbackEngineFactoryProvider,
-      )();
+      var engine = _playbackEngine;
+      if (engine == null) {
+        engine = ref.read(playbackEngineFactoryProvider)();
+        _playbackEngine = engine;
+        _playbackStateSubscription = engine.state.listen(_checkpointPlayback);
+      }
       setState(() {
         _selectedEntry = entry;
         _playbackError = null;
       });
       await engine.open(MediaSource(uri: uri, title: entry.name));
       if (sessionGeneration != _profileSessionGeneration) return;
+      final resumePosition = _resumePositionFor(previous);
+      if (resumePosition > Duration.zero) {
+        await engine.seek(resumePosition);
+      }
       await engine.play();
       if (sessionGeneration != _profileSessionGeneration) return;
       await ref
           .read(userOverlaysControllerProvider(profileId).notifier)
           .recordPlayback(
             PlaybackHistoryEntry(
-              media: entry.locator(profileId),
+              media: locator,
               lastPlayedAtUtc: DateTime.now().toUtc(),
-              position: Duration.zero,
-              duration: Duration.zero,
+              position: resumePosition,
+              duration: previous?.duration ?? Duration.zero,
             ),
           );
+      _activePlaybackLocator = locator;
+      _activePlaybackKind = entry.kind;
+      _lastCheckpointPosition = resumePosition;
       if (mounted) {
         setState(() {});
       }
@@ -708,6 +736,37 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
         });
       }
     }
+  }
+
+  void _checkpointPlayback(PlaybackState state) {
+    final locator = _activePlaybackLocator;
+    if (!mounted ||
+        locator == null ||
+        _activePlaybackKind == MediaKind.live ||
+        state.duration <= Duration.zero) {
+      return;
+    }
+    final delta = (state.position - _lastCheckpointPosition).abs();
+    final force =
+        state.phase == PlaybackPhase.paused ||
+        state.phase == PlaybackPhase.ended;
+    if (!force && delta < const Duration(seconds: 15)) return;
+    _lastCheckpointPosition = state.position;
+    final checkpoint = PlaybackHistoryEntry(
+      media: locator,
+      lastPlayedAtUtc: DateTime.now().toUtc(),
+      position: state.position,
+      duration: state.duration,
+    );
+    _checkpointTail = _checkpointTail.then((_) async {
+      if (!mounted) return;
+      await ref
+          .read(
+            userOverlaysControllerProvider(checkpoint.media.profileId).notifier,
+          )
+          .recordPlayback(checkpoint);
+    });
+    unawaited(_checkpointTail);
   }
 
   Future<void> _toggleFavorite(String profileId, _LibraryEntry entry) => ref
@@ -1363,10 +1422,25 @@ final class _DestinationHome extends StatelessWidget {
                 for (final entry in entries) entry.locator(profileId): entry,
               };
               final recent = history
-                  .map((item) => entriesByLocator[item.media])
-                  .whereType<_LibraryEntry>()
+                  .map((item) {
+                    final entry = entriesByLocator[item.media];
+                    return entry == null ? null : (entry: entry, history: item);
+                  })
+                  .whereType<
+                    ({_LibraryEntry entry, PlaybackHistoryEntry history})
+                  >()
                   .take(8)
                   .toList(growable: false);
+              final continueWatching = recent
+                  .where(
+                    (item) =>
+                        item.entry.kind != MediaKind.live &&
+                        _resumePositionFor(item.history) > Duration.zero,
+                  )
+                  .toList(growable: false);
+              final displayedHistory = continueWatching.isNotEmpty
+                  ? continueWatching
+                  : recent;
               final destinationCards = horizontal
                   ? SizedBox(
                       height: 240,
@@ -1402,23 +1476,33 @@ final class _DestinationHome extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   destinationCards,
-                  if (recent.isNotEmpty) ...<Widget>[
+                  if (displayedHistory.isNotEmpty) ...<Widget>[
                     const SizedBox(height: TviumSpacing.xl),
                     Text(
-                      'Recently played',
+                      continueWatching.isNotEmpty
+                          ? 'Continue watching'
+                          : 'Recently played',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: TviumSpacing.sm),
                     SizedBox(
-                      height: 96,
+                      height: continueWatching.isNotEmpty ? 112 : 96,
                       child: ListView.separated(
                         key: const ValueKey('recently-played'),
                         scrollDirection: Axis.horizontal,
-                        itemCount: recent.length,
+                        itemCount: displayedHistory.length,
                         separatorBuilder: (_, _) =>
                             const SizedBox(width: TviumSpacing.sm),
                         itemBuilder: (context, index) {
-                          final entry = recent[index];
+                          final item = displayedHistory[index];
+                          final entry = item.entry;
+                          final durationMs =
+                              item.history.duration.inMilliseconds;
+                          final progress = durationMs <= 0
+                              ? 0.0
+                              : (item.history.position.inMilliseconds /
+                                        durationMs)
+                                    .clamp(0.0, 1.0);
                           return SizedBox(
                             width: 230,
                             child: Card(
@@ -1429,6 +1513,17 @@ final class _DestinationHome extends StatelessWidget {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
+                                subtitle: continueWatching.isNotEmpty
+                                    ? Padding(
+                                        padding: const EdgeInsets.only(top: 10),
+                                        child: LinearProgressIndicator(
+                                          key: ValueKey(
+                                            'continue-progress-${entry.id}',
+                                          ),
+                                          value: progress,
+                                        ),
+                                      )
+                                    : null,
                                 trailing: const Icon(Icons.play_arrow_rounded),
                                 onTap: entry.isPlayable
                                     ? () => onPlay(entry)
@@ -1448,6 +1543,17 @@ final class _DestinationHome extends StatelessWidget {
       ),
     );
   }
+}
+
+Duration _resumePositionFor(PlaybackHistoryEntry? previous) {
+  if (previous == null ||
+      previous.position < const Duration(seconds: 30) ||
+      previous.duration <= Duration.zero ||
+      previous.position.inMilliseconds * 10 >=
+          previous.duration.inMilliseconds * 9) {
+    return Duration.zero;
+  }
+  return previous.position;
 }
 
 final class _DestinationCard extends StatelessWidget {

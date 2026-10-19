@@ -37,13 +37,14 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: grouped browsing and scoped search.
 - Verified: safe XMLTV file/HTTPS import, deterministic channel matching, local EPG persistence, and honest Now/Next display.
 - Verified: profile-scoped favorites and recently played history are persistent and exposed in the library UI.
-- In progress: playback progress/resume. Zapping, quick switcher, variant selection, and targeted health checks remain planned.
+- In progress: zapping, quick switcher, variant selection, and targeted health checks remain planned.
 
 ## M5 — Movies and TV Shows (in progress)
 
 - Verified: Xtream series details load on demand and expose ordered seasons and playable episodes without persisting stream URLs.
 - Verified: favorites and recently played history work across Live TV, Movies, and TV Shows.
-- Planned: enriched VOD details, durable episode catalogs, playback progress, and continue watching.
+- Verified by automated coverage: movie and episode playback surfaces, local progress checkpoints, automatic resume, and Continue Watching.
+- In progress: physical-device playback validation. Enriched VOD details and durable episode catalogs remain planned.
 
 ## M6 — Playlist management (planned)
 

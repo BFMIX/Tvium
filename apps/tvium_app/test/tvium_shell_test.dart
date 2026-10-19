@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
 import 'package:tvium_app/features/import/playlist_import_controller.dart';
+import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
 import 'package:tvium_playback/tvium_playback.dart';
 
@@ -53,6 +54,7 @@ void main() {
     await tester.pumpWidget(
       TviumApp(
         importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
         playbackEngineFactory: () => playback,
         playbackViewBuilder: (_) =>
             const SizedBox(key: ValueKey('test-playback-view')),
@@ -86,6 +88,7 @@ void main() {
     await tester.pumpWidget(
       TviumApp(
         importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
         playbackEngineFactory: () => playback,
         playbackViewBuilder: (_) =>
             const SizedBox(key: ValueKey('test-playback-view')),
@@ -103,6 +106,119 @@ void main() {
 
     expect(find.byKey(const ValueKey('catalog-player')), findsOneWidget);
     expect(find.byKey(const ValueKey('test-playback-view')), findsOneWidget);
+  });
+
+  testWidgets('movie playback resumes from saved progress', (tester) async {
+    final repository = InMemoryProfileSourceRepository();
+    final profile = await repository.ensureDefaultProfile();
+    await repository.recordPlayback(
+      PlaybackHistoryEntry(
+        media: MediaLocator(
+          profileId: profile.id,
+          sourceId: 'session.m3u',
+          entryId: 'entry-2',
+        ),
+        lastPlayedAtUtc: DateTime.utc(2026, 10, 19),
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 2),
+      ),
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    final playback = _FakePlaybackEngine();
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: repository,
+        playbackEngineFactory: () => playback,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-card-movie')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Play now'));
+    await tester.pumpAndSettle();
+
+    expect(playback.seekPositions, const <Duration>[Duration(seconds: 42)]);
+  });
+
+  testWidgets('movie playback checkpoints its real position', (tester) async {
+    final repository = InMemoryProfileSourceRepository();
+    final profile = await repository.ensureDefaultProfile();
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    final playback = _FakePlaybackEngine();
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: repository,
+        playbackEngineFactory: () => playback,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-card-movie')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Play now'));
+    await tester.pumpAndSettle();
+
+    playback.emit(
+      const PlaybackState(
+        phase: PlaybackPhase.playing,
+        position: Duration(seconds: 45),
+        duration: Duration(minutes: 2),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final history = await repository.historyForProfile(profile.id);
+    expect(history.single.position, const Duration(seconds: 45));
+    expect(history.single.duration, const Duration(minutes: 2));
+  });
+
+  testWidgets('Home exposes resumable movies as Continue watching', (
+    tester,
+  ) async {
+    final repository = InMemoryProfileSourceRepository();
+    final profile = await repository.ensureDefaultProfile();
+    await repository.recordPlayback(
+      PlaybackHistoryEntry(
+        media: MediaLocator(
+          profileId: profile.id,
+          sourceId: 'session.m3u',
+          entryId: 'entry-2',
+        ),
+        lastPlayedAtUtc: DateTime.utc(2026, 10, 19),
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 2),
+      ),
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: repository,
+      ),
+    );
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Continue watching'), findsOneWidget);
+    final progress = tester.widget<LinearProgressIndicator>(
+      find.byKey(const ValueKey('continue-progress-entry-2')),
+    );
+    expect(progress.value, closeTo(0.35, 0.001));
   });
 
   testWidgets(
@@ -161,14 +277,24 @@ void main() {
 }
 
 final class _FakePlaybackEngine implements PlaybackEngine {
-  @override
-  PlaybackState get currentState => const PlaybackState();
+  final List<Duration> seekPositions = <Duration>[];
+  final StreamController<PlaybackState> _states =
+      StreamController<PlaybackState>.broadcast();
+  PlaybackState _currentState = const PlaybackState();
 
   @override
-  Stream<PlaybackState> get state => const Stream<PlaybackState>.empty();
+  PlaybackState get currentState => _currentState;
 
   @override
-  Future<void> dispose() async {}
+  Stream<PlaybackState> get state => _states.stream;
+
+  void emit(PlaybackState state) {
+    _currentState = state;
+    _states.add(state);
+  }
+
+  @override
+  Future<void> dispose() => _states.close();
 
   @override
   Future<void> open(MediaSource source) async {}
@@ -180,7 +306,9 @@ final class _FakePlaybackEngine implements PlaybackEngine {
   Future<void> play() async {}
 
   @override
-  Future<void> seek(Duration position) async {}
+  Future<void> seek(Duration position) async {
+    seekPositions.add(position);
+  }
 
   @override
   Future<void> selectAudioTrack(String id) async {}
