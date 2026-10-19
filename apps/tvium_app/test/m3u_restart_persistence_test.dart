@@ -79,6 +79,47 @@ void main() {
       );
     },
   );
+
+  test(
+    'relinks a retained copy to the previously selected file source',
+    () async {
+      final repository = InMemoryProfileSourceRepository();
+      final secureBackend = _MemorySecureKeyValueStore();
+      var reference = 0;
+      final persistence = DefaultM3uImportPersistence(
+        repositoryLoader: () async => repository,
+        secureStore: SecureM3uSourceStore(secureBackend),
+        identityService: SourceIdentityService(secureBackend),
+        referenceFactory: () => 'm3u-source-${reference++}',
+      );
+      final controller = PlaylistImportController(persistence: persistence);
+      addTearDown(controller.dispose);
+      const selectedPath = '/fixtures/selected-playlist.m3u';
+
+      await controller.importSource(
+        const _MemorySource(),
+        descriptor: const M3uSourceDescriptor.file(
+          displayName: 'Fixture TV',
+          location: selectedPath,
+        ),
+      );
+      await controller.importSource(
+        const _MemorySource(),
+        descriptor: const M3uSourceDescriptor.file(
+          displayName: 'Fixture TV',
+          location: '/private/managed-playlist.m3u',
+          identityLocation: selectedPath,
+        ),
+      );
+
+      final profile = await repository.activeProfile();
+      final sources = await repository.sourcesForProfile(profile.id);
+      expect(sources, hasLength(1));
+      final stored = await SecureM3uSourceStore(secureBackend)
+          .read(sources.single.secretReference);
+      expect(stored?.location, '/private/managed-playlist.m3u');
+    },
+  );
 }
 
 final class _MemorySecureKeyValueStore implements SecureKeyValueStore {

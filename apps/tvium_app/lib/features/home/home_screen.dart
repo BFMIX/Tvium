@@ -387,8 +387,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (source != null) {
         final descriptor = source is M3uFileSource
             ? M3uSourceDescriptor.file(
-                displayName: _fileName(source.path),
+                displayName: source.displayName ?? _fileName(source.path),
                 location: source.path,
+                identityLocation: source.originalPath,
               )
             : null;
         await controller.importSource(source, descriptor: descriptor);
@@ -1385,6 +1386,24 @@ final class _CatalogPage extends ConsumerWidget {
           Expanded(
             child: visible.isEmpty
                 ? Center(child: Text(AppLocalizations.of(context).noItems))
+                : destination == _CatalogDestination.live
+                ? ListView.separated(
+                    key: const ValueKey('live-channel-list'),
+                    itemCount: visible.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: TviumSpacing.xs),
+                    itemBuilder: (context, index) {
+                      final entry = visible[index];
+                      return _LiveMediaRow(
+                        key: ValueKey('media-row-${entry.id}'),
+                        entry: entry,
+                        schedule: epgSchedules[entry.id],
+                        favorite: favorites.contains(entry.locator(profileId)),
+                        onFavorite: () => onFavoriteToggled(entry),
+                        onTap: entry.isPlayable ? () => onPlay(entry) : null,
+                      );
+                    },
+                  )
                 : GridView.builder(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: MediaQuery.sizeOf(context).width >= 1050
@@ -1427,6 +1446,92 @@ final class _CatalogPage extends ConsumerWidget {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+final class _LiveMediaRow extends StatelessWidget {
+  const _LiveMediaRow({
+    super.key,
+    required this.entry,
+    required this.schedule,
+    required this.onTap,
+    required this.favorite,
+    required this.onFavorite,
+  });
+
+  final _LibraryEntry entry;
+  final EpgNowNext? schedule;
+  final VoidCallback? onTap;
+  final bool favorite;
+  final VoidCallback onFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      color: const Color(0xFF102133),
+      child: ListTile(
+        minTileHeight: 72,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: TviumSpacing.sm,
+          vertical: TviumSpacing.xs,
+        ),
+        onTap: onTap,
+        leading: SizedBox.square(
+          dimension: 56,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(TviumRadius.control),
+            child: _CatalogArtwork(entry: entry),
+          ),
+        ),
+        title: Text(
+          entry.displayName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              schedule?.current?.title ?? 'Program guide unavailable',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (schedule?.next case final next?)
+              Text(
+                'Next: ${next.title}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            IconButton(
+              key: ValueKey('favorite-${entry.id}'),
+              tooltip: favorite ? 'Remove from favorites' : 'Add to favorites',
+              onPressed: onFavorite,
+              icon: Icon(
+                favorite
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+              ),
+            ),
+            const SizedBox(width: TviumSpacing.xs),
+            Icon(
+              Icons.play_circle_outline_rounded,
+              color: onTap == null
+                  ? Theme.of(context).disabledColor
+                  : TviumColors.accentDark,
+            ),
+          ],
+        ),
       ),
     );
   }

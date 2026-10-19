@@ -27,6 +27,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('destination-live')));
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('live-channel-list')), findsOneWidget);
     expect(find.text('News'), findsOneWidget);
     expect(find.text('Demo News'), findsOneWidget);
 

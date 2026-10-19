@@ -13,16 +13,20 @@ final class M3uSourceDescriptor {
   const M3uSourceDescriptor.url({
     required this.displayName,
     required this.location,
-  }) : kind = M3uSourceKind.url;
+  }) : kind = M3uSourceKind.url,
+       identityLocation = location;
 
   const M3uSourceDescriptor.file({
     required this.displayName,
     required this.location,
-  }) : kind = M3uSourceKind.file;
+    String? identityLocation,
+  }) : kind = M3uSourceKind.file,
+       identityLocation = identityLocation ?? location;
 
   final M3uSourceKind kind;
   final String displayName;
   final String location;
+  final String identityLocation;
 
   @override
   String toString() => 'M3uSourceDescriptor(${kind.name}, ***)';
@@ -54,6 +58,7 @@ final class SecureM3uSourceStore {
           'kind': descriptor.kind.name,
           'displayName': descriptor.displayName,
           'location': descriptor.location,
+          'identityLocation': descriptor.identityLocation,
         }),
       );
 
@@ -66,6 +71,7 @@ final class SecureM3uSourceStore {
       final kind = decoded['kind'];
       final displayName = decoded['displayName'];
       final location = decoded['location'];
+      final identityLocation = decoded['identityLocation'];
       if (kind is! String ||
           displayName is! String ||
           location is! String ||
@@ -81,6 +87,9 @@ final class SecureM3uSourceStore {
         'file' => M3uSourceDescriptor.file(
           displayName: displayName,
           location: location,
+          identityLocation: identityLocation is String
+              ? identityLocation
+              : location,
         ),
         _ => throw const FormatException(),
       };
@@ -133,7 +142,7 @@ final class DefaultM3uImportPersistence implements M3uImportPersistence {
     final active = await repository.ensureDefaultProfile();
     final digest = await _identityService.m3uDigest(
       descriptor.kind.name,
-      descriptor.location,
+      descriptor.identityLocation,
     );
     final existing = await repository.sourceByIdentity(digest);
     final reference = existing?.secretReference ?? _referenceFactory();
