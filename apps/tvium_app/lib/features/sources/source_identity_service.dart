@@ -39,6 +39,13 @@ final class SourceIdentityService {
     return 'v1:${Hmac(sha256, await _key()).convert(utf8.encode(jsonEncode(['xtream', canonical, username.trim()])))}';
   }
 
+  Future<String> m3uDigest(String kind, String canonicalLocation) async {
+    if ((kind != 'url' && kind != 'file') || canonicalLocation.isEmpty) {
+      throw ArgumentError('Invalid playlist identity.');
+    }
+    return 'v1:${Hmac(sha256, await _key()).convert(utf8.encode(jsonEncode(['m3u', kind, canonicalLocation])))}';
+  }
+
   @override
   String toString() => 'SourceIdentityService(***)';
 }

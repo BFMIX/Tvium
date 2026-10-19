@@ -18,6 +18,7 @@ import '../epg/epg_import_controller.dart';
 import '../epg/epg_now_next_provider.dart';
 import '../epg/epg_source.dart';
 import '../import/local_playlist_picker.dart';
+import '../import/m3u_import_persistence.dart';
 import '../import/playlist_import_controller.dart';
 import '../import/playlist_import_provider.dart';
 import '../library/library_bootstrap_controller.dart';
@@ -366,7 +367,17 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       controller.reportValidationFailure(strings.invalidUrl);
       return;
     }
-    unawaited(controller.importSource(M3uUrlSource(uri)));
+    unawaited(
+      controller
+          .importSource(
+            M3uUrlSource(uri),
+            descriptor: M3uSourceDescriptor.url(
+              displayName: uri.host,
+              location: uri.toString(),
+            ),
+          )
+          .then((_) => ref.invalidate(libraryBootstrapProvider)),
+    );
   }
 
   Future<void> _pickLocalFile(PlaylistImportController controller) async {
@@ -374,11 +385,23 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       final source = await ref.read(localPlaylistPickerProvider)();
       if (source != null) {
-        await controller.importSource(source);
+        final descriptor = source is M3uFileSource
+            ? M3uSourceDescriptor.file(
+                displayName: _fileName(source.path),
+                location: source.path,
+              )
+            : null;
+        await controller.importSource(source, descriptor: descriptor);
+        ref.invalidate(libraryBootstrapProvider);
       }
     } on Object {
       controller.reportValidationFailure(strings.filePickerFailed);
     }
+  }
+
+  String _fileName(String path) {
+    final parts = path.split(RegExp(r'[/\\]'));
+    return parts.isEmpty || parts.last.isEmpty ? 'Local playlist' : parts.last;
   }
 
   Future<void> _openXtreamLibrary(XtreamAddedProfile profile) async {
@@ -554,6 +577,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       final uri = await entry.resolveUri(
         ref.read(xtreamConnectionServiceProvider),
+        ref.read(m3uPlaybackResolverProvider),
       );
       if (uri == null || sessionGeneration != _profileSessionGeneration) {
         return;
@@ -1781,6 +1805,7 @@ final class _LibraryEntry {
     required this.group,
     required this.imageUri,
     required this.m3uUri,
+    required this.m3uSourceReference,
     required this.xtreamProfileId,
     required this.xtreamItem,
     required this.xtreamSeriesId,
@@ -1795,6 +1820,7 @@ final class _LibraryEntry {
     group: entry.groupTitle,
     imageUri: entry.logoUri,
     m3uUri: entry.originalUri,
+    m3uSourceReference: null,
     xtreamProfileId: null,
     xtreamItem: null,
     xtreamSeriesId: null,
@@ -1813,6 +1839,7 @@ final class _LibraryEntry {
     group: group,
     imageUri: item.imageUri,
     m3uUri: null,
+    m3uSourceReference: null,
     xtreamProfileId: profileId,
     xtreamItem: item,
     xtreamSeriesId: null,
@@ -1831,6 +1858,7 @@ final class _LibraryEntry {
     group: group,
     imageUri: series.coverUri,
     m3uUri: null,
+    m3uSourceReference: null,
     xtreamProfileId: profileId,
     xtreamItem: null,
     xtreamSeriesId: series.id,
@@ -1850,6 +1878,7 @@ final class _LibraryEntry {
     group: seriesName,
     imageUri: episode.imageUri,
     m3uUri: null,
+    m3uSourceReference: null,
     xtreamProfileId: profileId,
     xtreamItem: null,
     xtreamSeriesId: seriesId,
@@ -1869,6 +1898,7 @@ final class _LibraryEntry {
       group: entry.groupName,
       imageUri: null,
       m3uUri: null,
+      m3uSourceReference: externalId == null ? entry.sourceReference : null,
       xtreamProfileId: externalId == null ? null : entry.sourceReference,
       xtreamItem: playable
           ? XtreamMediaItem(
@@ -1895,6 +1925,7 @@ final class _LibraryEntry {
   final String? group;
   final Uri? imageUri;
   final Uri? m3uUri;
+  final String? m3uSourceReference;
   final String? xtreamProfileId;
   final XtreamMediaItem? xtreamItem;
   final String? xtreamSeriesId;
@@ -1902,7 +1933,10 @@ final class _LibraryEntry {
   final String sourceId;
 
   bool get isPlayable =>
-      m3uUri != null || xtreamItem != null || xtreamEpisode != null;
+      m3uUri != null ||
+      m3uSourceReference != null ||
+      xtreamItem != null ||
+      xtreamEpisode != null;
 
   String get displayName =>
       const PlaylistTitleNormalizer().normalize(name, kind: kind).title;
@@ -1910,10 +1944,17 @@ final class _LibraryEntry {
   MediaLocator locator(String profileId) =>
       MediaLocator(profileId: profileId, sourceId: sourceId, entryId: id);
 
-  Future<Uri?> resolveUri(XtreamConnectionService service) {
+  Future<Uri?> resolveUri(
+    XtreamConnectionService service,
+    M3uPlaybackResolver m3uResolver,
+  ) {
     final directUri = m3uUri;
     if (directUri != null) {
       return Future<Uri?>.value(directUri);
+    }
+    final sourceReference = m3uSourceReference;
+    if (sourceReference != null) {
+      return m3uResolver.resolve(sourceReference, id);
     }
     final profileId = xtreamProfileId;
     final episode = xtreamEpisode;
