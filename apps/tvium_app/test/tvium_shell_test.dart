@@ -323,16 +323,109 @@ void main() {
     expect(find.byKey(const ValueKey('home-hero-play')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-hero-details')), findsOneWidget);
     final initialTitle = tester.widget<Text>(
-      find.byKey(const ValueKey('home-hero-title')),
+      find.byKey(const ValueKey('home-hero-title')).last,
     );
 
     await tester.pump(const Duration(seconds: 5));
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 350));
 
     final nextTitle = tester.widget<Text>(
       find.byKey(const ValueKey('home-hero-title')),
     );
     expect(nextTitle.data, isNot(initialTitle.data));
+  });
+
+  testWidgets('Home hero supports directional controls and defers autoplay', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    final initialTitle = tester.widget<Text>(
+      find.byKey(const ValueKey('home-hero-title')),
+    );
+    expect(find.byKey(const ValueKey('home-hero-previous')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-hero-next')), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 4));
+    await tester.tap(find.byKey(const ValueKey('home-hero-next')));
+    await tester.pump(const Duration(milliseconds: 350));
+    final manuallySelectedTitle = tester.widget<Text>(
+      find.byKey(const ValueKey('home-hero-title')).last,
+    );
+    expect(manuallySelectedTitle.data, isNot(initialTitle.data));
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('home-hero-title')).last)
+          .data,
+      manuallySelectedTitle.data,
+    );
+  });
+
+  testWidgets('Home hero supports horizontal swipe navigation', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    final initialTitle = tester.widget<Text>(
+      find.byKey(const ValueKey('home-hero-title')).last,
+    );
+    await tester.fling(
+      find.byKey(const ValueKey('home-hero')),
+      const Offset(-240, 0),
+      900,
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('home-hero-title')).last)
+          .data,
+      isNot(initialTitle.data),
+    );
+  });
+
+  testWidgets('Home hero respects reduced motion', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    final initialTitle = tester.widget<Text>(
+      find.byKey(const ValueKey('home-hero-title')),
+    );
+
+    await tester.pump(const Duration(seconds: 6));
+
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('home-hero-title'))).data,
+      initialTitle.data,
+    );
   });
 
   testWidgets(

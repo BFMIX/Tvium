@@ -110,7 +110,12 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     final parentalUnlocked = _unlockedParentalProfileId == profileId;
     final entries = parentalPolicy != null && !parentalUnlocked
         ? allEntries
-              .where((entry) => !_blockedByParentalPolicy(entry))
+              .where(
+                (entry) => !_blockedByParentalPolicy(
+                  entry,
+                  parentalPolicy.blockedContent,
+                ),
+              )
               .toList(growable: false)
         : allEntries;
     final sessionEpgEntries = _sessionEpgEntries(state);
@@ -199,11 +204,12 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                           _removeSource(profileId, source),
                       onImportEpgFile: _importEpgFile,
                       onImportEpgUrl: _importEpgUrl,
+                      onRefreshSource: _refreshSource,
                       onRefreshSources: _refreshSources,
                       parentalConfigured: parentalPolicy != null,
                       parentalUnlocked: parentalUnlocked,
-                      onSaveParentalPin: (pin) =>
-                          _saveParentalPin(profileId, pin),
+                      onSaveParentalPin: (pin, blockedContent) =>
+                          _saveParentalPin(profileId, pin, blockedContent),
                       onUnlockParental: (pin) =>
                           _unlockParental(parentalPolicy, pin),
                     ),
@@ -593,6 +599,31 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  Future<String> _refreshSource(IptvSource source) async {
+    try {
+      final refreshedEntries = await ref
+          .read(m3uSourceRefreshProvider)
+          .refresh(source.secretReference);
+      if (refreshedEntries != null) {
+        ref.invalidate(libraryBootstrapProvider);
+        ref.invalidate(epgNowNextProvider);
+        return 'Playlist refreshed: M3U catalog updated.';
+      }
+      final service = ref.read(xtreamConnectionServiceProvider);
+      if (service is! XtreamSourceRefreshService) {
+        return 'This playlist cannot be refreshed in this build.';
+      }
+      final refreshService = service as XtreamSourceRefreshService;
+      final result = await refreshService.refreshSource(source.id);
+      ref.invalidate(libraryBootstrapProvider);
+      ref.invalidate(epgNowNextProvider);
+      return 'Playlist refreshed: ${result.addedCount} added, '
+          '${result.changedCount} updated, ${result.removedCount} removed.';
+    } on Object {
+      return 'Playlist refresh failed. The existing library was kept.';
+    }
+  }
+
   List<PersistedMediaEntry> _sessionEpgEntries(PlaylistImportState state) {
     if (state.phase != PlaylistImportPhase.ready) return const [];
     return [
@@ -773,7 +804,11 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       .read(userOverlaysControllerProvider(profileId).notifier)
       .toggleFavorite(entry.locator(profileId));
 
-  Future<String> _saveParentalPin(String profileId, String pin) async {
+  Future<String> _saveParentalPin(
+    String profileId,
+    String pin,
+    Set<String> blockedContent,
+  ) async {
     try {
       final digest = await compute(_hashParentalPin, pin);
       await ref
@@ -782,7 +817,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
             ParentalPolicy(
               profileId: profileId,
               pinDigest: digest,
-              blockedContent: const {'adult'},
+              blockedContent: blockedContent,
             ),
           );
       if (mounted) setState(() => _unlockedParentalProfileId = null);
@@ -805,9 +840,17 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     return 'Protected content unlocked for this session.';
   }
 
-  bool _blockedByParentalPolicy(_LibraryEntry entry) {
+  bool _blockedByParentalPolicy(
+    _LibraryEntry entry,
+    Set<String> blockedContent,
+  ) {
+    final group = entry.group?.trim().toLowerCase();
     final value = '${entry.group ?? ''} ${entry.name}'.toLowerCase();
-    return const <String>['adult', 'xxx', '18+', 'porn'].any(value.contains);
+    if (blockedContent.contains('adult') &&
+        const <String>['adult', 'xxx', '18+', 'porn'].any(value.contains)) {
+      return true;
+    }
+    return group != null && blockedContent.contains(group);
   }
 }
 
@@ -953,6 +996,7 @@ final class _LibraryView extends ConsumerStatefulWidget {
     required this.onRemoveSource,
     required this.onImportEpgFile,
     required this.onImportEpgUrl,
+    required this.onRefreshSource,
     required this.onRefreshSources,
     required this.parentalConfigured,
     required this.parentalUnlocked,
@@ -979,10 +1023,12 @@ final class _LibraryView extends ConsumerStatefulWidget {
   final Future<void> Function(IptvSource source) onRemoveSource;
   final Future<String> Function() onImportEpgFile;
   final Future<String> Function(Uri uri) onImportEpgUrl;
+  final Future<String> Function(IptvSource source) onRefreshSource;
   final Future<String> Function() onRefreshSources;
   final bool parentalConfigured;
   final bool parentalUnlocked;
-  final Future<String> Function(String pin) onSaveParentalPin;
+  final Future<String> Function(String pin, Set<String> blockedContent)
+  onSaveParentalPin;
   final Future<String> Function(String pin) onUnlockParental;
 
   @override
@@ -1028,6 +1074,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                   configured: ref.read(metadataGatewayProvider) != null,
                   onImportEpgFile: widget.onImportEpgFile,
                   onImportEpgUrl: widget.onImportEpgUrl,
+                  onRefreshSource: widget.onRefreshSource,
                   onRefreshSources: widget.onRefreshSources,
                   sources: widget.sources,
                   onAddPlaylist: widget.onAddPlaylist,
@@ -1035,6 +1082,24 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                   onRemoveSource: widget.onRemoveSource,
                   parentalConfigured: widget.parentalConfigured,
                   parentalUnlocked: widget.parentalUnlocked,
+                  availableParentalCategories:
+                      widget.entries
+                          .map((entry) => entry.group?.trim())
+                          .whereType<String>()
+                          .where((group) => group.isNotEmpty)
+                          .toSet()
+                          .toList()
+                        ..sort(),
+                  initialBlockedContent:
+                      ref
+                          .watch(
+                            userOverlaysControllerProvider(widget.profileId),
+                          )
+                          .asData
+                          ?.value
+                          .parentalPolicy
+                          ?.blockedContent ??
+                      const {'adult'},
                   onSaveParentalPin: widget.onSaveParentalPin,
                   onUnlockParental: widget.onUnlockParental,
                 ),
@@ -1400,6 +1465,7 @@ final class _DestinationHome extends StatefulWidget {
 final class _DestinationHomeState extends State<_DestinationHome> {
   Timer? _heroTimer;
   var _heroIndex = 0;
+  bool? _reduceHeroMotion;
 
   List<_LibraryEntry> get _heroEntries => widget.entries
       .where((entry) => entry.kind != MediaKind.live && entry.isPlayable)
@@ -1409,7 +1475,16 @@ final class _DestinationHomeState extends State<_DestinationHome> {
   @override
   void initState() {
     super.initState();
-    _startHeroTimer();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceHeroMotion != reduceMotion) {
+      _reduceHeroMotion = reduceMotion;
+      _startHeroTimer();
+    }
   }
 
   @override
@@ -1427,11 +1502,21 @@ final class _DestinationHomeState extends State<_DestinationHome> {
 
   void _startHeroTimer() {
     _heroTimer?.cancel();
-    if (_heroEntries.length < 2) return;
+    if (_reduceHeroMotion != false || _heroEntries.length < 2) return;
     _heroTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!mounted) return;
       setState(() => _heroIndex = (_heroIndex + 1) % _heroEntries.length);
     });
+  }
+
+  void _selectHero(int index) {
+    final entries = _heroEntries;
+    if (entries.isEmpty) return;
+    final selected = index % entries.length;
+    setState(
+      () => _heroIndex = selected < 0 ? selected + entries.length : selected,
+    );
+    _startHeroTimer();
   }
 
   @override
@@ -1510,7 +1595,9 @@ final class _DestinationHomeState extends State<_DestinationHome> {
                       entry: heroEntries[_heroIndex % heroEntries.length],
                       entries: heroEntries,
                       selectedIndex: _heroIndex % heroEntries.length,
-                      onSelected: (index) => setState(() => _heroIndex = index),
+                      onSelected: _selectHero,
+                      onPrevious: () => _selectHero(_heroIndex - 1),
+                      onNext: () => _selectHero(_heroIndex + 1),
                       onPlay: widget.onPlay,
                       onDetails: widget.onDetails,
                     );
@@ -1635,6 +1722,8 @@ final class _HomeHero extends StatelessWidget {
     required this.entries,
     required this.selectedIndex,
     required this.onSelected,
+    required this.onPrevious,
+    required this.onNext,
     required this.onPlay,
     required this.onDetails,
   });
@@ -1643,51 +1732,91 @@ final class _HomeHero extends StatelessWidget {
   final List<_LibraryEntry> entries;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
   final ValueChanged<_LibraryEntry> onPlay;
   final ValueChanged<_LibraryEntry> onDetails;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
+    return GestureDetector(
       key: const ValueKey('home-hero'),
-      borderRadius: BorderRadius.circular(TviumRadius.hero),
-      child: AnimatedSwitcher(
-        duration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 280),
-        child: Stack(
-          key: ValueKey('home-hero-${entry.id}'),
-          fit: StackFit.expand,
-          children: <Widget>[
-            if (entry.imageUri case final artwork?)
-              CachedNetworkImage(
-                imageUrl: artwork.toString(),
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-                errorWidget: (context, url, error) => const SizedBox.shrink(),
-              ),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerRight,
-                  end: Alignment.centerLeft,
-                  colors: <Color>[
-                    Color(0x3318C7F0),
-                    Color(0xD90A1B2B),
-                    Color(0xFF06101B),
-                  ],
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: entries.length < 2
+          ? null
+          : (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity < -120) onNext();
+              if (velocity > 120) onPrevious();
+            },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(TviumRadius.hero),
+        child: AnimatedSwitcher(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 280),
+          child: Stack(
+            key: ValueKey('home-hero-${entry.id}'),
+            fit: StackFit.expand,
+            children: <Widget>[
+              if (entry.imageUri case final artwork?)
+                CachedNetworkImage(
+                  imageUrl: artwork.toString(),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                  errorWidget: (context, url, error) => const SizedBox.shrink(),
+                ),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerRight,
+                    end: Alignment.centerLeft,
+                    colors: <Color>[
+                      Color(0x3318C7F0),
+                      Color(0xD90A1B2B),
+                      Color(0xFF06101B),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _HomeHeroContent(
-              entry: entry,
-              entries: entries,
-              selectedIndex: selectedIndex,
-              onSelected: onSelected,
-              onPlay: onPlay,
-              onDetails: onDetails,
-            ),
-          ],
+              _HomeHeroContent(
+                entry: entry,
+                entries: entries,
+                selectedIndex: selectedIndex,
+                onSelected: onSelected,
+                onPlay: onPlay,
+                onDetails: onDetails,
+              ),
+              if (entries.length > 1) ...<Widget>[
+                Positioned(
+                  left: TviumSpacing.xs,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton.filledTonal(
+                      key: const ValueKey('home-hero-previous'),
+                      tooltip: 'Previous feature',
+                      onPressed: onPrevious,
+                      icon: const Icon(Icons.chevron_left_rounded),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: TviumSpacing.xs,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton.filledTonal(
+                      key: const ValueKey('home-hero-next'),
+                      tooltip: 'Next feature',
+                      onPressed: onNext,
+                      icon: const Icon(Icons.chevron_right_rounded),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
