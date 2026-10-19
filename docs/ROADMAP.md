@@ -30,6 +30,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 
 - Verified: approved Tvium logo family, application icons, visual reference screens, and brand color tokens are organized and integrated into the prototype.
 - Verified: production color and typography foundations, adaptive four-destination navigation shell, onboarding, Home, compact touch navigation, and wide-screen focus states.
+- Highest current priority: apply the approved cinematic Home, Live TV, Movies, and TV Shows designs to the production Flutter screens.
 - In progress: accessibility audits and full D-pad/remote runtime coverage.
 
 ## M4 — Live TV (in progress)
@@ -44,6 +45,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: Xtream series details load on demand and expose ordered seasons and playable episodes without persisting stream URLs.
 - Verified: favorites and recently played history work across Live TV, Movies, and TV Shows.
 - Verified by automated coverage: movie and episode playback surfaces, local progress checkpoints, automatic resume, and Continue Watching.
+- Verified by automated coverage: M3U episode titles using common provider conventions are grouped locally into series, seasons, and episodes; native Xtream series structure remains authoritative when available.
 - In progress: physical-device playback validation. Enriched VOD details and durable episode catalogs remain planned.
 
 ## M6 — Playlist management (planned)

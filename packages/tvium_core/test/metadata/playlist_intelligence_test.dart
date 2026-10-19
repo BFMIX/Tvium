@@ -43,6 +43,21 @@ void main() {
       expect(live.title, 'Example S02E013 (2020)');
       expect(live.year, isNull);
     });
+    test('extracts common provider episode formats consistently', () {
+      final cases = <String, (String, int, int)>{
+        'Example 1x02': ('Example', 1, 2),
+        'Example - Season 3 Episode 7': ('Example', 3, 7),
+        'Example - Saison 4 Épisode 9': ('Example', 4, 9),
+        'Example - Temporada 2 Episodio 5': ('Example', 2, 5),
+      };
+      for (final MapEntry(key: title, value: expected) in cases.entries) {
+        final result = normalizer.normalize(title);
+        expect(result.title, expected.$1, reason: title);
+        expect(result.season, expected.$2, reason: title);
+        expect(result.episode, expected.$3, reason: title);
+        expect(result.kind, MediaKind.episode, reason: title);
+      }
+    });
     test('rejects episode zero and never returns an empty derived title', () {
       expect(
         normalizer.normalize('Example S01E00').kind,

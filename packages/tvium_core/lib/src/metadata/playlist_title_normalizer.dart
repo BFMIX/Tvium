@@ -96,12 +96,35 @@ final class PlaylistTitleNormalizer {
     int? season;
     int? episode;
     if (kind != MediaKind.live && kind != MediaKind.movie) {
-      final serial = RegExp(r'\s+[Ss](\d{1,2})[Ee](\d{1,3})$')
-          .firstMatch(title);
+      final serialPatterns = <RegExp>[
+        RegExp(
+          r'(?:\s*[-–—:]\s*|\s+)[Ss](\d{1,2})\s*[Ee](\d{1,3})'
+          r'(?:\s*[-–—:].*)?$',
+        ),
+        RegExp(
+          r'(?:\s*[-–—:]\s*|\s+)(\d{1,2})\s*x\s*(\d{1,3})'
+          r'(?:\s*[-–—:].*)?$',
+          caseSensitive: false,
+        ),
+        RegExp(
+          r'(?:\s*[-–—:]\s*|\s+)(?:Season|Saison|Temporada)\s+(\d{1,2})'
+          r'\s+(?:Episode|Épisode|Episodio)\s+(\d{1,3})'
+          r'(?:\s*[-–—:].*)?$',
+          caseSensitive: false,
+        ),
+      ];
+      RegExpMatch? serial;
+      for (final pattern in serialPatterns) {
+        serial = pattern.firstMatch(title);
+        if (serial != null) break;
+      }
       if (serial != null && int.parse(serial[2]!) > 0) {
         season = int.parse(serial[1]!);
         episode = int.parse(serial[2]!);
-        title = title.substring(0, serial.start).trim();
+        title = title
+            .substring(0, serial.start)
+            .replaceFirst(RegExp(r'\s*[-–—:]\s*$'), '')
+            .trim();
         kind = MediaKind.episode;
       }
     }

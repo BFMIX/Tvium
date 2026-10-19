@@ -12,6 +12,8 @@
 [![Platforms](https://img.shields.io/badge/platforms-Web%20%7C%20Mobile%20%7C%20TV%20%7C%20Desktop-111827)](#designed-for-every-screen)
 [![CI](https://github.com/BFMIX/Tvium/actions/workflows/ci.yml/badge.svg)](https://github.com/BFMIX/Tvium/actions/workflows/ci.yml)
 
+[Try the Web preview](https://bfmix.github.io/Tvium/) · [Download the latest test build](https://github.com/BFMIX/Tvium/releases/latest)
+
 </div>
 
 Tvium is a modern, all-in-one IPTV player designed to bring live television, movies, and series from user-provided sources into one clean, organized experience.
@@ -52,7 +54,9 @@ Source metadata is preserved so Tvium can improve presentation without silently 
 
 ## Development status
 
-Tvium is in active development and is **not yet available as a public download**. The Phase 0 prototype has validated:
+Tvium is in active development. Early test builds are available from [GitHub Releases](https://github.com/BFMIX/Tvium/releases/latest), and the [Web preview](https://bfmix.github.io/Tvium/) runs directly in a compatible browser. These builds are previews and may still contain incomplete features.
+
+The Phase 0 prototype has validated:
 
 - M3U file and URL import;
 - secure Xtream-compatible profiles and shared family sources without duplicate catalogs;

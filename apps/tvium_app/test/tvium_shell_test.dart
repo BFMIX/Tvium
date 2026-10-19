@@ -45,6 +45,90 @@ void main() {
     expect(find.text('Program guide unavailable'), findsOneWidget);
   });
 
+  testWidgets('wide catalogs keep categories in a left navigation rail', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+      ),
+    );
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    final rail = find.byKey(const ValueKey('catalog-group-sidebar'));
+    final channels = find.byKey(const ValueKey('live-channel-list'));
+    expect(rail, findsOneWidget);
+    expect(
+      tester.getTopLeft(rail).dx,
+      lessThan(tester.getTopLeft(channels).dx),
+    );
+  });
+
+  testWidgets('poster catalogs use a width-responsive compact grid', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+      ),
+    );
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+
+    final grid = tester.widget<GridView>(
+      find.byKey(const ValueKey('poster-grid')),
+    );
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
+    expect(delegate.maxCrossAxisExtent, lessThanOrEqualTo(220));
+  });
+
+  testWidgets('M3U episodes are grouped into one series with seasons', (
+    tester,
+  ) async {
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+      ),
+    );
+
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Demo Show'), findsOneWidget);
+    await tester.tap(find.text('Demo Show'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Season 1'), findsOneWidget);
+    expect(find.text('2 episodes'), findsOneWidget);
+  });
+
   testWidgets('movie Play now opens a visible playback surface', (
     tester,
   ) async {
@@ -338,5 +422,7 @@ final class _DesignFixtureSource implements M3uSource {
     'https://stream.example.test/vod/movie.mp4',
     '#EXTINF:-1 group-title="Series",Demo Show S01E01',
     'https://stream.example.test/series/episode.mkv',
+    '#EXTINF:-1 group-title="Series",Demo Show 1x02',
+    'https://stream.example.test/series/episode-2.mkv',
   ]);
 }

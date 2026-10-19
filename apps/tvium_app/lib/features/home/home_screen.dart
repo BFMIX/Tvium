@@ -1157,17 +1157,21 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
     );
   }
 
-  List<_LibraryEntry> _entriesFor(_CatalogDestination destination) => widget
-      .entries
-      .where(
-        (entry) => switch (destination) {
-          _CatalogDestination.live => entry.kind == MediaKind.live,
-          _CatalogDestination.movies => entry.kind == MediaKind.movie,
-          _CatalogDestination.shows => entry.kind == MediaKind.episode,
-          _CatalogDestination.home => false,
-        },
-      )
-      .toList(growable: false);
+  List<_LibraryEntry> _entriesFor(_CatalogDestination destination) {
+    final entries = widget.entries
+        .where(
+          (entry) => switch (destination) {
+            _CatalogDestination.live => entry.kind == MediaKind.live,
+            _CatalogDestination.movies => entry.kind == MediaKind.movie,
+            _CatalogDestination.shows => entry.kind == MediaKind.episode,
+            _CatalogDestination.home => false,
+          },
+        )
+        .toList(growable: false);
+    return destination == _CatalogDestination.shows
+        ? _groupSeriesEntries(entries)
+        : entries;
+  }
 
   void _selectDestination(_CatalogDestination destination) {
     setState(() {
@@ -1682,6 +1686,70 @@ final class _CatalogPage extends ConsumerWidget {
           _CatalogDestination.shows => selectedEntry!.kind == MediaKind.episode,
           _CatalogDestination.home => false,
         };
+    final media = visible.isEmpty
+        ? Center(child: Text(AppLocalizations.of(context).noItems))
+        : destination == _CatalogDestination.live
+        ? ListView.separated(
+            key: const ValueKey('live-channel-list'),
+            itemCount: visible.length,
+            separatorBuilder: (_, _) => const SizedBox(height: TviumSpacing.xs),
+            itemBuilder: (context, index) {
+              final entry = visible[index];
+              return _LiveMediaRow(
+                key: ValueKey('media-row-${entry.id}'),
+                entry: entry,
+                schedule: epgSchedules[entry.id],
+                favorite: favorites.contains(entry.locator(profileId)),
+                onFavorite: () => onFavoriteToggled(entry),
+                onTap: entry.isPlayable ? () => onPlay(entry) : null,
+              );
+            },
+          )
+        : GridView.builder(
+            key: const ValueKey('poster-grid'),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 210,
+              mainAxisSpacing: TviumSpacing.sm,
+              crossAxisSpacing: TviumSpacing.sm,
+              childAspectRatio: 0.62,
+            ),
+            itemCount: visible.length,
+            itemBuilder: (context, index) {
+              final entry = visible[index];
+              return _MediaCard(
+                key: index == 0 && destination == _CatalogDestination.movies
+                    ? const ValueKey('media-card-movie')
+                    : ValueKey('media-card-${entry.id}'),
+                entry: entry,
+                schedule: epgSchedules[entry.id],
+                destination: destination,
+                favorite: favorites.contains(entry.locator(profileId)),
+                onFavorite: () => onFavoriteToggled(entry),
+                onTap: () => _showTitleDetails(
+                  context,
+                  entry,
+                  onPlay,
+                  ref.read(xtreamConnectionServiceProvider),
+                ),
+              );
+            },
+          );
+    final catalog = Column(
+      children: <Widget>[
+        if (showPlayer) ...<Widget>[
+          SizedBox(
+            key: const ValueKey('catalog-player'),
+            height: 210,
+            child: _PlayerPanel(
+              selectedEntry: selectedEntry,
+              engine: playbackEngine,
+            ),
+          ),
+          const SizedBox(height: TviumSpacing.md),
+        ],
+        Expanded(child: media),
+      ],
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         TviumSpacing.lg,
@@ -1697,100 +1765,146 @@ final class _CatalogPage extends ConsumerWidget {
             style: Theme.of(context).textTheme.displaySmall,
           ),
           const SizedBox(height: TviumSpacing.sm),
-          SizedBox(
-            height: 42,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: <Widget>[
-                ChoiceChip(
-                  label: const Text('All'),
-                  selected: selectedGroup == null,
-                  onSelected: (_) => onGroupSelected(null),
-                ),
-                for (final group in groups) ...<Widget>[
-                  const SizedBox(width: TviumSpacing.xs),
-                  ChoiceChip(
-                    label: Text(group),
-                    selected: selectedGroup == group,
-                    onSelected: (_) => onGroupSelected(group),
-                  ),
-                ],
-              ],
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth >= 720) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      SizedBox(
+                        key: const ValueKey('catalog-group-sidebar'),
+                        width: 220,
+                        child: _GroupSidebar(
+                          groups: groups,
+                          selectedGroup: selectedGroup,
+                          onSelected: onGroupSelected,
+                        ),
+                      ),
+                      const SizedBox(width: TviumSpacing.md),
+                      Expanded(child: catalog),
+                    ],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    DropdownButtonFormField<String?>(
+                      key: const ValueKey('catalog-group-menu'),
+                      isExpanded: true,
+                      initialValue: selectedGroup,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.filter_list_rounded),
+                        labelText: 'Category',
+                      ),
+                      items: <DropdownMenuItem<String?>>[
+                        const DropdownMenuItem<String?>(
+                          child: Text('All categories'),
+                        ),
+                        for (final group in groups)
+                          DropdownMenuItem<String?>(
+                            value: group,
+                            child: Text(
+                              group,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: onGroupSelected,
+                    ),
+                    const SizedBox(height: TviumSpacing.sm),
+                    Expanded(child: catalog),
+                  ],
+                );
+              },
             ),
           ),
-          const SizedBox(height: TviumSpacing.sm),
-          if (showPlayer) ...<Widget>[
-            SizedBox(
-              key: const ValueKey('catalog-player'),
-              height: 210,
-              child: _PlayerPanel(
-                selectedEntry: selectedEntry,
-                engine: playbackEngine,
-              ),
+        ],
+      ),
+    );
+  }
+}
+
+final class _GroupSidebar extends StatelessWidget {
+  const _GroupSidebar({
+    required this.groups,
+    required this.selectedGroup,
+    required this.onSelected,
+  });
+
+  final List<String> groups;
+  final String? selectedGroup;
+  final ValueChanged<String?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final options = <String?>[null, ...groups];
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xB30A1A2A),
+        borderRadius: BorderRadius.circular(TviumRadius.surface),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              TviumSpacing.md,
+              TviumSpacing.md,
+              TviumSpacing.md,
+              TviumSpacing.sm,
             ),
-            const SizedBox(height: TviumSpacing.md),
-          ],
+            child: Text(
+              'Categories',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
           Expanded(
-            child: visible.isEmpty
-                ? Center(child: Text(AppLocalizations.of(context).noItems))
-                : destination == _CatalogDestination.live
-                ? ListView.separated(
-                    key: const ValueKey('live-channel-list'),
-                    itemCount: visible.length,
-                    separatorBuilder: (_, _) =>
-                        const SizedBox(height: TviumSpacing.xs),
-                    itemBuilder: (context, index) {
-                      final entry = visible[index];
-                      return _LiveMediaRow(
-                        key: ValueKey('media-row-${entry.id}'),
-                        entry: entry,
-                        schedule: epgSchedules[entry.id],
-                        favorite: favorites.contains(entry.locator(profileId)),
-                        onFavorite: () => onFavoriteToggled(entry),
-                        onTap: entry.isPlayable ? () => onPlay(entry) : null,
-                      );
-                    },
-                  )
-                : GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: MediaQuery.sizeOf(context).width >= 1050
-                          ? 4
-                          : MediaQuery.sizeOf(context).width >= 650
-                          ? 3
-                          : 2,
-                      mainAxisSpacing: TviumSpacing.sm,
-                      crossAxisSpacing: TviumSpacing.sm,
-                      childAspectRatio: destination == _CatalogDestination.live
-                          ? 1.5
-                          : 0.72,
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(
+                TviumSpacing.xs,
+                0,
+                TviumSpacing.xs,
+                TviumSpacing.sm,
+              ),
+              itemCount: options.length,
+              itemBuilder: (context, index) {
+                final group = options[index];
+                final selected = group == selectedGroup;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      dense: true,
+                      selected: selected,
+                      selectedTileColor: TviumColors.accentDark.withValues(
+                        alpha: 0.16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          TviumRadius.control,
+                        ),
+                      ),
+                      leading: Icon(
+                        selected
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.radio_button_unchecked_rounded,
+                        size: 18,
+                      ),
+                      title: Text(
+                        group ?? 'All categories',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => onSelected(group),
                     ),
-                    itemCount: visible.length,
-                    itemBuilder: (context, index) {
-                      final entry = visible[index];
-                      return _MediaCard(
-                        key:
-                            index == 0 &&
-                                destination == _CatalogDestination.movies
-                            ? const ValueKey('media-card-movie')
-                            : ValueKey('media-card-${entry.id}'),
-                        entry: entry,
-                        schedule: epgSchedules[entry.id],
-                        destination: destination,
-                        favorite: favorites.contains(entry.locator(profileId)),
-                        onFavorite: () => onFavoriteToggled(entry),
-                        onTap: destination == _CatalogDestination.live
-                            ? entry.isPlayable
-                                  ? () => onPlay(entry)
-                                  : null
-                            : () => _showTitleDetails(
-                                context,
-                                entry,
-                                onPlay,
-                                ref.read(xtreamConnectionServiceProvider),
-                              ),
-                      );
-                    },
                   ),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -1945,7 +2059,7 @@ final class _MediaCard extends StatelessWidget {
                     entry.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 3),
                   if (live) ...<Widget>[
@@ -2029,6 +2143,9 @@ Future<void> _showTitleDetails(
   ValueChanged<_LibraryEntry> onPlay,
   XtreamConnectionService service,
 ) {
+  if (entry.seriesEpisodes.isNotEmpty) {
+    return _showLocalSeriesDetails(context, entry, onPlay);
+  }
   final XtreamSeriesService? seriesService = service is XtreamSeriesService
       ? service as XtreamSeriesService
       : null;
@@ -2072,6 +2189,100 @@ Future<void> _showTitleDetails(
                   onPlay(entry);
                 }
               : null,
+          child: const Text('Play now'),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> _showLocalSeriesDetails(
+  BuildContext context,
+  _LibraryEntry entry,
+  ValueChanged<_LibraryEntry> onPlay,
+) {
+  final seasons = <int, List<_LibraryEntry>>{};
+  const normalizer = PlaylistTitleNormalizer();
+  for (final episode in entry.seriesEpisodes) {
+    final metadata = normalizer.normalize(episode.name, kind: episode.kind);
+    seasons
+        .putIfAbsent(metadata.season ?? 0, () => <_LibraryEntry>[])
+        .add(episode);
+  }
+  final seasonNumbers = seasons.keys.toList()..sort();
+  for (final episodes in seasons.values) {
+    episodes.sort((left, right) {
+      final leftNumber = normalizer
+          .normalize(left.name, kind: left.kind)
+          .episode;
+      final rightNumber = normalizer
+          .normalize(right.name, kind: right.kind)
+          .episode;
+      return (leftNumber ?? 0).compareTo(rightNumber ?? 0);
+    });
+  }
+  final firstEpisode = seasons[seasonNumbers.first]!.first;
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      key: const ValueKey('title-details'),
+      title: Text(entry.displayName),
+      content: SizedBox(
+        width: 560,
+        height: 480,
+        child: ListView(
+          children: <Widget>[
+            for (final seasonNumber in seasonNumbers)
+              ExpansionTile(
+                key: ValueKey('season-$seasonNumber'),
+                initiallyExpanded: seasonNumber == seasonNumbers.first,
+                title: Text(
+                  seasonNumber == 0 ? 'Specials' : 'Season $seasonNumber',
+                ),
+                subtitle: Text(
+                  '${seasons[seasonNumber]!.length} '
+                  '${seasons[seasonNumber]!.length == 1 ? 'episode' : 'episodes'}',
+                ),
+                children: <Widget>[
+                  for (final episode in seasons[seasonNumber]!)
+                    Builder(
+                      builder: (context) {
+                        final metadata = normalizer.normalize(
+                          episode.name,
+                          kind: episode.kind,
+                        );
+                        return ListTile(
+                          key: ValueKey('local-episode-${episode.id}'),
+                          leading: Text('${metadata.episode ?? '–'}'),
+                          title: Text('Episode ${metadata.episode ?? '–'}'),
+                          subtitle: Text(
+                            episode.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: const Icon(Icons.play_arrow_rounded),
+                          onTap: () {
+                            Navigator.of(dialogContext).pop();
+                            onPlay(episode);
+                          },
+                        );
+                      },
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Close'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.of(dialogContext).pop();
+            onPlay(firstEpisode);
+          },
           child: const Text('Play now'),
         ),
       ],
@@ -2249,6 +2460,46 @@ final class _PlayerPanel extends ConsumerWidget {
   }
 }
 
+List<_LibraryEntry> _groupSeriesEntries(List<_LibraryEntry> entries) {
+  const normalizer = PlaylistTitleNormalizer();
+  final groupKeys = <_LibraryEntry, String>{};
+  final buckets = <String, List<_LibraryEntry>>{};
+  final names = <String, String>{};
+  for (final entry in entries) {
+    if (entry.xtreamSeriesId != null && entry.xtreamEpisode == null) continue;
+    final metadata = normalizer.normalize(entry.name, kind: entry.kind);
+    if (metadata.season == null ||
+        metadata.episode == null ||
+        metadata.title.isEmpty) {
+      continue;
+    }
+    final key = '${entry.sourceId}\u0000${metadata.title.toLowerCase()}';
+    groupKeys[entry] = key;
+    buckets.putIfAbsent(key, () => <_LibraryEntry>[]).add(entry);
+    names[key] = metadata.title;
+  }
+
+  final result = <_LibraryEntry>[];
+  final emitted = <String>{};
+  for (final entry in entries) {
+    final key = groupKeys[entry];
+    if (key == null) {
+      result.add(entry);
+      continue;
+    }
+    if (!emitted.add(key)) continue;
+    final episodes = buckets[key]!;
+    result.add(
+      _LibraryEntry.seriesCollection(
+        name: names[key]!,
+        group: episodes.first.group,
+        episodes: episodes,
+      ),
+    );
+  }
+  return result;
+}
+
 final class _LibraryEntry {
   const _LibraryEntry({
     required this.id,
@@ -2263,7 +2514,39 @@ final class _LibraryEntry {
     required this.xtreamSeriesId,
     required this.xtreamEpisode,
     required this.sourceId,
+    this.seriesEpisodes = const <_LibraryEntry>[],
   });
+
+  factory _LibraryEntry.seriesCollection({
+    required String name,
+    required String? group,
+    required List<_LibraryEntry> episodes,
+  }) {
+    Uri? artwork;
+    for (final episode in episodes) {
+      if (episode.imageUri != null) {
+        artwork = episode.imageUri;
+        break;
+      }
+    }
+    final sourceId = episodes.first.sourceId;
+    final identity = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+    return _LibraryEntry(
+      id: 'local-series:$sourceId:$identity',
+      name: name,
+      kind: MediaKind.episode,
+      group: group,
+      imageUri: artwork,
+      m3uUri: null,
+      m3uSourceReference: null,
+      xtreamProfileId: null,
+      xtreamItem: null,
+      xtreamSeriesId: null,
+      xtreamEpisode: null,
+      sourceId: sourceId,
+      seriesEpisodes: List<_LibraryEntry>.unmodifiable(episodes),
+    );
+  }
 
   factory _LibraryEntry.fromM3u(M3uEntry entry) => _LibraryEntry(
     id: entry.id,
@@ -2383,6 +2666,7 @@ final class _LibraryEntry {
   final String? xtreamSeriesId;
   final XtreamEpisode? xtreamEpisode;
   final String sourceId;
+  final List<_LibraryEntry> seriesEpisodes;
 
   bool get isPlayable =>
       m3uUri != null ||
