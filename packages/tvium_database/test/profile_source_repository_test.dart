@@ -102,6 +102,71 @@ void _sharedSourceContract(
       expect(await repository.profiles(), hasLength(1));
     },
   );
+
+  test('renames a profile and source with unique non-empty names', () async {
+    final repository = await createRepository();
+    addTearDown(repository.close);
+    final home = await repository.ensureDefaultProfile();
+    await repository.registerSource(
+      _source(id: 'source-1', digest: 'digest-1'),
+      home.id,
+      <PersistedMediaEntry>[_entry(sourceId: 'source-1')],
+    );
+
+    await repository.renameProfile(home.id, 'Family');
+    await repository.renameSource('source-1', 'Living room TV');
+
+    expect((await repository.activeProfile()).displayName, 'Family');
+    expect(
+      (await repository.sourcesForProfile(home.id)).single.displayName,
+      'Living room TV',
+    );
+  });
+
+  test(
+    'unlinks a shared source and deletes it only after its last link',
+    () async {
+      final repository = await createRepository();
+      addTearDown(repository.close);
+      final home = await repository.ensureDefaultProfile();
+      final kids = await repository.createProfile('Kids');
+      await repository.registerSource(
+        _source(id: 'source-1', digest: 'digest-1'),
+        home.id,
+        <PersistedMediaEntry>[_entry(sourceId: 'source-1')],
+      );
+      await repository.linkSource(kids.id, 'source-1');
+
+      expect(await repository.unlinkSource(home.id, 'source-1'), isNull);
+      expect(await repository.entriesForPlaylist('source-1'), hasLength(1));
+
+      final orphan = await repository.unlinkSource(kids.id, 'source-1');
+      expect(orphan?.id, 'source-1');
+      expect(await repository.entriesForPlaylist('source-1'), isEmpty);
+    },
+  );
+
+  test('deletes a profile, activates a remaining profile, and keeps shared sources', () async {
+    final repository = await createRepository();
+    addTearDown(repository.close);
+    final home = await repository.ensureDefaultProfile();
+    final kids = await repository.createProfile('Kids');
+    await repository.registerSource(
+      _source(id: 'source-1', digest: 'digest-1'),
+      home.id,
+      <PersistedMediaEntry>[_entry(sourceId: 'source-1')],
+    );
+    await repository.linkSource(kids.id, 'source-1');
+    await repository.setActiveProfile(kids.id);
+
+    expect(await repository.deleteProfile(kids.id), isEmpty);
+    expect((await repository.activeProfile()).id, home.id);
+    expect(await repository.entriesForPlaylist('source-1'), hasLength(1));
+    await expectLater(
+      repository.deleteProfile(home.id),
+      throwsA(isA<ArgumentError>()),
+    );
+  });
 }
 
 IptvSource _source({required String id, required String digest}) {

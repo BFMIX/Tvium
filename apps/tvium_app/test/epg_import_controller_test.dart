@@ -337,10 +337,26 @@ final class _LibraryRepository implements ProfileSourceRepository {
   Future<UserProfile> createProfile(String name) => throw UnimplementedError();
 
   @override
+  Future<void> renameProfile(String id, String name) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<IptvSource>> deleteProfile(String id) =>
+      throw UnimplementedError();
+
+  @override
   Future<UserProfile> ensureDefaultProfile() async => _profile;
 
   @override
   Future<void> linkSource(String profileId, String sourceId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> renameSource(String sourceId, String name) =>
+      throw UnimplementedError();
+
+  @override
+  Future<IptvSource?> unlinkSource(String profileId, String sourceId) =>
       throw UnimplementedError();
 
   @override

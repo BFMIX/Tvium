@@ -248,3 +248,50 @@ final class DefaultM3uPlaybackResolver implements M3uPlaybackResolver {
         M3uSourceKind.file => M3uFileSource(descriptor.location),
       };
 }
+
+final class M3uSourceRefreshService {
+  factory M3uSourceRefreshService({
+    required SecureM3uSourceStore secureStore,
+    required M3uImportPersistence persistence,
+    M3uSource Function(M3uSourceDescriptor descriptor)? sourceFactory,
+    M3uParser parser = const M3uParser(),
+  }) => M3uSourceRefreshService._(
+    secureStore,
+    persistence,
+    sourceFactory ?? _defaultSource,
+    parser,
+  );
+
+  M3uSourceRefreshService._(
+    this._secureStore,
+    this._persistence,
+    this._sourceFactory,
+    this._parser,
+  );
+
+  final SecureM3uSourceStore _secureStore;
+  final M3uImportPersistence _persistence;
+  final M3uSource Function(M3uSourceDescriptor descriptor) _sourceFactory;
+  final M3uParser _parser;
+
+  Future<int?> refresh(String sourceReference) async {
+    final descriptor = await _secureStore.read(sourceReference);
+    if (descriptor == null) return null;
+    final entries = <M3uEntry>[];
+    await for (final event in _parser.parse(
+      _sourceFactory(descriptor).readLines(),
+    )) {
+      if (event case M3uBatch(entries: final batch)) {
+        entries.addAll(batch);
+      }
+    }
+    await _persistence.persist(descriptor, entries);
+    return entries.length;
+  }
+
+  static M3uSource _defaultSource(M3uSourceDescriptor descriptor) =>
+      switch (descriptor.kind) {
+        M3uSourceKind.url => M3uUrlSource(Uri.parse(descriptor.location)),
+        M3uSourceKind.file => M3uFileSource(descriptor.location),
+      };
+}

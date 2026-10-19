@@ -52,6 +52,46 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Family'), findsOneWidget);
     expect((await repository.activeProfile()).displayName, 'Family');
   });
+
+  testWidgets('renames the active profile', (tester) async {
+    final repository = InMemoryProfileSourceRepository();
+    final home = await repository.ensureDefaultProfile();
+    await tester.pumpWidget(_TestApp(repository: repository));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('profile-action')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('rename-profile-${home.id}')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('rename-profile-field')),
+      'Family',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextButton, 'Family'), findsOneWidget);
+    expect((await repository.activeProfile()).displayName, 'Family');
+  });
+
+  testWidgets('deletes a profile but keeps at least one', (tester) async {
+    final repository = InMemoryProfileSourceRepository();
+    await repository.ensureDefaultProfile();
+    final kids = await repository.createProfile('Kids');
+    await repository.setActiveProfile(kids.id);
+    await tester.pumpWidget(_TestApp(repository: repository));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('profile-action')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('delete-profile-${kids.id}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextButton, 'Home'), findsOneWidget);
+    expect(await repository.profiles(), hasLength(1));
+  });
 }
 
 final class _TestApp extends StatelessWidget {

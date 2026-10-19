@@ -26,6 +26,7 @@ import '../library/user_overlays_controller.dart';
 import '../metadata/metadata_details.dart';
 import '../parental/parental_pin_service.dart';
 import '../profiles/profile_switcher.dart';
+import '../xtream/secure_xtream_profile_store.dart';
 import '../xtream/xtream_connection_form.dart';
 import '../xtream/xtream_connection_service.dart';
 import 'source_action_card.dart';
@@ -159,12 +160,18 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                       profileId: profileId,
                       favorites: overlays?.favorites ?? const {},
                       history: overlays?.history ?? const [],
+                      sources: persistedLibrary?.sources ?? const [],
                       onGroupSelected: (group) =>
                           setState(() => _selectedGroup = group),
                       onEntrySelected: (entry) => _play(profileId, entry),
                       onFavoriteToggled: (entry) =>
                           _toggleFavorite(profileId, entry),
                       onProfileChanged: _resetProfileSession,
+                      onSourcesRemoved: _removeOrphanedSources,
+                      onAddPlaylist: () => _showAddPlaylist(controller),
+                      onRenameSource: _renameSource,
+                      onRemoveSource: (source) =>
+                          _removeSource(profileId, source),
                       onImportEpgFile: _importEpgFile,
                       onImportEpgUrl: _importEpgUrl,
                       onRefreshSources: _refreshSources,
@@ -205,7 +212,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                     height: 36,
                   ),
                   const Spacer(),
-                  ProfileSwitcher(onProfileChanged: _resetProfileSession),
+                  ProfileSwitcher(
+                    onProfileChanged: _resetProfileSession,
+                    onSourcesRemoved: _removeOrphanedSources,
+                  ),
                 ],
               ),
               const SizedBox(height: TviumSpacing.xl),
@@ -400,6 +410,57 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  Future<void> _showAddPlaylist(PlaylistImportController controller) =>
+      showDialog<void>(
+        context: context,
+        builder: (context) => _AddPlaylistDialog(
+          onLocalM3u: () => _pickLocalFile(controller),
+          onM3uUrl: (uri) => _importM3uUrl(controller, uri),
+          onXtreamAdded: _openXtreamLibrary,
+        ),
+      );
+
+  Future<void> _importM3uUrl(
+    PlaylistImportController controller,
+    Uri uri,
+  ) async {
+    await controller.importSource(
+      M3uUrlSource(uri),
+      descriptor: M3uSourceDescriptor.url(
+        displayName: uri.host,
+        location: uri.toString(),
+      ),
+    );
+    ref.invalidate(libraryBootstrapProvider);
+  }
+
+  Future<void> _renameSource(IptvSource source, String name) async {
+    final repository = await ref.read(libraryRepositoryProvider.future);
+    await repository.renameSource(source.id, name);
+    ref.invalidate(libraryBootstrapProvider);
+  }
+
+  Future<void> _removeSource(String profileId, IptvSource source) async {
+    final repository = await ref.read(libraryRepositoryProvider.future);
+    final orphan = await repository.unlinkSource(profileId, source.id);
+    if (orphan != null) await _removeOrphanedSources(<IptvSource>[orphan]);
+    _resetProfileSession();
+    ref.invalidate(libraryBootstrapProvider);
+  }
+
+  Future<void> _removeOrphanedSources(List<IptvSource> sources) async {
+    final m3uStore = SecureM3uSourceStore();
+    final xtreamStore = SecureXtreamProfileStore();
+    for (final source in sources) {
+      final descriptor = await m3uStore.read(source.secretReference);
+      if (descriptor != null && descriptor.kind == M3uSourceKind.file) {
+        await deleteRetainedLocalPlaylist(descriptor.location);
+      }
+      await m3uStore.delete(source.secretReference);
+      await xtreamStore.delete(source.secretReference);
+    }
+  }
+
   String _fileName(String path) {
     final parts = path.split(RegExp(r'[/\\]'));
     return parts.isEmpty || parts.last.isEmpty ? 'Local playlist' : parts.last;
@@ -473,16 +534,26 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       final sources = await repository.sourcesForProfile(profile.id);
       if (sources.isEmpty) return 'No connected source to refresh.';
       final service = ref.read(xtreamConnectionServiceProvider);
-      final XtreamSourceRefreshService refreshService;
-      if (service case final XtreamSourceRefreshService available) {
-        refreshService = available;
-      } else {
-        return 'Source refresh is unavailable in this build.';
-      }
+      final XtreamSourceRefreshService? refreshService =
+          service is XtreamSourceRefreshService
+          ? service as XtreamSourceRefreshService
+          : null;
       var added = 0;
       var changed = 0;
       var removed = 0;
+      var m3uRefreshed = 0;
+      final m3uRefresh = ref.read(m3uSourceRefreshProvider);
       for (final source in sources) {
+        final refreshedEntries = await m3uRefresh.refresh(
+          source.secretReference,
+        );
+        if (refreshedEntries != null) {
+          m3uRefreshed++;
+          continue;
+        }
+        if (refreshService == null) {
+          return 'Some connected sources cannot be refreshed in this build.';
+        }
         final result = await refreshService.refreshSource(source.id);
         added += result.addedCount;
         changed += result.changedCount;
@@ -490,7 +561,8 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
       ref.invalidate(libraryBootstrapProvider);
       ref.invalidate(epgNowNextProvider);
-      return 'Sources refreshed: $added added, $changed updated, $removed removed.';
+      return 'Sources refreshed: $m3uRefreshed M3U, $added added, '
+          '$changed updated, $removed removed.';
     } on Object {
       return 'Sources could not be refreshed. The existing library was kept.';
     }
@@ -535,6 +607,11 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   ) {
     final xtreamProfile = _xtreamProfile;
     if (xtreamProfile == null) {
+      if (persistedLibrary?.sources.isNotEmpty ?? false) {
+        return persistedLibrary!.entries
+            .map(_LibraryEntry.fromPersisted)
+            .toList(growable: false);
+      }
       if (state.phase == PlaylistImportPhase.ready) {
         return state.entries.map(_LibraryEntry.fromM3u).toList(growable: false);
       }
@@ -662,6 +739,122 @@ String _hashParentalPin(String pin) => ParentalPinService().hash(pin);
 bool _verifyParentalPin(({String pin, String digest}) input) =>
     ParentalPinService().verify(input.pin, input.digest);
 
+final class _AddPlaylistDialog extends StatefulWidget {
+  const _AddPlaylistDialog({
+    required this.onLocalM3u,
+    required this.onM3uUrl,
+    required this.onXtreamAdded,
+  });
+
+  final Future<void> Function() onLocalM3u;
+  final Future<void> Function(Uri uri) onM3uUrl;
+  final Future<void> Function(XtreamAddedProfile profile) onXtreamAdded;
+
+  @override
+  State<_AddPlaylistDialog> createState() => _AddPlaylistDialogState();
+}
+
+final class _AddPlaylistDialogState extends State<_AddPlaylistDialog> {
+  final _urlController = TextEditingController();
+  var _mode = _AddPlaylistMode.choices;
+  String? _validation;
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Add playlist'),
+    content: SizedBox(
+      width: 520,
+      child: switch (_mode) {
+        _AddPlaylistMode.choices => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              key: const ValueKey('add-local-m3u'),
+              leading: const Icon(Icons.folder_open_rounded),
+              title: const Text('Import local M3U'),
+              onTap: () async {
+                Navigator.of(context).pop();
+                await widget.onLocalM3u();
+              },
+            ),
+            ListTile(
+              key: const ValueKey('add-m3u-url'),
+              leading: const Icon(Icons.link_rounded),
+              title: const Text('Add M3U URL'),
+              onTap: () => setState(() => _mode = _AddPlaylistMode.url),
+            ),
+            ListTile(
+              key: const ValueKey('add-xtream'),
+              leading: const Icon(Icons.dns_outlined),
+              title: const Text('Connect Xtream Codes'),
+              onTap: () => setState(() => _mode = _AddPlaylistMode.xtream),
+            ),
+          ],
+        ),
+        _AddPlaylistMode.url => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              key: const ValueKey('add-m3u-url-field'),
+              controller: _urlController,
+              autofocus: true,
+              obscureText: true,
+              enableSuggestions: false,
+              autocorrect: false,
+              decoration: InputDecoration(
+                labelText: 'M3U URL',
+                errorText: _validation,
+              ),
+            ),
+            const SizedBox(height: TviumSpacing.md),
+            FilledButton(
+              onPressed: _submitUrl,
+              child: const Text('Add playlist'),
+            ),
+          ],
+        ),
+        _AddPlaylistMode.xtream => XtreamConnectionForm(
+          onPlaylistAdded: (profile) async {
+            Navigator.of(context).pop();
+            await widget.onXtreamAdded(profile);
+          },
+        ),
+      },
+    ),
+    actions: <Widget>[
+      if (_mode != _AddPlaylistMode.choices)
+        TextButton(
+          onPressed: () => setState(() => _mode = _AddPlaylistMode.choices),
+          child: const Text('Back'),
+        ),
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+    ],
+  );
+
+  Future<void> _submitUrl() async {
+    final uri = Uri.tryParse(_urlController.text.trim());
+    if (uri == null ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      setState(() => _validation = 'Enter a valid HTTP or HTTPS URL.');
+      return;
+    }
+    Navigator.of(context).pop();
+    await widget.onM3uUrl(uri);
+  }
+}
+
+enum _AddPlaylistMode { choices, url, xtream }
+
 final class _LibraryView extends ConsumerStatefulWidget {
   const _LibraryView({
     required this.entries,
@@ -672,10 +865,15 @@ final class _LibraryView extends ConsumerStatefulWidget {
     required this.profileId,
     required this.favorites,
     required this.history,
+    required this.sources,
     required this.onGroupSelected,
     required this.onEntrySelected,
     required this.onFavoriteToggled,
     required this.onProfileChanged,
+    required this.onSourcesRemoved,
+    required this.onAddPlaylist,
+    required this.onRenameSource,
+    required this.onRemoveSource,
     required this.onImportEpgFile,
     required this.onImportEpgUrl,
     required this.onRefreshSources,
@@ -693,10 +891,15 @@ final class _LibraryView extends ConsumerStatefulWidget {
   final String profileId;
   final Set<MediaLocator> favorites;
   final List<PlaybackHistoryEntry> history;
+  final List<IptvSource> sources;
   final ValueChanged<String?> onGroupSelected;
   final ValueChanged<_LibraryEntry> onEntrySelected;
   final ValueChanged<_LibraryEntry> onFavoriteToggled;
   final VoidCallback onProfileChanged;
+  final Future<void> Function(List<IptvSource> sources) onSourcesRemoved;
+  final Future<void> Function() onAddPlaylist;
+  final Future<void> Function(IptvSource source, String name) onRenameSource;
+  final Future<void> Function(IptvSource source) onRemoveSource;
   final Future<String> Function() onImportEpgFile;
   final Future<String> Function(Uri uri) onImportEpgUrl;
   final Future<String> Function() onRefreshSources;
@@ -749,12 +952,17 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                   onImportEpgFile: widget.onImportEpgFile,
                   onImportEpgUrl: widget.onImportEpgUrl,
                   onRefreshSources: widget.onRefreshSources,
+                  sources: widget.sources,
+                  onAddPlaylist: widget.onAddPlaylist,
+                  onRenameSource: widget.onRenameSource,
+                  onRemoveSource: widget.onRemoveSource,
                   parentalConfigured: widget.parentalConfigured,
                   parentalUnlocked: widget.parentalUnlocked,
                   onSaveParentalPin: widget.onSaveParentalPin,
                   onUnlockParental: widget.onUnlockParental,
                 ),
                 onProfileChanged: widget.onProfileChanged,
+                onSourcesRemoved: widget.onSourcesRemoved,
               ),
               if (_searching && _destination != _CatalogDestination.home)
                 Padding(
@@ -905,6 +1113,7 @@ final class _CatalogHeader extends StatelessWidget {
     required this.onSearch,
     required this.onSettings,
     required this.onProfileChanged,
+    required this.onSourcesRemoved,
   });
 
   final bool wide;
@@ -914,6 +1123,7 @@ final class _CatalogHeader extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onSettings;
   final VoidCallback onProfileChanged;
+  final Future<void> Function(List<IptvSource> sources) onSourcesRemoved;
 
   @override
   Widget build(BuildContext context) {
@@ -926,6 +1136,7 @@ final class _CatalogHeader extends StatelessWidget {
       onSearch: onSearch,
       onSettings: onSettings,
       onProfileChanged: onProfileChanged,
+      onSourcesRemoved: onSourcesRemoved,
     );
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -1007,6 +1218,7 @@ final class _HeaderActions extends StatelessWidget {
     required this.onSearch,
     required this.onSettings,
     required this.onProfileChanged,
+    required this.onSourcesRemoved,
   });
 
   final String searchTooltip;
@@ -1016,6 +1228,7 @@ final class _HeaderActions extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onSettings;
   final VoidCallback onProfileChanged;
+  final Future<void> Function(List<IptvSource> sources) onSourcesRemoved;
 
   @override
   Widget build(BuildContext context) {
@@ -1033,7 +1246,10 @@ final class _HeaderActions extends StatelessWidget {
           onPressed: onSettings,
           icon: const Icon(Icons.settings_outlined),
         ),
-        ProfileSwitcher(onProfileChanged: onProfileChanged),
+        ProfileSwitcher(
+          onProfileChanged: onProfileChanged,
+          onSourcesRemoved: onSourcesRemoved,
+        ),
       ],
     );
   }
@@ -1708,7 +1924,7 @@ Future<void> _showTitleDetails(
             ),
             const SizedBox(height: TviumSpacing.sm),
             const Text(
-              'More information will appear here when verified metadata is available.',
+              'Online descriptions and ratings are optional and do not affect playback.',
             ),
           ],
         ),
@@ -1725,7 +1941,7 @@ Future<void> _showTitleDetails(
                   onPlay(entry);
                 }
               : null,
-          child: const Text('Play'),
+          child: const Text('Play now'),
         ),
       ],
     ),

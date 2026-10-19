@@ -35,6 +35,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Cinema'), findsWidgets);
     expect(find.text('Demo Movie'), findsOneWidget);
+    await tester.tap(find.text('Demo Movie'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Online descriptions and ratings are optional and do not affect playback.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(FilledButton, 'Play now'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(TextButton, 'TV Shows'));
     await tester.pumpAndSettle();
@@ -59,6 +70,29 @@ void main() {
 
     expect(find.byKey(const ValueKey('page-live')), findsOneWidget);
     expect(find.text('Demo News'), findsOneWidget);
+  });
+
+  testWidgets('opens playlist import choices from library settings', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _MemorySource()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('add-playlist')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('add-local-m3u')), findsOneWidget);
+    expect(find.byKey(const ValueKey('add-m3u-url')), findsOneWidget);
+    expect(find.byKey(const ValueKey('add-xtream')), findsOneWidget);
   });
 }
 

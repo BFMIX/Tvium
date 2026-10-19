@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:tvium_app/features/metadata/metadata_details.dart';
 import 'package:tvium_app/features/metadata/metadata_gateway_client.dart';
 import 'package:tvium_core/tvium_core.dart';
+import 'package:tvium_database/tvium_database.dart';
 
 void main() {
   setUp(() => metadataEnabled.value = false);
@@ -187,5 +188,58 @@ void main() {
       find.text('Sources refreshed: 1 added, 0 updated, 0 removed.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('settings manages connected playlists', (tester) async {
+    String? renamed;
+    var removed = false;
+    var added = false;
+    const source = IptvSource(
+      id: 'source-1',
+      displayName: 'Family TV',
+      identityDigest: 'digest',
+      secretReference: 'secret',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showLibrarySettings(
+              context,
+              configured: false,
+              sources: const [source],
+              onAddPlaylist: () async => added = true,
+              onRenameSource: (source, name) async => renamed = name,
+              onRemoveSource: (source) async => removed = true,
+            ),
+            child: const Text('Open settings'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Family TV'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('rename-source-source-1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('source-name-field')),
+      'Main playlist',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+    expect(renamed, 'Main playlist');
+
+    await tester.tap(find.byKey(const ValueKey('remove-source-source-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Remove'));
+    await tester.pumpAndSettle();
+    expect(removed, isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('add-playlist')));
+    await tester.pumpAndSettle();
+    expect(added, isTrue);
   });
 }

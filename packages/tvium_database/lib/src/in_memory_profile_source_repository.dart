@@ -45,6 +45,44 @@ final class InMemoryProfileSourceRepository
   }
 
   @override
+  Future<void> renameProfile(String id, String name) async {
+    final trimmed = name.trim();
+    if (!_profiles.containsKey(id) ||
+        trimmed.isEmpty ||
+        trimmed.length > 80 ||
+        _profiles.values.any(
+          (profile) =>
+              profile.id != id &&
+              profile.displayName.toLowerCase() == trimmed.toLowerCase(),
+        )) {
+      throw ArgumentError('Choose a unique profile name.');
+    }
+    _profiles[id] = UserProfile(id, trimmed);
+  }
+
+  @override
+  Future<List<IptvSource>> deleteProfile(String id) async {
+    if (!_profiles.containsKey(id) || _profiles.length <= 1) {
+      throw ArgumentError('At least one profile is required.');
+    }
+    final linked = List<String>.of(_links[id] ?? const <String>{});
+    _links.remove(id);
+    _profiles.remove(id);
+    _favorites.removeWhere((media) => media.profileId == id);
+    _history.removeWhere((media, _) => media.profileId == id);
+    _parentalPolicies.remove(id);
+    if (_active == id) _active = _profiles.keys.first;
+    final removed = <IptvSource>[];
+    for (final sourceId in linked) {
+      if (_links.values.any((ids) => ids.contains(sourceId))) continue;
+      final source = _sources.remove(sourceId);
+      _entries.remove(sourceId);
+      if (source != null) removed.add(source);
+    }
+    return removed;
+  }
+
+  @override
   Future<void> setActiveProfile(String id) async {
     if (!_profiles.containsKey(id)) {
       throw ArgumentError('Unknown profile.');
@@ -94,6 +132,35 @@ final class InMemoryProfileSourceRepository
       throw ArgumentError('Unknown profile or source.');
     }
     (_links[profileId] ??= {}).add(sourceId);
+  }
+
+  @override
+  Future<void> renameSource(String sourceId, String name) async {
+    final source = _sources[sourceId];
+    final trimmed = name.trim();
+    if (source == null || trimmed.isEmpty || trimmed.length > 120) {
+      throw ArgumentError('Choose a valid source name.');
+    }
+    _sources[sourceId] = IptvSource(
+      id: source.id,
+      displayName: trimmed,
+      identityDigest: source.identityDigest,
+      secretReference: source.secretReference,
+    );
+  }
+
+  @override
+  Future<IptvSource?> unlinkSource(String profileId, String sourceId) async {
+    final links = _links[profileId];
+    if (links == null || !links.remove(sourceId)) {
+      throw ArgumentError('Unknown profile source.');
+    }
+    if (_links.values.any((ids) => ids.contains(sourceId))) return null;
+    final source = _sources.remove(sourceId);
+    _entries.remove(sourceId);
+    _favorites.removeWhere((media) => media.sourceId == sourceId);
+    _history.removeWhere((media, _) => media.sourceId == sourceId);
+    return source;
   }
 
   @override

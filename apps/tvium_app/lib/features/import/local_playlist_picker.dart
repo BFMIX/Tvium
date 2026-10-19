@@ -65,3 +65,17 @@ String _fileName(String path) {
   final parts = path.split(RegExp(r'[/\\]'));
   return parts.isEmpty || parts.last.isEmpty ? 'Local playlist' : parts.last;
 }
+
+Future<void> deleteRetainedLocalPlaylist(
+  String path, {
+  Directory? supportDirectory,
+}) async {
+  if (kIsWeb) return;
+  final root = supportDirectory ?? await getApplicationSupportDirectory();
+  final managedDirectory = Directory('${root.path}/playlists').absolute.path;
+  final candidate = File(path).absolute.path;
+  final prefix = '$managedDirectory${Platform.pathSeparator}';
+  if (!candidate.startsWith(prefix)) return;
+  final file = File(candidate);
+  if (await file.exists()) await file.delete();
+}

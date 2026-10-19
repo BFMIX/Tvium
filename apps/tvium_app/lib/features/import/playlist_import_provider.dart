@@ -24,3 +24,16 @@ final m3uPlaybackResolverProvider = Provider<M3uPlaybackResolver>((ref) {
     secureStore: SecureM3uSourceStore(FlutterSecureKeyValueStore()),
   );
 });
+
+final m3uSourceRefreshProvider = Provider<M3uSourceRefreshService>((ref) {
+  final secureBackend = FlutterSecureKeyValueStore();
+  final secureStore = SecureM3uSourceStore(secureBackend);
+  return M3uSourceRefreshService(
+    secureStore: secureStore,
+    persistence: DefaultM3uImportPersistence(
+      repositoryLoader: () => ref.read(libraryRepositoryProvider.future),
+      secureStore: secureStore,
+      identityService: SourceIdentityService(secureBackend),
+    ),
+  );
+});

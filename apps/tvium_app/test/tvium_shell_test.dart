@@ -57,7 +57,7 @@ void main() {
 
     expect(find.byKey(const ValueKey('title-details')), findsOneWidget);
     expect(find.text('Demo Movie'), findsWidgets);
-    expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Play now'), findsOneWidget);
   });
 
   testWidgets(

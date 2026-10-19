@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tvium_core/tvium_core.dart';
+import 'package:tvium_database/tvium_database.dart';
 
 import 'metadata_gateway_client.dart';
 
@@ -14,12 +15,106 @@ final metadataGatewayProvider = Provider<MetadataGatewayClient?>((ref) {
   return client;
 });
 
+Future<String?> _renameSource(
+  BuildContext context,
+  IptvSource source,
+  Future<void> Function(IptvSource source, String name) onRename,
+) => showDialog<String>(
+  context: context,
+  builder: (context) => _RenameSourceDialog(source: source, onRename: onRename),
+);
+
+final class _RenameSourceDialog extends StatefulWidget {
+  const _RenameSourceDialog({required this.source, required this.onRename});
+
+  final IptvSource source;
+  final Future<void> Function(IptvSource source, String name) onRename;
+
+  @override
+  State<_RenameSourceDialog> createState() => _RenameSourceDialogState();
+}
+
+final class _RenameSourceDialogState extends State<_RenameSourceDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.source.displayName,
+  );
+  String? _validation;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Rename playlist'),
+    content: TextField(
+      key: const ValueKey('source-name-field'),
+      controller: _controller,
+      autofocus: true,
+      maxLength: 120,
+      decoration: InputDecoration(
+        labelText: 'Playlist name',
+        errorText: _validation,
+      ),
+    ),
+    actions: <Widget>[
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () async {
+          final name = _controller.text.trim();
+          if (name.isEmpty) {
+            setState(() => _validation = 'Enter a playlist name.');
+            return;
+          }
+          await widget.onRename(widget.source, name);
+          if (context.mounted) Navigator.of(context).pop(name);
+        },
+        child: const Text('Save'),
+      ),
+    ],
+  );
+}
+
+Future<bool> _confirmRemoveSource(
+  BuildContext context,
+  IptvSource source,
+) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove playlist?'),
+        content: Text(
+          'Remove ${source.displayName} from this profile? It remains available to other profiles using it.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    ) ??
+    false;
+
 Future<void> showLibrarySettings(
   BuildContext context, {
   required bool configured,
   Future<String> Function()? onImportEpgFile,
   Future<String> Function(Uri uri)? onImportEpgUrl,
   Future<String> Function()? onRefreshSources,
+  List<IptvSource> sources = const <IptvSource>[],
+  Future<void> Function()? onAddPlaylist,
+  Future<void> Function(IptvSource source, String name)? onRenameSource,
+  Future<void> Function(IptvSource source)? onRemoveSource,
   bool parentalConfigured = false,
   bool parentalUnlocked = false,
   Future<String> Function(String pin)? onSaveParentalPin,
@@ -32,6 +127,7 @@ Future<void> showLibrarySettings(
   var importingEpg = false;
   var dialogParentalConfigured = parentalConfigured;
   var dialogParentalUnlocked = parentalUnlocked;
+  final dialogSources = List<IptvSource>.of(sources);
   await showDialog<void>(
     context: context,
     builder: (context) => StatefulBuilder(
@@ -47,6 +143,86 @@ Future<void> showLibrarySettings(
                 const Text(
                   'Titles are organized locally. Original playlist data is preserved.',
                 ),
+                if (onAddPlaylist != null || dialogSources.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Playlists',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  for (final source in dialogSources)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(source.displayName),
+                      trailing: Wrap(
+                        spacing: 4,
+                        children: <Widget>[
+                          IconButton(
+                            key: ValueKey('rename-source-${source.id}'),
+                            tooltip: 'Rename playlist',
+                            onPressed: onRenameSource == null
+                                ? null
+                                : () async {
+                                    final renamed = await _renameSource(
+                                      context,
+                                      source,
+                                      onRenameSource,
+                                    );
+                                    if (renamed != null && context.mounted) {
+                                      setDialogState(() {
+                                        final index = dialogSources.indexWhere(
+                                          (candidate) =>
+                                              candidate.id == source.id,
+                                        );
+                                        dialogSources[index] = IptvSource(
+                                          id: source.id,
+                                          displayName: renamed,
+                                          identityDigest: source.identityDigest,
+                                          secretReference:
+                                              source.secretReference,
+                                        );
+                                      });
+                                    }
+                                  },
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                          IconButton(
+                            key: ValueKey('remove-source-${source.id}'),
+                            tooltip: 'Remove playlist',
+                            onPressed: onRemoveSource == null
+                                ? null
+                                : () async {
+                                    final confirmed =
+                                        await _confirmRemoveSource(
+                                          context,
+                                          source,
+                                        );
+                                    if (!confirmed) return;
+                                    await onRemoveSource(source);
+                                    if (context.mounted) {
+                                      setDialogState(
+                                        () => dialogSources.removeWhere(
+                                          (candidate) =>
+                                              candidate.id == source.id,
+                                        ),
+                                      );
+                                    }
+                                  },
+                            icon: const Icon(Icons.delete_outline_rounded),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (onAddPlaylist != null)
+                    OutlinedButton.icon(
+                      key: const ValueKey('add-playlist'),
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await onAddPlaylist();
+                      },
+                      icon: const Icon(Icons.playlist_add_rounded),
+                      label: const Text('Add playlist'),
+                    ),
+                ],
                 if (onRefreshSources != null) ...[
                   const SizedBox(height: 12),
                   OutlinedButton.icon(

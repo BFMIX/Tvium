@@ -29,6 +29,12 @@ final class SqlitePlaylistRepository
   Future<UserProfile> createProfile(String name) => _unsupported();
 
   @override
+  Future<void> renameProfile(String id, String name) => _unsupported();
+
+  @override
+  Future<List<IptvSource>> deleteProfile(String id) => _unsupported();
+
+  @override
   Future<UserProfile> ensureDefaultProfile() => _unsupported();
 
   @override
@@ -53,6 +59,13 @@ final class SqlitePlaylistRepository
 
   @override
   Future<void> linkSource(String profileId, String sourceId) => _unsupported();
+
+  @override
+  Future<void> renameSource(String sourceId, String name) => _unsupported();
+
+  @override
+  Future<IptvSource?> unlinkSource(String profileId, String sourceId) =>
+      _unsupported();
 
   @override
   Future<List<PersistedMediaEntry>> entriesForGroup(

@@ -87,6 +87,65 @@ final class SqlitePlaylistRepository
   }
 
   @override
+  Future<void> renameProfile(String id, String name) async {
+    final trimmed = name.trim();
+    final available = await profiles();
+    if (trimmed.isEmpty ||
+        trimmed.length > 80 ||
+        !available.any((profile) => profile.id == id) ||
+        available.any(
+          (profile) =>
+              profile.id != id &&
+              profile.displayName.toLowerCase() == trimmed.toLowerCase(),
+        )) {
+      throw ArgumentError('Choose a unique profile name.');
+    }
+    await _database.customStatement(
+      'UPDATE user_profiles SET name=? WHERE id=?',
+      [trimmed, id],
+    );
+  }
+
+  @override
+  Future<List<IptvSource>> deleteProfile(String id) async {
+    final available = await profiles();
+    if (available.length <= 1 ||
+        !available.any((profile) => profile.id == id)) {
+      throw ArgumentError('At least one profile is required.');
+    }
+    return _database.transaction(() async {
+      final linked = await sourcesForProfile(id);
+      await _database.customStatement(
+        'DELETE FROM favorites WHERE profile_id=?',
+        [id],
+      );
+      await _database.customStatement(
+        'DELETE FROM playback_history WHERE profile_id=?',
+        [id],
+      );
+      await _database.customStatement(
+        'DELETE FROM parental_policies WHERE profile_id=?',
+        [id],
+      );
+      await _database.customStatement(
+        'DELETE FROM profile_sources WHERE profile_id=?',
+        [id],
+      );
+      await _database.customStatement('DELETE FROM user_profiles WHERE id=?', [
+        id,
+      ]);
+      final selected = await activeProfile();
+      await setActiveProfile(selected.id);
+      final removed = <IptvSource>[];
+      for (final source in linked) {
+        final deleted = await _deleteSourceIfOrphan(source.id);
+        if (deleted != null) removed.add(deleted);
+      }
+      return removed;
+    });
+  }
+
+  @override
   Future<void> setActiveProfile(String id) async {
     if (!(await profiles()).any((p) => p.id == id)) {
       throw ArgumentError('Unknown profile.');
@@ -147,6 +206,84 @@ final class SqlitePlaylistRepository
       'INSERT OR IGNORE INTO profile_sources(profile_id,source_id) VALUES (?,?)',
       [profileId, sourceId],
     );
+  }
+
+  @override
+  Future<void> renameSource(String sourceId, String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || trimmed.length > 120) {
+      throw ArgumentError('Choose a valid source name.');
+    }
+    final updated = await _database.customUpdate(
+      'UPDATE iptv_sources SET name=? WHERE id=?',
+      variables: [Variable.withString(trimmed), Variable.withString(sourceId)],
+      updates: const {},
+    );
+    if (updated == 0) throw ArgumentError('Unknown source.');
+  }
+
+  @override
+  Future<IptvSource?> unlinkSource(String profileId, String sourceId) =>
+      _database.transaction(() async {
+        final removed = await _database.customUpdate(
+          'DELETE FROM profile_sources WHERE profile_id=? AND source_id=?',
+          variables: [
+            Variable.withString(profileId),
+            Variable.withString(sourceId),
+          ],
+          updates: const {},
+        );
+        if (removed == 0) throw ArgumentError('Unknown profile source.');
+        return _deleteSourceIfOrphan(sourceId);
+      });
+
+  Future<IptvSource?> _deleteSourceIfOrphan(String sourceId) async {
+    final linked = await _database
+        .customSelect(
+          'SELECT 1 FROM profile_sources WHERE source_id=? LIMIT 1',
+          variables: [Variable.withString(sourceId)],
+        )
+        .getSingleOrNull();
+    if (linked != null) return null;
+    final row = await _database
+        .customSelect(
+          'SELECT * FROM iptv_sources WHERE id=?',
+          variables: [Variable.withString(sourceId)],
+        )
+        .getSingleOrNull();
+    if (row == null) return null;
+    final source = _source(row);
+    await _database.customStatement('DELETE FROM favorites WHERE source_id=?', [
+      sourceId,
+    ]);
+    await _database.customStatement(
+      'DELETE FROM playback_history WHERE source_id=?',
+      [sourceId],
+    );
+    await _database.customStatement(
+      'DELETE FROM media_entries WHERE playlist_id=?',
+      [sourceId],
+    );
+    await _database.customStatement(
+      'DELETE FROM catalog_details WHERE source_id=?',
+      [sourceId],
+    );
+    await _database.customStatement(
+      'DELETE FROM epg_channel_links WHERE source_id=?',
+      [sourceId],
+    );
+    await _database.customStatement(
+      'DELETE FROM epg_programmes WHERE source_id=?',
+      [sourceId],
+    );
+    await _database.customStatement(
+      'DELETE FROM epg_channels WHERE source_id=?',
+      [sourceId],
+    );
+    await _database.customStatement('DELETE FROM iptv_sources WHERE id=?', [
+      sourceId,
+    ]);
+    return source;
   }
 
   @override

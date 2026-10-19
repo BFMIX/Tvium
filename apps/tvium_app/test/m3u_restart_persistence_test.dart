@@ -120,6 +120,44 @@ void main() {
       expect(stored?.location, '/private/managed-playlist.m3u');
     },
   );
+
+  test('refreshes a connected M3U source in place', () async {
+    final repository = InMemoryProfileSourceRepository();
+    final secureBackend = _MemorySecureKeyValueStore();
+    final secureStore = SecureM3uSourceStore(secureBackend);
+    final persistence = DefaultM3uImportPersistence(
+      repositoryLoader: () async => repository,
+      secureStore: secureStore,
+      identityService: SourceIdentityService(secureBackend),
+      referenceFactory: () => 'm3u-source',
+    );
+    final controller = PlaylistImportController(persistence: persistence);
+    addTearDown(controller.dispose);
+    const descriptor = M3uSourceDescriptor.url(
+      displayName: 'Fixture TV',
+      location: 'https://playlist.example.test/list.m3u',
+    );
+    await controller.importSource(
+      const _MemorySource(),
+      descriptor: descriptor,
+    );
+    final profile = await repository.activeProfile();
+    final source = (await repository.sourcesForProfile(profile.id)).single;
+    final refresh = M3uSourceRefreshService(
+      secureStore: secureStore,
+      persistence: persistence,
+      sourceFactory: (_) => const _UpdatedMemorySource(),
+    );
+
+    final count = await refresh.refresh(source.secretReference);
+
+    expect(count, 2);
+    final entries = await repository.entriesForPlaylist(source.id);
+    expect(entries.map((entry) => entry.originalName), [
+      'Demo News',
+      'Demo Cinema',
+    ]);
+  });
 }
 
 final class _MemorySecureKeyValueStore implements SecureKeyValueStore {
@@ -145,5 +183,18 @@ final class _MemorySource implements M3uSource {
     '#EXTM3U',
     '#EXTINF:-1 tvg-id="news" group-title="News",Demo News',
     'https://stream.example.test/live/news.m3u8',
+  ]);
+}
+
+final class _UpdatedMemorySource implements M3uSource {
+  const _UpdatedMemorySource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    '#EXTINF:-1 tvg-id="news" group-title="News",Demo News',
+    'https://stream.example.test/live/news.m3u8',
+    '#EXTINF:-1 group-title="Cinema",Demo Cinema',
+    'https://stream.example.test/vod/cinema.mp4',
   ]);
 }

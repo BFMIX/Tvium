@@ -60,4 +60,30 @@ void main() {
       hasLength(1),
     );
   });
+
+  test('deletes only a retained managed copy', () async {
+    final temporaryDirectory = await Directory.systemTemp.createTemp(
+      'tvium_local_playlist_cleanup_',
+    );
+    addTearDown(() => temporaryDirectory.delete(recursive: true));
+    final external = File('${temporaryDirectory.path}/external.m3u');
+    await external.writeAsString('#EXTM3U\n');
+    final managedRoot = Directory('${temporaryDirectory.path}/support');
+    final retained = await retainLocalPlaylistFile(
+      external.path,
+      supportDirectory: managedRoot,
+    );
+
+    await deleteRetainedLocalPlaylist(
+      external.path,
+      supportDirectory: managedRoot,
+    );
+    expect(await external.exists(), isTrue);
+
+    await deleteRetainedLocalPlaylist(
+      retained.path,
+      supportDirectory: managedRoot,
+    );
+    expect(await File(retained.path).exists(), isFalse);
+  });
 }
