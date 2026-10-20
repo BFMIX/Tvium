@@ -106,6 +106,59 @@ void main() {
     );
   });
 
+  testWidgets('Live TV player zaps through visible playable channels', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+        playbackEngineFactory: _FakePlaybackEngine.new,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+    unawaited(controller.importSource(const _ZappingFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-row-entry-1')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('live-next-channel')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('catalog-player')),
+        matching: find.text('Channel Two'),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('live-previous-channel')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('catalog-player')),
+        matching: find.text('Channel One'),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('live-previous-channel')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('catalog-player')),
+        matching: find.text('Channel Three'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('wide catalogs keep categories in a left navigation rail', (
     tester,
   ) async {
@@ -777,6 +830,21 @@ final class _FakePlaybackEngine implements PlaybackEngine {
 
   @override
   Future<void> stop() async {}
+}
+
+final class _ZappingFixtureSource implements M3uSource {
+  const _ZappingFixtureSource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    '#EXTINF:-1 group-title="News",Channel One',
+    'https://stream.example.test/live/one.m3u8',
+    '#EXTINF:-1 group-title="News",Channel Two',
+    'https://stream.example.test/live/two.m3u8',
+    '#EXTINF:-1 group-title="News",Channel Three',
+    'https://stream.example.test/live/three.m3u8',
+  ]);
 }
 
 final class _HeroArtworkFixtureSource implements M3uSource {

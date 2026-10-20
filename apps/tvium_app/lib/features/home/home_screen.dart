@@ -2222,6 +2222,23 @@ final class _CatalogPage extends ConsumerWidget {
           _CatalogDestination.shows => selectedEntry!.kind == MediaKind.episode,
           _CatalogDestination.home => false,
         };
+    final liveChannels = destination == _CatalogDestination.live
+        ? visible.where((entry) => entry.isPlayable).toList(growable: false)
+        : const <_LibraryEntry>[];
+    final selectedLiveLocator = selectedEntry?.locator(profileId);
+    final selectedLiveIndex = selectedLiveLocator == null
+        ? -1
+        : liveChannels.indexWhere(
+            (entry) => entry.locator(profileId) == selectedLiveLocator,
+          );
+    void zapChannel(int offset) {
+      if (selectedLiveIndex < 0 || liveChannels.length < 2) return;
+      final index =
+          (selectedLiveIndex + offset + liveChannels.length) %
+          liveChannels.length;
+      onPlay(liveChannels[index]);
+    }
+
     final entriesByLocator = <MediaLocator, _LibraryEntry>{
       for (final entry in entries) ...<MediaLocator, _LibraryEntry>{
         entry.locator(profileId): entry,
@@ -2406,6 +2423,13 @@ final class _CatalogPage extends ConsumerWidget {
             child: _PlayerPanel(
               selectedEntry: selectedEntry,
               engine: playbackEngine,
+              onPreviousChannel:
+                  selectedLiveIndex >= 0 && liveChannels.length > 1
+                  ? () => zapChannel(-1)
+                  : null,
+              onNextChannel: selectedLiveIndex >= 0 && liveChannels.length > 1
+                  ? () => zapChannel(1)
+                  : null,
             ),
           ),
           const SizedBox(height: TviumSpacing.md),
@@ -2517,6 +2541,14 @@ final class _CatalogPage extends ConsumerWidget {
                         child: _PlayerPanel(
                           selectedEntry: selectedEntry,
                           engine: playbackEngine,
+                          onPreviousChannel:
+                              selectedLiveIndex >= 0 && liveChannels.length > 1
+                              ? () => zapChannel(-1)
+                              : null,
+                          onNextChannel:
+                              selectedLiveIndex >= 0 && liveChannels.length > 1
+                              ? () => zapChannel(1)
+                              : null,
                         ),
                       ),
                     ],
@@ -3206,10 +3238,17 @@ IconData _mediaIcon(MediaKind kind) => switch (kind) {
 };
 
 final class _PlayerPanel extends ConsumerWidget {
-  const _PlayerPanel({required this.selectedEntry, required this.engine});
+  const _PlayerPanel({
+    required this.selectedEntry,
+    required this.engine,
+    this.onPreviousChannel,
+    this.onNextChannel,
+  });
 
   final _LibraryEntry? selectedEntry;
   final PlaybackEngine? engine;
+  final VoidCallback? onPreviousChannel;
+  final VoidCallback? onNextChannel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -3239,7 +3278,31 @@ final class _PlayerPanel extends ConsumerWidget {
                   child: Container(
                     padding: const EdgeInsets.all(TviumSpacing.md),
                     color: Colors.black.withValues(alpha: 0.65),
-                    child: Text(selectedEntry?.name ?? ''),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            selectedEntry?.name ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (onPreviousChannel != null) ...<Widget>[
+                          IconButton(
+                            key: const ValueKey('live-previous-channel'),
+                            tooltip: 'Previous channel',
+                            onPressed: onPreviousChannel,
+                            icon: const Icon(Icons.skip_previous_rounded),
+                          ),
+                          IconButton(
+                            key: const ValueKey('live-next-channel'),
+                            tooltip: 'Next channel',
+                            onPressed: onNextChannel,
+                            icon: const Icon(Icons.skip_next_rounded),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ],
