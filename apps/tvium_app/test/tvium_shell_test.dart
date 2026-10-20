@@ -379,6 +379,10 @@ void main() {
       find.byKey(const ValueKey('movies-continue-watching')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('continue-artwork-entry-2')),
+      findsOneWidget,
+    );
     final progress = tester.widget<LinearProgressIndicator>(
       find.byKey(const ValueKey('continue-progress-entry-2')),
     );

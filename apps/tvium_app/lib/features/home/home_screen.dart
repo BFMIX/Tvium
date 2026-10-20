@@ -2314,15 +2314,64 @@ final class _CatalogPage extends ConsumerWidget {
                       );
                 return SizedBox(
                   width: 240,
-                  child: Card(
-                    child: ListTile(
-                      title: Text(item.entry.displayName, maxLines: 2),
-                      subtitle: LinearProgressIndicator(
-                        key: ValueKey('continue-progress-${item.entry.id}'),
-                        value: progress,
-                      ),
-                      trailing: const Icon(Icons.play_arrow_rounded),
+                  child: Material(
+                    clipBehavior: Clip.antiAlias,
+                    borderRadius: BorderRadius.circular(14),
+                    color: const Color(0xFF102638),
+                    child: InkWell(
                       onTap: () => onPlay(item.entry),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          _CatalogArtwork(
+                            key: ValueKey('continue-artwork-${item.entry.id}'),
+                            entry: item.entry,
+                          ),
+                          const DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: <Color>[
+                                  Color(0x2207111B),
+                                  Color(0xF007111B),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(TviumSpacing.sm),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: <Widget>[
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        item.entry.displayName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    const Icon(Icons.play_arrow_rounded),
+                                  ],
+                                ),
+                                const SizedBox(height: 5),
+                                LinearProgressIndicator(
+                                  key: ValueKey(
+                                    'continue-progress-${item.entry.id}',
+                                  ),
+                                  value: progress,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -2844,7 +2893,7 @@ final class _MediaCard extends StatelessWidget {
 }
 
 final class _CatalogArtwork extends StatelessWidget {
-  const _CatalogArtwork({required this.entry});
+  const _CatalogArtwork({super.key, required this.entry});
 
   final _LibraryEntry entry;
 
