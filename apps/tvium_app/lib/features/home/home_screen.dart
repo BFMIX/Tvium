@@ -2139,6 +2139,7 @@ final class _CatalogPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unknownGroup = AppLocalizations.of(context).unknownGroup;
+    final shortWindow = MediaQuery.sizeOf(context).height < 700;
     final countryByGroup = destination == _CatalogDestination.live
         ? <String?, LiveCountry?>{
             for (final group in entries.map((entry) => entry.group).toSet())
@@ -2266,7 +2267,7 @@ final class _CatalogPage extends ConsumerWidget {
           ),
           const SizedBox(height: TviumSpacing.sm),
           SizedBox(
-            height: 110,
+            height: shortWindow ? 86 : 110,
             child: ListView.separated(
               key: const ValueKey('movies-continue-watching'),
               scrollDirection: Axis.horizontal,
@@ -2325,17 +2326,22 @@ final class _CatalogPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SizedBox(
-            height: MediaQuery.sizeOf(context).height < 700
-                ? 72
-                : MediaQuery.sizeOf(context).width >= 720
-                ? 132
-                : 94,
-            child: _CatalogBanner(
-              destination: destination,
-              count: entries.length,
+          if (shortWindow)
+            SizedBox(
+              height: 42,
+              child: Text(
+                _destinationLabel(destination),
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            )
+          else
+            SizedBox(
+              height: MediaQuery.sizeOf(context).width >= 720 ? 132 : 94,
+              child: _CatalogBanner(
+                destination: destination,
+                count: entries.length,
+              ),
             ),
-          ),
           const SizedBox(height: TviumSpacing.md),
           if (countries.length >= 2) ...<Widget>[
             SizedBox(
@@ -2364,9 +2370,32 @@ final class _CatalogPage extends ConsumerWidget {
             ),
             const SizedBox(height: TviumSpacing.xs),
           ],
+          if (destination != _CatalogDestination.live &&
+              groups.isNotEmpty) ...<Widget>[
+            SizedBox(
+              height: shortWindow ? 44 : 56,
+              child: ListView.separated(
+                key: const ValueKey('catalog-category-chips'),
+                scrollDirection: Axis.horizontal,
+                itemCount: groups.length + 1,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(width: TviumSpacing.sm),
+                itemBuilder: (context, index) {
+                  final group = index == 0 ? null : groups[index - 1];
+                  return ChoiceChip(
+                    label: Text(group ?? 'All categories'),
+                    selected: group == selectedGroup,
+                    onSelected: (_) => onGroupSelected(group),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: TviumSpacing.xs),
+          ],
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
+                if (destination != _CatalogDestination.live) return catalog;
                 if (constraints.maxWidth >= 1100 &&
                     destination == _CatalogDestination.live &&
                     showPlayer) {

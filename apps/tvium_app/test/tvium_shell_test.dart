@@ -487,6 +487,34 @@ void main() {
     );
   });
 
+  testWidgets('Movies show category chips above the poster grid', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CategoryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('catalog-category-chips')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('catalog-group-sidebar')), findsNothing);
+    expect(find.byKey(const ValueKey('poster-grid')), findsOneWidget);
+    expect(find.text('Fixture Adventure'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Comedy'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fixture Adventure'), findsNothing);
+    expect(find.text('Fixture Comedy'), findsOneWidget);
+  });
+
   testWidgets('Home hero supports directional controls and defers autoplay', (
     tester,
   ) async {
@@ -714,5 +742,18 @@ final class _CountryFixtureSource implements M3uSource {
     'https://stream.example.test/us.m3u8',
     '#EXTINF:-1 group-title="AFR | News",Fixture Region',
     'https://stream.example.test/region.m3u8',
+  ]);
+}
+
+final class _CategoryFixtureSource implements M3uSource {
+  const _CategoryFixtureSource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    '#EXTINF:-1 group-title="Adventure",Fixture Adventure',
+    'https://stream.example.test/adventure.mp4',
+    '#EXTINF:-1 group-title="Comedy",Fixture Comedy',
+    'https://stream.example.test/comedy.mp4',
   ]);
 }
