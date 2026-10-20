@@ -3263,6 +3263,11 @@ Future<void> _showChannelSwitcher(
                   entry.displayName.toLowerCase().contains(query.toLowerCase()),
             )
             .toList(growable: false);
+        void chooseChannel(_LibraryEntry entry) {
+          Navigator.of(dialogContext).pop();
+          onPlay(entry);
+        }
+
         return AlertDialog(
           key: const ValueKey('live-channel-switcher'),
           title: const Text('Switch channel'),
@@ -3277,11 +3282,23 @@ Future<void> _showChannelSwitcher(
                 TextField(
                   key: const ValueKey('live-channel-switcher-search'),
                   autofocus: true,
+                  textInputAction: TextInputAction.search,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search_rounded),
                     hintText: 'Search channels',
                   ),
                   onChanged: (value) => setDialogState(() => query = value),
+                  onSubmitted: (value) {
+                    final submitted = value.toLowerCase();
+                    final first = channels
+                        .where(
+                          (entry) => entry.displayName.toLowerCase().contains(
+                            submitted,
+                          ),
+                        )
+                        .firstOrNull;
+                    if (first != null) chooseChannel(first);
+                  },
                 ),
                 const SizedBox(height: TviumSpacing.sm),
                 Expanded(
@@ -3298,10 +3315,7 @@ Future<void> _showChannelSwitcher(
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              onTap: () {
-                                Navigator.of(dialogContext).pop();
-                                onPlay(entry);
-                              },
+                              onTap: () => chooseChannel(entry),
                             );
                           },
                         ),

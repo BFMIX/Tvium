@@ -250,6 +250,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('No matching channels'), findsOneWidget);
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('live-channel-switcher')), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('live-channel-switcher-search')),
       'three',
@@ -266,6 +269,24 @@ void main() {
       find.descendant(
         of: find.byKey(const ValueKey('catalog-player')),
         matching: find.text('Channel Three'),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('live-channel-switcher-button')),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('live-channel-switcher-search')),
+      'two',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('live-channel-switcher')), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('catalog-player')),
+        matching: find.text('Channel Two'),
       ),
       findsOneWidget,
     );
