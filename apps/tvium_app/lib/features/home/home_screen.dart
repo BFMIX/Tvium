@@ -1636,10 +1636,15 @@ final class _DestinationHomeState extends State<_DestinationHome> {
   var _heroIndex = 0;
   bool? _reduceHeroMotion;
 
-  List<_LibraryEntry> get _heroEntries => widget.entries
-      .where((entry) => entry.kind != MediaKind.live && entry.isPlayable)
-      .take(5)
-      .toList(growable: false);
+  List<_LibraryEntry> get _heroEntries {
+    final playable = widget.entries
+        .where((entry) => entry.kind != MediaKind.live && entry.isPlayable)
+        .toList(growable: false);
+    return <_LibraryEntry>[
+      ...playable.where((entry) => entry.imageUri?.hasScheme == true),
+      ...playable.where((entry) => entry.imageUri?.hasScheme != true),
+    ].take(5).toList(growable: false);
+  }
 
   @override
   void initState() {
@@ -1862,7 +1867,7 @@ final class _HomeHero extends StatelessWidget {
                   ),
                 ),
               ),
-              if (entry.imageUri != null &&
+              if (entry.imageUri?.hasScheme == true &&
                   MediaQuery.sizeOf(context).width >= 920)
                 Positioned(
                   key: const ValueKey('home-hero-poster'),

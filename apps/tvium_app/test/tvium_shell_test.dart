@@ -501,6 +501,26 @@ void main() {
     expect(heroTop - cardsBottom, greaterThanOrEqualTo(40));
   });
 
+  testWidgets('Home features titles with artwork before titles without it', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _HeroArtworkFixtureSource()));
+    await tester.pumpAndSettle();
+
+    final title = tester.widget<Text>(
+      find.byKey(const ValueKey('home-hero-title')).last,
+    );
+    expect(title.data, 'Illustrated Movie');
+    expect(find.byKey(const ValueKey('home-hero-poster')), findsOneWidget);
+  });
+
   testWidgets('catalog destinations use the approved scenic banners', (
     tester,
   ) async {
@@ -757,6 +777,19 @@ final class _FakePlaybackEngine implements PlaybackEngine {
 
   @override
   Future<void> stop() async {}
+}
+
+final class _HeroArtworkFixtureSource implements M3uSource {
+  const _HeroArtworkFixtureSource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    '#EXTINF:-1 group-title="Movies",Plain Movie',
+    'https://stream.example.test/vod/plain.mp4',
+    '#EXTINF:-1 tvg-logo="https://art.example.test/illustrated.jpg" group-title="Movies",Illustrated Movie',
+    'https://stream.example.test/vod/illustrated.mp4',
+  ]);
 }
 
 final class _DesignFixtureSource implements M3uSource {
