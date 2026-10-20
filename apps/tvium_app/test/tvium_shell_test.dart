@@ -45,6 +45,38 @@ void main() {
     expect(find.text('Program guide unavailable'), findsOneWidget);
   });
 
+  testWidgets('wide Live TV places player beside the channel stack', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+        playbackEngineFactory: _FakePlaybackEngine.new,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-row-entry-1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('catalog-player')), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('catalog-player'))).dx,
+      greaterThan(
+        tester.getTopLeft(find.byKey(const ValueKey('live-channel-list'))).dx,
+      ),
+    );
+  });
+
   testWidgets('wide catalogs keep categories in a left navigation rail', (
     tester,
   ) async {
@@ -269,7 +301,7 @@ void main() {
     expect(history.single.duration, const Duration(minutes: 2));
   });
 
-  testWidgets('Home exposes resumable movies as Continue watching', (
+  testWidgets('Home shows only destinations followed by the carousel', (
     tester,
   ) async {
     final repository = InMemoryProfileSourceRepository();
@@ -298,7 +330,22 @@ void main() {
     unawaited(controller.importSource(const _DesignFixtureSource()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Continue watching'), findsOneWidget);
+    expect(find.byKey(const ValueKey('destination-live')), findsOneWidget);
+    expect(find.byKey(const ValueKey('destination-movies')), findsOneWidget);
+    expect(find.byKey(const ValueKey('destination-shows')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-hero')), findsOneWidget);
+    expect(find.text('Continue watching'), findsNothing);
+    expect(find.byKey(const ValueKey('recently-played')), findsNothing);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('destination-live'))).dy,
+      lessThan(tester.getTopLeft(find.byKey(const ValueKey('home-hero'))).dy),
+    );
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('movies-continue-watching')),
+      findsOneWidget,
+    );
     final progress = tester.widget<LinearProgressIndicator>(
       find.byKey(const ValueKey('continue-progress-entry-2')),
     );

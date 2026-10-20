@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +14,7 @@ import 'package:tvium_xtream/tvium_xtream.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/branding/tvium_brand_logo.dart';
+import '../artwork/artwork_image.dart';
 import '../epg/epg_import_controller.dart';
 import '../epg/epg_now_next_provider.dart';
 import '../epg/epg_source.dart';
@@ -21,7 +22,9 @@ import '../import/local_playlist_picker.dart';
 import '../import/m3u_import_persistence.dart';
 import '../import/playlist_import_controller.dart';
 import '../import/playlist_import_provider.dart';
+import '../import/xtream_m3u_detector.dart';
 import '../library/library_bootstrap_controller.dart';
+import '../library/source_refresh_schedule.dart';
 import '../library/user_overlays_controller.dart';
 import '../metadata/metadata_details.dart';
 import '../parental/parental_pin_service.dart';
@@ -74,6 +77,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _playbackError;
   String? _unlockedParentalProfileId;
   var _profileSessionGeneration = 0;
+  final _startupRefreshQueued = <String>{};
 
   @override
   void dispose() {
@@ -97,6 +101,18 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     final controller = ref.watch(playlistImportControllerProvider);
     final state = controller.state;
     final persistedLibrary = ref.watch(libraryBootstrapProvider).asData?.value;
+    if (persistedLibrary != null) {
+      final sourceIds = persistedLibrary.sources.map((source) => source.id);
+      final pending = persistedLibrary.sources
+          .where((source) => !_startupRefreshQueued.contains(source.id))
+          .toList(growable: false);
+      _startupRefreshQueued.addAll(sourceIds);
+      if (pending.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_refreshDueSources(pending));
+        });
+      }
+    }
     final profileId =
         persistedLibrary?.activeProfile.id ??
         _xtreamProfile?.targetProfileId ??
@@ -206,6 +222,12 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                       onImportEpgUrl: _importEpgUrl,
                       onRefreshSource: _refreshSource,
                       onRefreshSources: _refreshSources,
+                      refreshIntervalFor: (source) => ref
+                          .read(sourceRefreshScheduleProvider)
+                          .intervalFor(source.id),
+                      onRefreshIntervalChanged: (source, interval) => ref
+                          .read(sourceRefreshScheduleProvider)
+                          .setInterval(source.id, interval),
                       parentalConfigured: parentalPolicy != null,
                       parentalUnlocked: parentalUnlocked,
                       onSaveParentalPin: (pin, blockedContent) =>
@@ -408,17 +430,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       controller.reportValidationFailure(strings.invalidUrl);
       return;
     }
-    unawaited(
-      controller
-          .importSource(
-            M3uUrlSource(uri),
-            descriptor: M3uSourceDescriptor.url(
-              displayName: uri.host,
-              location: uri.toString(),
-            ),
-          )
-          .then((_) => ref.invalidate(libraryBootstrapProvider)),
-    );
+    unawaited(_importM3uUrl(controller, uri));
   }
 
   Future<void> _pickLocalFile(PlaylistImportController controller) async {
@@ -455,6 +467,24 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     PlaylistImportController controller,
     Uri uri,
   ) async {
+    final candidate = detectXtreamM3u(uri);
+    if (candidate != null) {
+      try {
+        final profile = await ref
+            .read(xtreamConnectionServiceProvider)
+            .addPlaylist(
+              XtreamConnectionInput(
+                profileName: uri.host,
+                serverUri: candidate.serverUri,
+                credentials: candidate.credentials,
+              ),
+            );
+        if (mounted) await _openXtreamLibrary(profile);
+        return;
+      } on Object {
+        // A URL shape is only a hint. Keep the original M3U path on failure.
+      }
+    }
     await controller.importSource(
       M3uUrlSource(uri),
       descriptor: M3uSourceDescriptor.url(
@@ -482,6 +512,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _removeOrphanedSources(List<IptvSource> sources) async {
     final m3uStore = SecureM3uSourceStore();
     final xtreamStore = SecureXtreamProfileStore();
+    final refreshSchedule = ref.read(sourceRefreshScheduleProvider);
     for (final source in sources) {
       final descriptor = await m3uStore.read(source.secretReference);
       if (descriptor != null && descriptor.kind == M3uSourceKind.file) {
@@ -489,6 +520,11 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
       await m3uStore.delete(source.secretReference);
       await xtreamStore.delete(source.secretReference);
+      try {
+        await refreshSchedule.remove(source.id);
+      } on Object {
+        // Source removal must not depend on deleting optional schedule data.
+      }
     }
   }
 
@@ -573,26 +609,33 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       var changed = 0;
       var removed = 0;
       var m3uRefreshed = 0;
+      var upgraded = 0;
       final m3uRefresh = ref.read(m3uSourceRefreshProvider);
       for (final source in sources) {
+        if (await _tryUpgradeM3uSource(source)) {
+          upgraded++;
+          continue;
+        }
         final refreshedEntries = await m3uRefresh.refresh(
           source.secretReference,
         );
         if (refreshedEntries != null) {
           m3uRefreshed++;
+          await _recordRefreshAttempt(source.id);
           continue;
         }
         if (refreshService == null) {
           return 'Some connected sources cannot be refreshed in this build.';
         }
         final result = await refreshService.refreshSource(source.id);
+        await _recordRefreshAttempt(source.id);
         added += result.addedCount;
         changed += result.changedCount;
         removed += result.removedCount;
       }
       ref.invalidate(libraryBootstrapProvider);
       ref.invalidate(epgNowNextProvider);
-      return 'Sources refreshed: $m3uRefreshed M3U, $added added, '
+      return 'Sources refreshed: $m3uRefreshed M3U, $upgraded upgraded, $added added, '
           '$changed updated, $removed removed.';
     } on Object {
       return 'Sources could not be refreshed. The existing library was kept.';
@@ -601,10 +644,14 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<String> _refreshSource(IptvSource source) async {
     try {
+      if (await _tryUpgradeM3uSource(source)) {
+        return 'Playlist upgraded to Xtream. The library is ready.';
+      }
       final refreshedEntries = await ref
           .read(m3uSourceRefreshProvider)
           .refresh(source.secretReference);
       if (refreshedEntries != null) {
+        await _recordRefreshAttempt(source.id);
         ref.invalidate(libraryBootstrapProvider);
         ref.invalidate(epgNowNextProvider);
         return 'Playlist refreshed: M3U catalog updated.';
@@ -615,12 +662,67 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
       final refreshService = service as XtreamSourceRefreshService;
       final result = await refreshService.refreshSource(source.id);
+      await _recordRefreshAttempt(source.id);
       ref.invalidate(libraryBootstrapProvider);
       ref.invalidate(epgNowNextProvider);
       return 'Playlist refreshed: ${result.addedCount} added, '
           '${result.changedCount} updated, ${result.removedCount} removed.';
     } on Object {
       return 'Playlist refresh failed. The existing library was kept.';
+    }
+  }
+
+  Future<bool> _tryUpgradeM3uSource(IptvSource source) async {
+    final descriptor = await SecureM3uSourceStore().read(
+      source.secretReference,
+    );
+    if (descriptor == null || descriptor.kind != M3uSourceKind.url) {
+      return false;
+    }
+    final uri = Uri.tryParse(descriptor.location);
+    final candidate = uri == null ? null : detectXtreamM3u(uri);
+    if (candidate == null) return false;
+    try {
+      await ref
+          .read(xtreamConnectionServiceProvider)
+          .addPlaylist(
+            XtreamConnectionInput(
+              profileName: source.displayName,
+              serverUri: candidate.serverUri,
+              credentials: candidate.credentials,
+            ),
+          );
+      final repository = await ref.read(libraryRepositoryProvider.future);
+      final active = await repository.activeProfile();
+      final orphan = await repository.unlinkSource(active.id, source.id);
+      if (orphan != null) await _removeOrphanedSources(<IptvSource>[orphan]);
+      ref.invalidate(libraryBootstrapProvider);
+      ref.invalidate(epgNowNextProvider);
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<void> _refreshDueSources(List<IptvSource> sources) async {
+    final schedule = ref.read(sourceRefreshScheduleProvider);
+    for (final source in sources) {
+      if (!mounted) return;
+      try {
+        if (!await schedule.isDue(source.id)) continue;
+        await schedule.markAttempt(source.id);
+        await _refreshSource(source);
+      } on Object {
+        // The cached catalog remains available on refresh or storage failure.
+      }
+    }
+  }
+
+  Future<void> _recordRefreshAttempt(String sourceId) async {
+    try {
+      await ref.read(sourceRefreshScheduleProvider).markAttempt(sourceId);
+    } on Object {
+      // A successful catalog refresh remains successful if settings storage fails.
     }
   }
 
@@ -998,6 +1100,8 @@ final class _LibraryView extends ConsumerStatefulWidget {
     required this.onImportEpgUrl,
     required this.onRefreshSource,
     required this.onRefreshSources,
+    required this.refreshIntervalFor,
+    required this.onRefreshIntervalChanged,
     required this.parentalConfigured,
     required this.parentalUnlocked,
     required this.onSaveParentalPin,
@@ -1025,6 +1129,10 @@ final class _LibraryView extends ConsumerStatefulWidget {
   final Future<String> Function(Uri uri) onImportEpgUrl;
   final Future<String> Function(IptvSource source) onRefreshSource;
   final Future<String> Function() onRefreshSources;
+  final Future<SourceRefreshInterval> Function(IptvSource source)
+  refreshIntervalFor;
+  final Future<void> Function(IptvSource source, SourceRefreshInterval interval)
+  onRefreshIntervalChanged;
   final bool parentalConfigured;
   final bool parentalUnlocked;
   final Future<String> Function(String pin, Set<String> blockedContent)
@@ -1069,39 +1177,45 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                   _searching = !_searching;
                   if (!_searching) _query = '';
                 }),
-                onSettings: () => showLibrarySettings(
+                onSettings: () => showSettingsPages(
                   context,
-                  configured: ref.read(metadataGatewayProvider) != null,
-                  onImportEpgFile: widget.onImportEpgFile,
-                  onImportEpgUrl: widget.onImportEpgUrl,
-                  onRefreshSource: widget.onRefreshSource,
-                  onRefreshSources: widget.onRefreshSources,
-                  sources: widget.sources,
-                  onAddPlaylist: widget.onAddPlaylist,
-                  onRenameSource: widget.onRenameSource,
-                  onRemoveSource: widget.onRemoveSource,
-                  parentalConfigured: widget.parentalConfigured,
-                  parentalUnlocked: widget.parentalUnlocked,
-                  availableParentalCategories:
-                      widget.entries
-                          .map((entry) => entry.group?.trim())
-                          .whereType<String>()
-                          .where((group) => group.isNotEmpty)
-                          .toSet()
-                          .toList()
-                        ..sort(),
-                  initialBlockedContent:
-                      ref
-                          .watch(
-                            userOverlaysControllerProvider(widget.profileId),
-                          )
-                          .asData
-                          ?.value
-                          .parentalPolicy
-                          ?.blockedContent ??
-                      const {'adult'},
-                  onSaveParentalPin: widget.onSaveParentalPin,
-                  onUnlockParental: widget.onUnlockParental,
+                  openSection: (section) => showLibrarySettings(
+                    context,
+                    section: section,
+                    configured: ref.read(metadataGatewayProvider) != null,
+                    onImportEpgFile: widget.onImportEpgFile,
+                    onImportEpgUrl: widget.onImportEpgUrl,
+                    onRefreshSource: widget.onRefreshSource,
+                    onRefreshSources: widget.onRefreshSources,
+                    refreshIntervalFor: widget.refreshIntervalFor,
+                    onRefreshIntervalChanged: widget.onRefreshIntervalChanged,
+                    sources: widget.sources,
+                    onAddPlaylist: widget.onAddPlaylist,
+                    onRenameSource: widget.onRenameSource,
+                    onRemoveSource: widget.onRemoveSource,
+                    parentalConfigured: widget.parentalConfigured,
+                    parentalUnlocked: widget.parentalUnlocked,
+                    availableParentalCategories:
+                        widget.entries
+                            .map((entry) => entry.group?.trim())
+                            .whereType<String>()
+                            .where((group) => group.isNotEmpty)
+                            .toSet()
+                            .toList()
+                          ..sort(),
+                    initialBlockedContent:
+                        ref
+                            .watch(
+                              userOverlaysControllerProvider(widget.profileId),
+                            )
+                            .asData
+                            ?.value
+                            .parentalPolicy
+                            ?.blockedContent ??
+                        const {'adult'},
+                    onSaveParentalPin: widget.onSaveParentalPin,
+                    onUnlockParental: widget.onUnlockParental,
+                  ),
                 ),
                 onProfileChanged: widget.onProfileChanged,
                 onSourcesRemoved: widget.onSourcesRemoved,
@@ -1157,6 +1271,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       onPlay: widget.onEntrySelected,
                       profileId: widget.profileId,
                       favorites: widget.favorites,
+                      history: widget.history,
                       onFavoriteToggled: widget.onFavoriteToggled,
                     ),
                     _CatalogDestination.movies => _CatalogPage(
@@ -1172,6 +1287,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       onPlay: widget.onEntrySelected,
                       profileId: widget.profileId,
                       favorites: widget.favorites,
+                      history: widget.history,
                       onFavoriteToggled: widget.onFavoriteToggled,
                     ),
                     _CatalogDestination.shows => _CatalogPage(
@@ -1187,6 +1303,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       onPlay: widget.onEntrySelected,
                       profileId: widget.profileId,
                       favorites: widget.favorites,
+                      history: widget.history,
                       onFavoriteToggled: widget.onFavoriteToggled,
                     ),
                   },
@@ -1528,8 +1645,6 @@ final class _DestinationHomeState extends State<_DestinationHome> {
   @override
   Widget build(BuildContext context) {
     final entries = widget.entries;
-    final profileId = widget.profileId;
-    final history = widget.history;
     final destinations = const <_CatalogDestination>[
       _CatalogDestination.live,
       _CatalogDestination.movies,
@@ -1565,29 +1680,6 @@ final class _DestinationHomeState extends State<_DestinationHome> {
                     onPressed: () => widget.onSelected(destination),
                   ),
               ];
-              final entriesByLocator = <MediaLocator, _LibraryEntry>{
-                for (final entry in entries) entry.locator(profileId): entry,
-              };
-              final recent = history
-                  .map((item) {
-                    final entry = entriesByLocator[item.media];
-                    return entry == null ? null : (entry: entry, history: item);
-                  })
-                  .whereType<
-                    ({_LibraryEntry entry, PlaybackHistoryEntry history})
-                  >()
-                  .take(8)
-                  .toList(growable: false);
-              final continueWatching = recent
-                  .where(
-                    (item) =>
-                        item.entry.kind != MediaKind.live &&
-                        _resumePositionFor(item.history) > Duration.zero,
-                  )
-                  .toList(growable: false);
-              final displayedHistory = continueWatching.isNotEmpty
-                  ? continueWatching
-                  : recent;
               final heroEntries = _heroEntries;
               final hero = heroEntries.isEmpty
                   ? null
@@ -1635,7 +1727,9 @@ final class _DestinationHomeState extends State<_DestinationHome> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  destinationCards,
                   if (hero != null) ...<Widget>[
+                    const SizedBox(height: TviumSpacing.lg),
                     SizedBox(
                       height: horizontal
                           ? MediaQuery.sizeOf(context).height >= 760
@@ -1643,67 +1737,6 @@ final class _DestinationHomeState extends State<_DestinationHome> {
                                 : 190
                           : 220,
                       child: hero,
-                    ),
-                    const SizedBox(height: TviumSpacing.lg),
-                  ],
-                  destinationCards,
-                  if (displayedHistory.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.xl),
-                    Text(
-                      continueWatching.isNotEmpty
-                          ? 'Continue watching'
-                          : 'Recently played',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: TviumSpacing.sm),
-                    SizedBox(
-                      height: continueWatching.isNotEmpty ? 112 : 96,
-                      child: ListView.separated(
-                        key: const ValueKey('recently-played'),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: displayedHistory.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(width: TviumSpacing.sm),
-                        itemBuilder: (context, index) {
-                          final item = displayedHistory[index];
-                          final entry = item.entry;
-                          final durationMs =
-                              item.history.duration.inMilliseconds;
-                          final progress = durationMs <= 0
-                              ? 0.0
-                              : (item.history.position.inMilliseconds /
-                                        durationMs)
-                                    .clamp(0.0, 1.0);
-                          return SizedBox(
-                            width: 230,
-                            child: Card(
-                              child: ListTile(
-                                leading: Icon(_mediaIcon(entry.kind)),
-                                title: Text(
-                                  entry.displayName,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: continueWatching.isNotEmpty
-                                    ? Padding(
-                                        padding: const EdgeInsets.only(top: 10),
-                                        child: LinearProgressIndicator(
-                                          key: ValueKey(
-                                            'continue-progress-${entry.id}',
-                                          ),
-                                          value: progress,
-                                        ),
-                                      )
-                                    : null,
-                                trailing: const Icon(Icons.play_arrow_rounded),
-                                onTap: entry.isPlayable
-                                    ? () => widget.onPlay(entry)
-                                    : null,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
                     ),
                   ],
                 ],
@@ -1759,13 +1792,17 @@ final class _HomeHero extends StatelessWidget {
             key: ValueKey('home-hero-${entry.id}'),
             fit: StackFit.expand,
             children: <Widget>[
-              if (entry.imageUri case final artwork?)
-                CachedNetworkImage(
-                  imageUrl: artwork.toString(),
+              ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+                child: ArtworkImage(
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
+                  role: 'backdrop',
+                  uri: entry.imageUri,
                   fit: BoxFit.cover,
                   alignment: Alignment.topCenter,
-                  errorWidget: (context, url, error) => const SizedBox.shrink(),
                 ),
+              ),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -1967,7 +2004,7 @@ final class _DestinationCard extends StatelessWidget {
 
   final _CatalogDestination destination;
   final int count;
-  final Uri? artwork;
+  final _LibraryEntry? artwork;
   final VoidCallback onPressed;
 
   @override
@@ -1985,11 +2022,13 @@ final class _DestinationCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: <Widget>[
-              if (artwork case final uri?)
-                CachedNetworkImage(
-                  imageUrl: uri.toString(),
+              if (artwork case final entry?)
+                ArtworkImage(
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
+                  role: entry.kind == MediaKind.live ? 'logo' : 'poster',
+                  uri: entry.imageUri,
                   fit: BoxFit.cover,
-                  errorWidget: (context, url, error) => const SizedBox.shrink(),
                 ),
               const DecoratedBox(
                 decoration: BoxDecoration(
@@ -2041,6 +2080,7 @@ final class _CatalogPage extends ConsumerWidget {
     required this.onPlay,
     required this.profileId,
     required this.favorites,
+    required this.history,
     required this.onFavoriteToggled,
   });
 
@@ -2055,6 +2095,7 @@ final class _CatalogPage extends ConsumerWidget {
   final ValueChanged<_LibraryEntry> onPlay;
   final String profileId;
   final Set<MediaLocator> favorites;
+  final List<PlaybackHistoryEntry> history;
   final ValueChanged<_LibraryEntry> onFavoriteToggled;
 
   @override
@@ -2082,6 +2123,25 @@ final class _CatalogPage extends ConsumerWidget {
           _CatalogDestination.shows => selectedEntry!.kind == MediaKind.episode,
           _CatalogDestination.home => false,
         };
+    final entriesByLocator = <MediaLocator, _LibraryEntry>{
+      for (final entry in entries) entry.locator(profileId): entry,
+    };
+    final continueWatching = destination == _CatalogDestination.movies
+        ? history
+              .map((item) {
+                final entry = entriesByLocator[item.media];
+                return entry == null ||
+                        entry.kind != MediaKind.movie ||
+                        _resumePositionFor(item) == Duration.zero
+                    ? null
+                    : (entry: entry, history: item);
+              })
+              .whereType<
+                ({_LibraryEntry entry, PlaybackHistoryEntry history})
+              >()
+              .take(8)
+              .toList(growable: false)
+        : const <({_LibraryEntry entry, PlaybackHistoryEntry history})>[];
     final media = visible.isEmpty
         ? Center(child: Text(AppLocalizations.of(context).noItems))
         : destination == _CatalogDestination.live
@@ -2132,6 +2192,51 @@ final class _CatalogPage extends ConsumerWidget {
           );
     final catalog = Column(
       children: <Widget>[
+        if (continueWatching.isNotEmpty && !showPlayer) ...<Widget>[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Continue watching',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+          ),
+          const SizedBox(height: TviumSpacing.sm),
+          SizedBox(
+            height: 110,
+            child: ListView.separated(
+              key: const ValueKey('movies-continue-watching'),
+              scrollDirection: Axis.horizontal,
+              itemCount: continueWatching.length,
+              separatorBuilder: (_, _) =>
+                  const SizedBox(width: TviumSpacing.sm),
+              itemBuilder: (context, index) {
+                final item = continueWatching[index];
+                final duration = item.history.duration.inMilliseconds;
+                final progress = duration <= 0
+                    ? 0.0
+                    : (item.history.position.inMilliseconds / duration).clamp(
+                        0.0,
+                        1.0,
+                      );
+                return SizedBox(
+                  width: 240,
+                  child: Card(
+                    child: ListTile(
+                      title: Text(item.entry.displayName, maxLines: 2),
+                      subtitle: LinearProgressIndicator(
+                        key: ValueKey('continue-progress-${item.entry.id}'),
+                        value: progress,
+                      ),
+                      trailing: const Icon(Icons.play_arrow_rounded),
+                      onTap: () => onPlay(item.entry),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: TviumSpacing.md),
+        ],
         if (showPlayer) ...<Widget>[
           SizedBox(
             key: const ValueKey('catalog-player'),
@@ -2164,6 +2269,35 @@ final class _CatalogPage extends ConsumerWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
+                if (constraints.maxWidth >= 1100 &&
+                    destination == _CatalogDestination.live &&
+                    showPlayer) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      SizedBox(
+                        key: const ValueKey('catalog-group-sidebar'),
+                        width: 220,
+                        child: _GroupSidebar(
+                          groups: groups,
+                          selectedGroup: selectedGroup,
+                          onSelected: onGroupSelected,
+                        ),
+                      ),
+                      const SizedBox(width: TviumSpacing.md),
+                      Expanded(child: media),
+                      const SizedBox(width: TviumSpacing.md),
+                      SizedBox(
+                        key: const ValueKey('catalog-player'),
+                        width: constraints.maxWidth * 0.32,
+                        child: _PlayerPanel(
+                          selectedEntry: selectedEntry,
+                          engine: playbackEngine,
+                        ),
+                      ),
+                    ],
+                  );
+                }
                 if (constraints.maxWidth >= 720) {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2510,25 +2644,24 @@ final class _CatalogArtwork extends StatelessWidget {
           colors: <Color>[Color(0xFF163D58), Color(0xFF09141F)],
         ),
       ),
-      child: uri == null || !uri.hasScheme || uri.host.endsWith('.test')
-          ? Center(
-              child: Icon(
-                _mediaIcon(entry.kind),
-                size: 46,
-                color: Colors.white54,
-              ),
-            )
-          : CachedNetworkImage(
-              imageUrl: uri.toString(),
-              fit: BoxFit.cover,
-              errorWidget: (context, url, error) => Center(
-                child: Icon(
-                  _mediaIcon(entry.kind),
-                  size: 46,
-                  color: Colors.white54,
-                ),
-              ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Center(
+            child: Icon(
+              _mediaIcon(entry.kind),
+              size: 46,
+              color: Colors.white54,
             ),
+          ),
+          ArtworkImage(
+            sourceId: entry.sourceId,
+            entryId: entry.id,
+            role: entry.kind == MediaKind.live ? 'logo' : 'poster',
+            uri: uri,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2791,7 +2924,7 @@ IconData _mediaIcon(MediaKind kind) => switch (kind) {
   MediaKind.unclassified => Icons.play_circle_outline_rounded,
 };
 
-Uri? _firstArtwork(
+_LibraryEntry? _firstArtwork(
   List<_LibraryEntry> entries,
   _CatalogDestination destination,
 ) {
@@ -2807,7 +2940,17 @@ Uri? _firstArtwork(
         uri != null &&
         uri.hasScheme &&
         !uri.host.endsWith('.test')) {
-      return uri;
+      return entry;
+    }
+  }
+  for (final entry in entries) {
+    if (switch (destination) {
+      _CatalogDestination.live => entry.kind == MediaKind.live,
+      _CatalogDestination.movies => entry.kind == MediaKind.movie,
+      _CatalogDestination.shows => entry.kind == MediaKind.episode,
+      _CatalogDestination.home => false,
+    }) {
+      return entry;
     }
   }
   return null;

@@ -87,6 +87,8 @@ void main() {
 
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-page-playlists')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('add-playlist')));
     await tester.pumpAndSettle();
 

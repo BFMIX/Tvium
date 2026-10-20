@@ -3,9 +3,63 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 
+import '../artwork/artwork_image.dart';
+import '../library/source_refresh_schedule.dart';
 import 'metadata_gateway_client.dart';
 
 final metadataEnabled = ValueNotifier<bool>(false);
+
+enum SettingsSection { playlists, metadata, parental, guide, about }
+
+Future<void> showSettingsPages(
+  BuildContext context, {
+  required Future<void> Function(SettingsSection section) openSection,
+}) => Navigator.of(context).push(
+  MaterialPageRoute<void>(
+    builder: (context) => Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        children: <Widget>[
+          for (final (section, title, icon)
+              in <(SettingsSection, String, IconData)>[
+                (
+                  SettingsSection.playlists,
+                  'Playlists',
+                  Icons.playlist_play_rounded,
+                ),
+                (
+                  SettingsSection.metadata,
+                  'Metadata',
+                  Icons.movie_filter_outlined,
+                ),
+                (
+                  SettingsSection.parental,
+                  'Parental controls',
+                  Icons.shield_outlined,
+                ),
+                (
+                  SettingsSection.guide,
+                  'Programme guide',
+                  Icons.calendar_month_outlined,
+                ),
+                (
+                  SettingsSection.about,
+                  'About and licenses',
+                  Icons.info_outline_rounded,
+                ),
+              ])
+            ListTile(
+              key: ValueKey('settings-page-${section.name}'),
+              leading: Icon(icon),
+              title: Text(title),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => openSection(section),
+            ),
+        ],
+      ),
+    ),
+  ),
+);
 final metadataGatewayProvider = Provider<MetadataGatewayClient?>((ref) {
   const address = String.fromEnvironment('TVIUM_METADATA_GATEWAY');
   final uri = Uri.tryParse(address);
@@ -108,10 +162,14 @@ Future<bool> _confirmRemoveSource(
 Future<void> showLibrarySettings(
   BuildContext context, {
   required bool configured,
+  SettingsSection? section,
   Future<String> Function()? onImportEpgFile,
   Future<String> Function(Uri uri)? onImportEpgUrl,
   Future<String> Function()? onRefreshSources,
   Future<String> Function(IptvSource source)? onRefreshSource,
+  Future<SourceRefreshInterval> Function(IptvSource source)? refreshIntervalFor,
+  Future<void> Function(IptvSource source, SourceRefreshInterval interval)?
+  onRefreshIntervalChanged,
   List<IptvSource> sources = const <IptvSource>[],
   Future<void> Function()? onAddPlaylist,
   Future<void> Function(IptvSource source, String name)? onRenameSource,
@@ -137,18 +195,25 @@ Future<void> showLibrarySettings(
       .where((value) => value.isNotEmpty)
       .toSet();
   final dialogSources = List<IptvSource>.of(sources);
-  await showDialog<void>(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setDialogState) => AlertDialog(
-        title: const Text('Settings'),
-        content: SizedBox(
-          width: 440,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+  final title = switch (section) {
+    SettingsSection.playlists => 'Playlists',
+    SettingsSection.metadata => 'Metadata',
+    SettingsSection.parental => 'Parental controls',
+    SettingsSection.guide => 'Programme guide',
+    SettingsSection.about => 'About and licenses',
+    null => 'Settings',
+  };
+  Widget buildSettings(BuildContext routeContext) => StatefulBuilder(
+    builder: (context, setDialogState) {
+      final content = SizedBox(
+        width: section == null ? 440 : 720,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (section == null ||
+                  section == SettingsSection.playlists) ...<Widget>[
                 const Text(
                   'Titles are organized locally. Original playlist data is preserved.',
                 ),
@@ -162,9 +227,38 @@ Future<void> showLibrarySettings(
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(source.displayName),
+                      subtitle: refreshIntervalFor == null
+                          ? null
+                          : FutureBuilder<SourceRefreshInterval>(
+                              future: refreshIntervalFor(source),
+                              builder: (context, snapshot) => Text(
+                                'Refresh: ${snapshot.data?.label ?? 'Loading'}',
+                              ),
+                            ),
                       trailing: Wrap(
                         spacing: 4,
                         children: <Widget>[
+                          if (onRefreshIntervalChanged != null)
+                            PopupMenuButton<SourceRefreshInterval>(
+                              key: ValueKey('refresh-interval-${source.id}'),
+                              tooltip: 'Refresh schedule',
+                              icon: const Icon(Icons.schedule_rounded),
+                              onSelected: (interval) async {
+                                await onRefreshIntervalChanged(
+                                  source,
+                                  interval,
+                                );
+                                if (context.mounted) setDialogState(() {});
+                              },
+                              itemBuilder: (context) => [
+                                for (final interval
+                                    in SourceRefreshInterval.values)
+                                  PopupMenuItem(
+                                    value: interval,
+                                    child: Text(interval.label),
+                                  ),
+                              ],
+                            ),
                           IconButton(
                             key: ValueKey('refresh-source-${source.id}'),
                             tooltip: 'Refresh playlist',
@@ -283,6 +377,9 @@ Future<void> showLibrarySettings(
                     label: const Text('Refresh connected sources'),
                   ),
                 ],
+              ],
+              if (section == null ||
+                  section == SettingsSection.metadata) ...<Widget>[
                 ValueListenableBuilder<bool>(
                   valueListenable: metadataEnabled,
                   builder: (context, enabled, _) => SwitchListTile(
@@ -299,6 +396,9 @@ Future<void> showLibrarySettings(
                         : null,
                   ),
                 ),
+              ],
+              if (section == null ||
+                  section == SettingsSection.parental) ...<Widget>[
                 const SizedBox(height: 16),
                 const Text(
                   'Parental controls',
@@ -423,6 +523,9 @@ Future<void> showLibrarySettings(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(parentalStatus!),
                   ),
+              ],
+              if (section == null ||
+                  section == SettingsSection.guide) ...<Widget>[
                 const SizedBox(height: 16),
                 const Text(
                   'Programme guide',
@@ -498,6 +601,9 @@ Future<void> showLibrarySettings(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(epgStatus!),
                   ),
+              ],
+              if (section == null ||
+                  section == SettingsSection.about) ...<Widget>[
                 const SizedBox(height: 16),
                 const Text(
                   'Data sources',
@@ -509,18 +615,38 @@ Future<void> showLibrarySettings(
                   'Artwork may have separate rights. Source and licensing information accompany each result.',
                 ),
               ],
-            ),
+            ],
           ),
         ),
+      );
+      if (section != null) {
+        return Scaffold(
+          appBar: AppBar(title: Text(title)),
+          body: SafeArea(
+            child: Center(
+              child: Padding(padding: const EdgeInsets.all(24), child: content),
+            ),
+          ),
+        );
+      }
+      return AlertDialog(
+        title: Text(title),
+        content: content,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Close'),
           ),
         ],
-      ),
-    ),
+      );
+    },
   );
+  if (section == null) {
+    await showDialog<void>(context: context, builder: buildSettings);
+  } else {
+    await Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: buildSettings));
+  }
   epgUrlController.dispose();
   parentalPinController.dispose();
 }
@@ -638,11 +764,15 @@ final class _MetadataDetailsState extends ConsumerState<MetadataDetails> {
               if (row.posterUri != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Image.network(
-                    row.posterUri.toString(),
+                  child: SizedBox(
                     height: 200,
-                    errorBuilder: (context, error, stack) =>
-                        const SizedBox.shrink(),
+                    child: ArtworkImage(
+                      sourceId: 'metadata',
+                      entryId: widget.originalTitle,
+                      role: 'poster',
+                      uri: row.posterUri,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               if (row.overview != null) Text(row.overview!),

@@ -14,6 +14,47 @@ void main() {
   setUp(() => metadataEnabled.value = false);
   tearDown(() => metadataEnabled.value = false);
 
+  testWidgets('Settings opens dedicated sections', (tester) async {
+    SettingsSection? opened;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showSettingsPages(
+                context,
+                openSection: (section) async {
+                  opened = section;
+                  await showLibrarySettings(
+                    context,
+                    configured: false,
+                    section: section,
+                  );
+                },
+              ),
+              child: const Text('Open settings pages'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open settings pages'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('settings-page-playlists')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-page-parental')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-page-parental')));
+    await tester.pumpAndSettle();
+    expect(opened, SettingsSection.parental);
+    expect(find.byKey(const ValueKey('parental-pin-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('epg-url-field')), findsNothing);
+  });
+
   testWidgets(
     'details show cleaned and original title without opt-in traffic',
     (tester) async {

@@ -31,6 +31,8 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: approved Tvium logo family, application icons, visual reference screens, and brand color tokens are organized and integrated into the prototype.
 - Verified: production color and typography foundations, adaptive four-destination navigation shell, onboarding, Home, compact touch navigation, and wide-screen focus states.
 - Verified: the production Home screen includes a cinematic, five-second controllable feature carousel with adjacent Play and View details actions.
+- Verified by widget tests: Home shows exactly three destination cards before the carousel, with no extra history rail.
+- Verified by widget tests: Settings has separate navigation entries for playlists, metadata, parental controls, programme guide, and about information.
 - Highest current priority: apply the approved cinematic Home, Live TV, Movies, and TV Shows designs to the production Flutter screens.
 - In progress: accessibility audits and full D-pad/remote runtime coverage.
 
@@ -39,6 +41,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: grouped browsing and scoped search.
 - Verified: safe XMLTV file/HTTPS import, deterministic channel matching, local EPG persistence, and honest Now/Next display.
 - Verified: profile-scoped favorites and recently played history are persistent and exposed in the library UI.
+- Verified by widget tests: wide Live TV keeps the channel stack visible beside the player preview while a channel plays.
 - In progress: zapping, quick switcher, variant selection, and targeted health checks remain planned.
 
 ## M5 — Movies and TV Shows (in progress)
@@ -46,6 +49,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: Xtream series details load on demand and expose ordered seasons and playable episodes without persisting stream URLs.
 - Verified: favorites and recently played history work across Live TV, Movies, and TV Shows.
 - Verified by automated coverage: movie and episode playback surfaces, local progress checkpoints, automatic resume, and Continue Watching.
+- Verified by widget tests: resumable movies appear above the movie poster catalog, keeping Home limited to destinations and carousel.
 - Verified by automated coverage: M3U episode titles using common provider conventions are grouped locally into series, seasons, and episodes; native Xtream series structure remains authoritative when available.
 - In progress: physical-device playback validation. Enriched VOD details and durable episode catalogs remain planned.
 
@@ -58,6 +62,10 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: tolerant Series season/episode retrieval plus durable profile-scoped favorite, history, and parental-policy repositories.
 - Verified: on-demand Xtream episode catalog and playback integration plus profile-scoped overlay UX.
 - Verified: per-source rename, refresh, and profile-aware removal controls.
+- Verified by automated tests: cached library startup remains usable while each source follows its own configurable refresh interval; failed refreshes retain cached entries.
+- Verified by automated tests: conventional M3U export URLs are conservatively recognized, then upgraded to Xtream only after successful authentication and catalog loading. Failed upgrades fall back to the original M3U import.
+- In progress: viewed logo, poster, and backdrop bytes use an opaque-key disk cache on native platforms; cache eviction and first-load offline behavior need device validation.
+- Planned: migration of previously saved M3U sources to Xtream after explicit source-identity reconciliation.
 - Planned: credential reconnect and bulk organization.
 
 ## M7 — Parental controls (in progress)

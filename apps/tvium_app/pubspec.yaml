@@ -46,6 +46,7 @@ dependencies:
   crypto: ^3.0.6
   path_provider: ^2.1.5
   cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.2
   intl: ^0.20.3
   tvium_core:
     path: ../../packages/tvium_core
