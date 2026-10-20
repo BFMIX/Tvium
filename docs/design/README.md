@@ -19,6 +19,8 @@ Validated logos live in `apps/tvium_app/assets/branding/`:
 - `logo-stacked-color.png` and `logo-wordmark-dark.png`: alternate lockups.
 - `app-icon-dark.png`, `app-icon-dark-safe-area.png`, and `app-icon-light.png`: application icon sources.
 
+Approved scenic artwork used by the production destination cards and catalog banners lives in `apps/tvium_app/assets/destinations/`. These four images come from the local Tvium design prototype and do not depend on playlist contents.
+
 ## Reference screens
 
 - [Home](references/screens/home.png)

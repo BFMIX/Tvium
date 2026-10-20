@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -1692,7 +1691,6 @@ final class _DestinationHomeState extends State<_DestinationHome> {
                           },
                         )
                         .length,
-                    artwork: _firstArtwork(entries, destination),
                     onPressed: () => widget.onSelected(destination),
                   ),
               ];
@@ -1745,13 +1743,13 @@ final class _DestinationHomeState extends State<_DestinationHome> {
                 children: <Widget>[
                   destinationCards,
                   if (hero != null) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.lg),
+                    SizedBox(height: horizontal ? 48 : 28),
                     SizedBox(
                       height: horizontal
                           ? MediaQuery.sizeOf(context).height >= 760
-                                ? 300
-                                : 190
-                          : 220,
+                                ? 330
+                                : 260
+                          : 260,
                       child: hero,
                     ),
                   ],
@@ -1808,16 +1806,11 @@ final class _HomeHero extends StatelessWidget {
             key: ValueKey('home-hero-${entry.id}'),
             fit: StackFit.expand,
             children: <Widget>[
-              ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
-                child: ArtworkImage(
-                  sourceId: entry.sourceId,
-                  entryId: entry.id,
-                  role: 'backdrop',
-                  uri: entry.imageUri,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
+              Image.asset(
+                'assets/destinations/hero-home.png',
+                key: const ValueKey('home-hero-backdrop'),
+                fit: BoxFit.cover,
+                alignment: Alignment.centerRight,
               ),
               const DecoratedBox(
                 decoration: BoxDecoration(
@@ -1825,13 +1818,35 @@ final class _HomeHero extends StatelessWidget {
                     begin: Alignment.centerRight,
                     end: Alignment.centerLeft,
                     colors: <Color>[
-                      Color(0x3318C7F0),
-                      Color(0xD90A1B2B),
+                      Color(0x22081422),
+                      Color(0xE00A1B2B),
                       Color(0xFF06101B),
                     ],
                   ),
                 ),
               ),
+              if (entry.imageUri != null &&
+                  MediaQuery.sizeOf(context).width >= 920)
+                Positioned(
+                  key: const ValueKey('home-hero-poster'),
+                  right: 84,
+                  top: 48,
+                  bottom: 30,
+                  width: 160,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: ColoredBox(
+                      color: const Color(0x99071320),
+                      child: ArtworkImage(
+                        sourceId: entry.sourceId,
+                        entryId: entry.id,
+                        role: 'poster',
+                        uri: entry.imageUri,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
               _HomeHeroContent(
                 entry: entry,
                 entries: entries,
@@ -1842,29 +1857,24 @@ final class _HomeHero extends StatelessWidget {
               ),
               if (entries.length > 1) ...<Widget>[
                 Positioned(
-                  left: TviumSpacing.xs,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: IconButton.filledTonal(
-                      key: const ValueKey('home-hero-previous'),
-                      tooltip: 'Previous feature',
-                      onPressed: onPrevious,
-                      icon: const Icon(Icons.chevron_left_rounded),
-                    ),
-                  ),
-                ),
-                Positioned(
                   right: TviumSpacing.xs,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: IconButton.filledTonal(
-                      key: const ValueKey('home-hero-next'),
-                      tooltip: 'Next feature',
-                      onPressed: onNext,
-                      icon: const Icon(Icons.chevron_right_rounded),
-                    ),
+                  top: TviumSpacing.xs,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      IconButton.filledTonal(
+                        key: const ValueKey('home-hero-previous'),
+                        tooltip: 'Previous feature',
+                        onPressed: onPrevious,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                      ),
+                      IconButton.filledTonal(
+                        key: const ValueKey('home-hero-next'),
+                        tooltip: 'Next feature',
+                        onPressed: onNext,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -1898,7 +1908,7 @@ final class _HomeHeroContent extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact =
-            constraints.maxHeight < 260 || constraints.maxWidth < 600;
+            constraints.maxHeight < 300 || constraints.maxWidth < 600;
         return Padding(
           padding: EdgeInsets.all(compact ? TviumSpacing.md : TviumSpacing.xl),
           child: Align(
@@ -2014,68 +2024,68 @@ final class _DestinationCard extends StatelessWidget {
     super.key,
     required this.destination,
     required this.count,
-    required this.artwork,
     required this.onPressed,
   });
 
   final _CatalogDestination destination;
   final int count;
-  final _LibraryEntry? artwork;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 190, maxHeight: 260),
-      child: Material(
-        color: const Color(0xFF10283C),
-        borderRadius: BorderRadius.circular(24),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onPressed,
-          focusColor: Theme.of(context).colorScheme.primary
-              .withValues(alpha: 0.18),
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              if (artwork case final entry?)
-                ArtworkImage(
-                  sourceId: entry.sourceId,
-                  entryId: entry.id,
-                  role: entry.kind == MediaKind.live ? 'logo' : 'poster',
-                  uri: entry.imageUri,
-                  fit: BoxFit.cover,
+    return Material(
+      color: const Color(0xFF10283C),
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        focusColor: Theme.of(context).colorScheme.primary
+            .withValues(alpha: 0.18),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Image.asset(
+              switch (destination) {
+                _CatalogDestination.live =>
+                  'assets/destinations/hero-live-tv.png',
+                _CatalogDestination.movies =>
+                  'assets/destinations/hero-movies.png',
+                _CatalogDestination.shows =>
+                  'assets/destinations/hero-tv-shows.png',
+                _CatalogDestination.home => 'assets/destinations/hero-home.png',
+              },
+              fit: BoxFit.cover,
+              alignment: Alignment.centerRight,
+            ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[Color(0x2219C8E6), Color(0xF2071019)],
                 ),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[Color(0x2219C8E6), Color(0xF2071019)],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(TviumSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: <Widget>[
+                  Icon(_destinationIcon(destination), size: 38),
+                  const SizedBox(height: TviumSpacing.sm),
+                  Text(
+                    _destinationLabel(destination),
+                    style: Theme.of(context).textTheme.headlineMedium,
                   ),
-                ),
+                  Text(
+                    '$count ${count == 1 ? 'title' : 'titles'}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.all(TviumSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: <Widget>[
-                    Icon(_destinationIcon(destination), size: 38),
-                    const SizedBox(height: TviumSpacing.sm),
-                    Text(
-                      _destinationLabel(destination),
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    Text(
-                      '$count ${count == 1 ? 'title' : 'titles'}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -2277,11 +2287,18 @@ final class _CatalogPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            _destinationLabel(destination),
-            style: Theme.of(context).textTheme.displaySmall,
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height < 700
+                ? 72
+                : MediaQuery.sizeOf(context).width >= 720
+                ? 132
+                : 94,
+            child: _CatalogBanner(
+              destination: destination,
+              count: entries.length,
+            ),
           ),
-          const SizedBox(height: TviumSpacing.sm),
+          const SizedBox(height: TviumSpacing.md),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -2370,6 +2387,63 @@ final class _CatalogPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+final class _CatalogBanner extends StatelessWidget {
+  const _CatalogBanner({required this.destination, required this.count});
+
+  final _CatalogDestination destination;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    key: const ValueKey('catalog-page-banner'),
+    borderRadius: BorderRadius.circular(TviumRadius.hero),
+    child: Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        Image.asset(
+          switch (destination) {
+            _CatalogDestination.live => 'assets/destinations/hero-live-tv.png',
+            _CatalogDestination.movies => 'assets/destinations/hero-movies.png',
+            _CatalogDestination.shows =>
+              'assets/destinations/hero-tv-shows.png',
+            _CatalogDestination.home => 'assets/destinations/hero-home.png',
+          },
+          fit: BoxFit.cover,
+          alignment: Alignment.centerRight,
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: <Color>[
+                Color(0xF2071320),
+                Color(0x99071320),
+                Color(0x22071320),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: TviumSpacing.lg),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                _destinationLabel(destination),
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              Text(
+                '$count ${count == 1 ? 'title' : 'titles'}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 final class _GroupSidebar extends StatelessWidget {
@@ -2939,38 +3013,6 @@ IconData _mediaIcon(MediaKind kind) => switch (kind) {
   MediaKind.episode => Icons.tv_rounded,
   MediaKind.unclassified => Icons.play_circle_outline_rounded,
 };
-
-_LibraryEntry? _firstArtwork(
-  List<_LibraryEntry> entries,
-  _CatalogDestination destination,
-) {
-  for (final entry in entries) {
-    final matches = switch (destination) {
-      _CatalogDestination.live => entry.kind == MediaKind.live,
-      _CatalogDestination.movies => entry.kind == MediaKind.movie,
-      _CatalogDestination.shows => entry.kind == MediaKind.episode,
-      _CatalogDestination.home => false,
-    };
-    final uri = entry.imageUri;
-    if (matches &&
-        uri != null &&
-        uri.hasScheme &&
-        !uri.host.endsWith('.test')) {
-      return entry;
-    }
-  }
-  for (final entry in entries) {
-    if (switch (destination) {
-      _CatalogDestination.live => entry.kind == MediaKind.live,
-      _CatalogDestination.movies => entry.kind == MediaKind.movie,
-      _CatalogDestination.shows => entry.kind == MediaKind.episode,
-      _CatalogDestination.home => false,
-    }) {
-      return entry;
-    }
-  }
-  return null;
-}
 
 final class _PlayerPanel extends ConsumerWidget {
   const _PlayerPanel({required this.selectedEntry, required this.engine});

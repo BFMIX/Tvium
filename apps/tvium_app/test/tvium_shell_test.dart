@@ -181,6 +181,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('destination-movies')));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('media-card-movie')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('media-card-movie')));
     await tester.pumpAndSettle();
 
@@ -254,6 +256,8 @@ void main() {
     unawaited(controller.importSource(const _DesignFixtureSource()));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('media-card-movie')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('media-card-movie')));
     await tester.pumpAndSettle();
@@ -380,6 +384,78 @@ void main() {
       find.byKey(const ValueKey('home-hero-title')),
     );
     expect(nextTitle.data, isNot(initialTitle.data));
+  });
+
+  testWidgets('Home uses fixed destination art and a spacious hero gap', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    for (final (destination, asset) in [
+      ('live', 'assets/destinations/hero-live-tv.png'),
+      ('movies', 'assets/destinations/hero-movies.png'),
+      ('shows', 'assets/destinations/hero-tv-shows.png'),
+    ]) {
+      final card = find.byKey(ValueKey('destination-$destination'));
+      final images = tester.widgetList<Image>(
+        find.descendant(of: card, matching: find.byType(Image)),
+      );
+      expect(
+        images.any(
+          (image) =>
+              image.image is AssetImage &&
+              (image.image as AssetImage).assetName == asset,
+        ),
+        isTrue,
+      );
+    }
+    final cardsBottom = tester
+        .getBottomLeft(find.byKey(const ValueKey('destination-live')))
+        .dy;
+    final heroTop = tester
+        .getTopLeft(find.byKey(const ValueKey('home-hero')))
+        .dy;
+    expect(heroTop - cardsBottom, greaterThanOrEqualTo(40));
+  });
+
+  testWidgets('catalog destinations use the approved scenic banners', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    final banner = find.byKey(const ValueKey('catalog-page-banner'));
+    expect(banner, findsOneWidget);
+    expect(
+      tester
+          .widgetList<Image>(
+            find.descendant(of: banner, matching: find.byType(Image)),
+          )
+          .any(
+            (image) =>
+                image.image is AssetImage &&
+                (image.image as AssetImage).assetName ==
+                    'assets/destinations/hero-movies.png',
+          ),
+      isTrue,
+    );
   });
 
   testWidgets('Home hero supports directional controls and defers autoplay', (

@@ -32,6 +32,8 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: production color and typography foundations, adaptive four-destination navigation shell, onboarding, Home, compact touch navigation, and wide-screen focus states.
 - Verified: the production Home screen includes a cinematic, five-second controllable feature carousel with adjacent Play and View details actions.
 - Verified by widget tests: Home shows exactly three destination cards before the carousel, with no extra history rail.
+- Verified by widget tests: the three Home cards use fixed approved artwork, the carousel is spaced below them, and its provider poster is shown at a bounded size over a stable scenic backdrop.
+- Verified by widget tests: Live TV, Movies, and TV Shows use approved scenic catalog banners that shrink on shorter windows.
 - Verified by widget tests: Settings has separate navigation entries for playlists, metadata, parental controls, programme guide, and about information.
 - Highest current priority: apply the approved cinematic Home, Live TV, Movies, and TV Shows designs to the production Flutter screens.
 - In progress: accessibility audits and full D-pad/remote runtime coverage.
