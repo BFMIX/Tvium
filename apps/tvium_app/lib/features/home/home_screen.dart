@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
@@ -3253,60 +3254,80 @@ final class _PlayerPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playbackEngine = engine;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(TviumRadius.surface),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: playbackEngine == null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(TviumSpacing.lg),
-                child: Text(
-                  AppLocalizations.of(context).chooseChannel,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            )
-          : Stack(
-              fit: StackFit.expand,
-              children: <Widget>[
-                ref.watch(playbackViewBuilderProvider)(playbackEngine),
-                Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Container(
-                    padding: const EdgeInsets.all(TviumSpacing.md),
-                    color: Colors.black.withValues(alpha: 0.65),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            selectedEntry?.name ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (onPreviousChannel != null) ...<Widget>[
-                          IconButton(
-                            key: const ValueKey('live-previous-channel'),
-                            tooltip: 'Previous channel',
-                            onPressed: onPreviousChannel,
-                            icon: const Icon(Icons.skip_previous_rounded),
-                          ),
-                          IconButton(
-                            key: const ValueKey('live-next-channel'),
-                            tooltip: 'Next channel',
-                            onPressed: onNextChannel,
-                            icon: const Icon(Icons.skip_next_rounded),
-                          ),
-                        ],
-                      ],
-                    ),
+    return Focus(
+      key: const ValueKey('live-player-focus'),
+      canRequestFocus: onNextChannel != null,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent || onNextChannel == null) {
+          return KeyEventResult.ignored;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
+            event.logicalKey == LogicalKeyboardKey.pageUp) {
+          onPreviousChannel?.call();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+            event.logicalKey == LogicalKeyboardKey.pageDown) {
+          onNextChannel?.call();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(TviumRadius.surface),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: playbackEngine == null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(TviumSpacing.lg),
+                  child: Text(
+                    AppLocalizations.of(context).chooseChannel,
+                    textAlign: TextAlign.center,
                   ),
                 ),
-              ],
-            ),
+              )
+            : Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  ref.watch(playbackViewBuilderProvider)(playbackEngine),
+                  Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Container(
+                      padding: const EdgeInsets.all(TviumSpacing.md),
+                      color: Colors.black.withValues(alpha: 0.65),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              selectedEntry?.name ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (onPreviousChannel != null) ...<Widget>[
+                            IconButton(
+                              key: const ValueKey('live-previous-channel'),
+                              tooltip: 'Previous channel',
+                              onPressed: onPreviousChannel,
+                              icon: const Icon(Icons.skip_previous_rounded),
+                            ),
+                            IconButton(
+                              key: const ValueKey('live-next-channel'),
+                              tooltip: 'Next channel',
+                              onPressed: onNextChannel,
+                              icon: const Icon(Icons.skip_next_rounded),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 }
