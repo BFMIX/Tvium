@@ -389,6 +389,48 @@ void main() {
     expect(progress.value, closeTo(0.35, 0.001));
   });
 
+  testWidgets('resumable local episodes appear in TV Shows', (tester) async {
+    final repository = InMemoryProfileSourceRepository();
+    final profile = await repository.ensureDefaultProfile();
+    await repository.recordPlayback(
+      PlaybackHistoryEntry(
+        media: MediaLocator(
+          profileId: profile.id,
+          sourceId: 'session.m3u',
+          entryId: 'entry-3',
+        ),
+        lastPlayedAtUtc: DateTime.utc(2026, 10, 19),
+        position: const Duration(seconds: 30),
+        duration: const Duration(minutes: 2),
+      ),
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: repository,
+      ),
+    );
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('shows-continue-watching')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('continue-artwork-entry-3')),
+      findsOneWidget,
+    );
+    final progress = tester.widget<LinearProgressIndicator>(
+      find.byKey(const ValueKey('continue-progress-entry-3')),
+    );
+    expect(progress.value, closeTo(0.25, 0.001));
+  });
+
   testWidgets('Home presents a cinematic hero with timed controls', (
     tester,
   ) async {

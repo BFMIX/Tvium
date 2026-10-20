@@ -2218,14 +2218,24 @@ final class _CatalogPage extends ConsumerWidget {
           _CatalogDestination.home => false,
         };
     final entriesByLocator = <MediaLocator, _LibraryEntry>{
-      for (final entry in entries) entry.locator(profileId): entry,
+      for (final entry in entries) ...<MediaLocator, _LibraryEntry>{
+        entry.locator(profileId): entry,
+        for (final episode in entry.seriesEpisodes)
+          episode.locator(profileId): episode,
+      },
     };
-    final continueWatching = destination == _CatalogDestination.movies
+    final continueWatching =
+        destination == _CatalogDestination.movies ||
+            destination == _CatalogDestination.shows
         ? history
               .map((item) {
                 final entry = entriesByLocator[item.media];
                 return entry == null ||
-                        entry.kind != MediaKind.movie ||
+                        entry.kind !=
+                            (destination == _CatalogDestination.movies
+                                ? MediaKind.movie
+                                : MediaKind.episode) ||
+                        !entry.isPlayable ||
                         _resumePositionFor(item) == Duration.zero
                     ? null
                     : (entry: entry, history: item);
@@ -2298,7 +2308,11 @@ final class _CatalogPage extends ConsumerWidget {
           SizedBox(
             height: shortWindow ? 86 : 110,
             child: ListView.separated(
-              key: const ValueKey('movies-continue-watching'),
+              key: ValueKey(
+                destination == _CatalogDestination.movies
+                    ? 'movies-continue-watching'
+                    : 'shows-continue-watching',
+              ),
               scrollDirection: Axis.horizontal,
               itemCount: continueWatching.length,
               separatorBuilder: (_, _) =>
