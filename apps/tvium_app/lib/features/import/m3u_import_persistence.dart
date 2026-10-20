@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
 
+import '../artwork/artwork_reference_store.dart';
 import '../sources/source_identity_service.dart';
 import '../xtream/secure_xtream_profile_store.dart';
 
@@ -167,6 +168,14 @@ final class DefaultM3uImportPersistence implements M3uImportPersistence {
           active.id,
           projected,
         );
+      }
+      try {
+        await ArtworkReferenceStore().write(sourceId, {
+          for (final entry in entries)
+            if (entry.logoUri case final Uri uri) entry.id: uri,
+        });
+      } on Object {
+        // Artwork storage must not discard a successfully imported catalog.
       }
       return sourceId;
     } on Object {

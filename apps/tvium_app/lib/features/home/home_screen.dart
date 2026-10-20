@@ -15,6 +15,7 @@ import 'package:tvium_xtream/tvium_xtream.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/branding/tvium_brand_logo.dart';
 import '../artwork/artwork_image.dart';
+import '../artwork/artwork_reference_store.dart';
 import '../epg/epg_import_controller.dart';
 import '../epg/epg_now_next_provider.dart';
 import '../epg/epg_source.dart';
@@ -521,6 +522,11 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       await m3uStore.delete(source.secretReference);
       await xtreamStore.delete(source.secretReference);
       try {
+        await ArtworkReferenceStore().delete(source.id);
+      } on Object {
+        // Optional artwork cleanup does not block source removal.
+      }
+      try {
         await refreshSchedule.remove(source.id);
       } on Object {
         // Source removal must not depend on deleting optional schedule data.
@@ -767,14 +773,24 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (xtreamProfile == null) {
       if (persistedLibrary?.sources.isNotEmpty ?? false) {
         return persistedLibrary!.entries
-            .map(_LibraryEntry.fromPersisted)
+            .map(
+              (entry) => _LibraryEntry.fromPersisted(
+                entry,
+                persistedLibrary.artwork[entry.playlistId]?[entry.id],
+              ),
+            )
             .toList(growable: false);
       }
       if (state.phase == PlaylistImportPhase.ready) {
         return state.entries.map(_LibraryEntry.fromM3u).toList(growable: false);
       }
       return (persistedLibrary?.entries ?? const <PersistedMediaEntry>[])
-          .map(_LibraryEntry.fromPersisted)
+          .map(
+            (entry) => _LibraryEntry.fromPersisted(
+              entry,
+              persistedLibrary?.artwork[entry.playlistId]?[entry.id],
+            ),
+          )
           .toList(growable: false);
     }
 
@@ -3160,7 +3176,7 @@ final class _LibraryEntry {
     sourceId: profileId,
   );
 
-  factory _LibraryEntry.fromPersisted(PersistedMediaEntry entry) {
+  factory _LibraryEntry.fromPersisted(PersistedMediaEntry entry, Uri? artwork) {
     final externalId = entry.externalId;
     final playable =
         externalId != null &&
@@ -3170,7 +3186,7 @@ final class _LibraryEntry {
       name: entry.originalName,
       kind: entry.kind,
       group: entry.groupName,
-      imageUri: null,
+      imageUri: artwork,
       m3uUri: null,
       m3uSourceReference: externalId == null ? entry.sourceReference : null,
       xtreamProfileId: externalId == null ? null : entry.sourceReference,
@@ -3180,7 +3196,7 @@ final class _LibraryEntry {
               name: entry.displayName,
               kind: entry.kind,
               categoryId: null,
-              imageUri: null,
+              imageUri: artwork,
               containerExtension: entry.containerExtension,
               epgChannelId: entry.epgChannelId,
             )

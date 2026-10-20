@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_design_system/tvium_design_system.dart';
 
+import 'features/artwork/artwork_reference_store.dart';
 import 'features/home/home_screen.dart';
 import 'features/import/local_playlist_picker.dart';
 import 'features/import/playlist_import_controller.dart';
@@ -25,6 +26,7 @@ final class TviumApp extends StatelessWidget {
     this.localPlaylistPicker,
     this.xtreamConnectionService,
     this.profileSourceRepository,
+    this.artworkReferenceStore,
     this.playbackEngineFactory,
     this.playbackViewBuilder,
     super.key,
@@ -34,6 +36,7 @@ final class TviumApp extends StatelessWidget {
   final LocalPlaylistPicker? localPlaylistPicker;
   final XtreamConnectionService? xtreamConnectionService;
   final ProfileSourceRepository? profileSourceRepository;
+  final ArtworkReferenceStore? artworkReferenceStore;
   final PlaybackEngineFactory? playbackEngineFactory;
   final PlaybackViewBuilder? playbackViewBuilder;
 
@@ -47,6 +50,11 @@ final class TviumApp extends StatelessWidget {
         if (profileSourceRepository != null)
           libraryRepositoryProvider.overrideWith(
             (ref) async => profileSourceRepository!,
+          ),
+        if (artworkReferenceStore != null || profileSourceRepository != null)
+          artworkReferenceStoreProvider.overrideWithValue(
+            artworkReferenceStore ??
+                ArtworkReferenceStore(MemoryArtworkKeyValueStore()),
           ),
         if (controller != null)
           playlistImportControllerProvider.overrideWith(

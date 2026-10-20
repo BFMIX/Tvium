@@ -268,9 +268,10 @@ Future<void> showLibrarySettings(
                                     refreshingSourceId != null
                                 ? null
                                 : () async {
-                                    setDialogState(
-                                      () => refreshingSourceId = source.id,
-                                    );
+                                    setDialogState(() {
+                                      refreshingSourceId = source.id;
+                                      epgStatus = 'Refreshing playlist…';
+                                    });
                                     final message = await onRefreshSource(
                                       source,
                                     );
@@ -364,7 +365,10 @@ Future<void> showLibrarySettings(
                     onPressed: importingEpg
                         ? null
                         : () async {
-                            setDialogState(() => importingEpg = true);
+                            setDialogState(() {
+                              importingEpg = true;
+                              epgStatus = 'Refreshing connected sources…';
+                            });
                             final message = await onRefreshSources();
                             if (context.mounted) {
                               setDialogState(() {
@@ -375,6 +379,15 @@ Future<void> showLibrarySettings(
                           },
                     icon: const Icon(Icons.sync_rounded),
                     label: const Text('Refresh connected sources'),
+                  ),
+                ],
+                if (refreshingSourceId != null) const LinearProgressIndicator(),
+                if (epgStatus != null &&
+                    section == SettingsSection.playlists) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    epgStatus!,
+                    key: const ValueKey('playlist-refresh-status'),
                   ),
                 ],
               ],
@@ -596,7 +609,7 @@ Future<void> showLibrarySettings(
                   ],
                 ),
                 if (importingEpg) const LinearProgressIndicator(),
-                if (epgStatus != null)
+                if (epgStatus != null && section != SettingsSection.playlists)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(epgStatus!),

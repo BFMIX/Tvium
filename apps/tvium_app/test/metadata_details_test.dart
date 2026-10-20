@@ -233,6 +233,37 @@ void main() {
     );
   });
 
+  testWidgets('playlist page shows refresh outcome beside its button', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showLibrarySettings(
+              context,
+              configured: false,
+              section: SettingsSection.playlists,
+              onRefreshSources: () async => 'Sources refreshed: 0 changes.',
+            ),
+            child: const Text('Open playlists'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open playlists'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('refresh-sources')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('playlist-refresh-status')),
+      findsOneWidget,
+    );
+    expect(find.text('Sources refreshed: 0 changes.'), findsOneWidget);
+  });
+
   testWidgets('settings manages connected playlists', (tester) async {
     String? renamed;
     var removed = false;
