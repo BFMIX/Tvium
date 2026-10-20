@@ -67,6 +67,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: on-demand Xtream episode catalog and playback integration plus profile-scoped overlay UX.
 - Verified: per-source rename, refresh, and profile-aware removal controls.
 - Verified by automated tests: cached library startup remains usable while each source follows its own configurable refresh interval; failed refreshes retain cached entries.
+- Verified by unit tests: due refresh checks are serialized per source; the application now checks once a minute while open and again on resume. Long-running device behavior still needs runtime validation.
 - Verified by automated tests: conventional M3U export URLs are conservatively recognized, then upgraded to Xtream only after successful authentication and catalog loading. Failed upgrades fall back to the original M3U import.
 - In progress: viewed logo, poster, and backdrop bytes use an opaque-key disk cache on native platforms; cache eviction and first-load offline behavior need device validation.
 - Planned: migration of previously saved M3U sources to Xtream after explicit source-identity reconciliation.

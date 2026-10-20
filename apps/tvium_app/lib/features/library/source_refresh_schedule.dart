@@ -75,3 +75,32 @@ final class SourceRefreshSchedule {
     await _store.delete(_key(sourceId, 'attempt'));
   }
 }
+
+/// Runs due checks serially while keeping failures scoped to one source.
+final class SourceRefreshRunner {
+  SourceRefreshRunner(this._schedule);
+
+  final SourceRefreshSchedule _schedule;
+  var _running = false;
+
+  Future<void> check(
+    Iterable<String> sourceIds,
+    Future<void> Function(String sourceId) refresh,
+  ) async {
+    if (_running) return;
+    _running = true;
+    try {
+      for (final sourceId in sourceIds) {
+        try {
+          if (!await _schedule.isDue(sourceId)) continue;
+          await _schedule.markAttempt(sourceId);
+          await refresh(sourceId);
+        } on Object {
+          // A failure never removes the cached catalog or stops other sources.
+        }
+      }
+    } finally {
+      _running = false;
+    }
+  }
+}

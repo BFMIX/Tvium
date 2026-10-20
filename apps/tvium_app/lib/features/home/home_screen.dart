@@ -58,7 +58,8 @@ final class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-final class _HomeScreenState extends ConsumerState<HomeScreen> {
+final class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _urlController = TextEditingController();
   final FocusNode _urlActionFocus = FocusNode(debugLabel: 'M3U URL action');
   final FocusNode _fileActionFocus = FocusNode(debugLabel: 'M3U file action');
@@ -79,9 +80,27 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   String? _unlockedParentalProfileId;
   var _profileSessionGeneration = 0;
   final _startupRefreshQueued = <String>{};
+  Timer? _scheduledRefreshTimer;
+  SourceRefreshRunner? _refreshRunner;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scheduledRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      unawaited(_checkDueSources());
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_checkDueSources());
+  }
 
   @override
   void dispose() {
+    _scheduledRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _urlController.dispose();
     _urlActionFocus.dispose();
     _fileActionFocus.dispose();
@@ -711,16 +730,26 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _refreshDueSources(List<IptvSource> sources) async {
-    final schedule = ref.read(sourceRefreshScheduleProvider);
-    for (final source in sources) {
+    final sourceById = {for (final source in sources) source.id: source};
+    final runner = _refreshRunner ??= SourceRefreshRunner(
+      ref.read(sourceRefreshScheduleProvider),
+    );
+    await runner.check(sourceById.keys, (sourceId) async {
       if (!mounted) return;
-      try {
-        if (!await schedule.isDue(source.id)) continue;
-        await schedule.markAttempt(source.id);
-        await _refreshSource(source);
-      } on Object {
-        // The cached catalog remains available on refresh or storage failure.
-      }
+      final source = sourceById[sourceId];
+      if (source != null) await _refreshSource(source);
+    });
+  }
+
+  Future<void> _checkDueSources() async {
+    if (!mounted) return;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    try {
+      final snapshot = await ref.read(libraryBootstrapProvider.future);
+      if (mounted) await _refreshDueSources(snapshot.sources);
+    } on Object {
+      // The cached catalog remains available when a background check fails.
     }
   }
 
