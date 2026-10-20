@@ -2240,6 +2240,9 @@ final class _CatalogPage extends ConsumerWidget {
       onPlay(liveChannels[index]);
     }
 
+    void openChannelSwitcher() =>
+        _showChannelSwitcher(context, liveChannels, onPlay);
+
     final entriesByLocator = <MediaLocator, _LibraryEntry>{
       for (final entry in entries) ...<MediaLocator, _LibraryEntry>{
         entry.locator(profileId): entry,
@@ -2424,6 +2427,9 @@ final class _CatalogPage extends ConsumerWidget {
             child: _PlayerPanel(
               selectedEntry: selectedEntry,
               engine: playbackEngine,
+              onOpenChannelSwitcher: liveChannels.isNotEmpty
+                  ? openChannelSwitcher
+                  : null,
               onPreviousChannel:
                   selectedLiveIndex >= 0 && liveChannels.length > 1
                   ? () => zapChannel(-1)
@@ -2542,6 +2548,9 @@ final class _CatalogPage extends ConsumerWidget {
                         child: _PlayerPanel(
                           selectedEntry: selectedEntry,
                           engine: playbackEngine,
+                          onOpenChannelSwitcher: liveChannels.isNotEmpty
+                              ? openChannelSwitcher
+                              : null,
                           onPreviousChannel:
                               selectedLiveIndex >= 0 && liveChannels.length > 1
                               ? () => zapChannel(-1)
@@ -3238,18 +3247,88 @@ IconData _mediaIcon(MediaKind kind) => switch (kind) {
   MediaKind.unclassified => Icons.play_circle_outline_rounded,
 };
 
+Future<void> _showChannelSwitcher(
+  BuildContext context,
+  List<_LibraryEntry> channels,
+  ValueChanged<_LibraryEntry> onPlay,
+) => showDialog<void>(
+  context: context,
+  builder: (dialogContext) {
+    var query = '';
+    return StatefulBuilder(
+      builder: (context, setDialogState) {
+        final matches = channels
+            .where(
+              (entry) =>
+                  entry.displayName.toLowerCase().contains(query.toLowerCase()),
+            )
+            .toList(growable: false);
+        return AlertDialog(
+          key: const ValueKey('live-channel-switcher'),
+          title: const Text('Switch channel'),
+          content: SizedBox(
+            width: 440,
+            height: (MediaQuery.sizeOf(context).height * 0.55).clamp(
+              180.0,
+              420.0,
+            ),
+            child: Column(
+              children: <Widget>[
+                TextField(
+                  key: const ValueKey('live-channel-switcher-search'),
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search_rounded),
+                    hintText: 'Search channels',
+                  ),
+                  onChanged: (value) => setDialogState(() => query = value),
+                ),
+                const SizedBox(height: TviumSpacing.sm),
+                Expanded(
+                  child: matches.isEmpty
+                      ? const Center(child: Text('No matching channels'))
+                      : ListView.builder(
+                          itemCount: matches.length,
+                          itemBuilder: (context, index) {
+                            final entry = matches[index];
+                            return ListTile(
+                              key: ValueKey('switch-channel-${entry.id}'),
+                              title: Text(
+                                entry.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () {
+                                Navigator.of(dialogContext).pop();
+                                onPlay(entry);
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  },
+);
+
 final class _PlayerPanel extends ConsumerWidget {
   const _PlayerPanel({
     required this.selectedEntry,
     required this.engine,
     this.onPreviousChannel,
     this.onNextChannel,
+    this.onOpenChannelSwitcher,
   });
 
   final _LibraryEntry? selectedEntry;
   final PlaybackEngine? engine;
   final VoidCallback? onPreviousChannel;
   final VoidCallback? onNextChannel;
+  final VoidCallback? onOpenChannelSwitcher;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -3307,6 +3386,15 @@ final class _PlayerPanel extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          if (onOpenChannelSwitcher != null)
+                            IconButton(
+                              key: const ValueKey(
+                                'live-channel-switcher-button',
+                              ),
+                              tooltip: 'Switch channel',
+                              onPressed: onOpenChannelSwitcher,
+                              icon: const Icon(Icons.search_rounded),
+                            ),
                           if (onPreviousChannel != null) ...<Widget>[
                             IconButton(
                               key: const ValueKey('live-previous-channel'),

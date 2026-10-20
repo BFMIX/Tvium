@@ -48,7 +48,8 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by synthetic tests: Live TV derives a country rail from explicit group prefixes, starts with France when present, filters categories and channels by country, and keeps regional or ambiguous groups available through All countries.
 - Verified by widget tests: the player zaps forward and backward through the current visible playable channel list, including wraparound.
 - Verified by widget tests: focused Live TV playback responds to up/down remote keys for channel changes.
-- In progress: physical remote validation, quick switcher, variant selection, and targeted health checks remain planned.
+- Verified by widget tests: the Live TV player opens a searchable quick switcher scoped to visible playable channels.
+- In progress: physical remote validation, variant selection, and targeted health checks remain planned.
 
 ## M5 — Movies and TV Shows (in progress)
 

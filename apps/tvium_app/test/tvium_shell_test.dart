@@ -215,6 +215,62 @@ void main() {
     );
   });
 
+  testWidgets('Live TV quick switcher searches visible channels', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+        playbackEngineFactory: _FakePlaybackEngine.new,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+    unawaited(controller.importSource(const _ZappingFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-row-entry-1')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('live-channel-switcher-button')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('live-channel-switcher')), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('live-channel-switcher-search')),
+      'unmatched',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No matching channels'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('live-channel-switcher-search')),
+      'three',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('switch-channel-entry-3')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('switch-channel-entry-2')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('switch-channel-entry-3')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('catalog-player')),
+        matching: find.text('Channel Three'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('wide catalogs keep categories in a left navigation rail', (
     tester,
   ) async {
