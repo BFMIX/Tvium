@@ -60,11 +60,12 @@ final class SourceRefreshSchedule {
     if (duration == null) return false;
     final lastValue = await _store.read(_key(sourceId, 'attempt'));
     final last = lastValue == null ? null : DateTime.tryParse(lastValue);
-    if (last == null) {
+    final now = _now().toUtc();
+    if (last == null || last.isAfter(now)) {
       await markAttempt(sourceId);
       return false;
     }
-    return !_now().toUtc().isBefore(last.add(duration));
+    return !now.isBefore(last.add(duration));
   }
 
   Future<void> markAttempt(String sourceId) =>
