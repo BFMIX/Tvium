@@ -45,6 +45,35 @@ void main() {
     expect(find.text('Program guide unavailable'), findsOneWidget);
   });
 
+  testWidgets('Live TV country rail filters only explicit country groups', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('live-country-rail')), findsOneWidget);
+    expect(find.text('Fixture France'), findsOneWidget);
+    expect(find.text('Fixture United States'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('country-US')));
+    await tester.pumpAndSettle();
+    expect(find.text('Fixture United States'), findsOneWidget);
+    expect(find.text('Fixture France'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('country-all')));
+    await tester.pumpAndSettle();
+    expect(find.text('Fixture Region'), findsOneWidget);
+  });
+
   testWidgets('wide Live TV places player beside the channel stack', (
     tester,
   ) async {
@@ -670,5 +699,20 @@ final class _DesignFixtureSource implements M3uSource {
     'https://stream.example.test/series/episode.mkv',
     '#EXTINF:-1 group-title="Series",Demo Show 1x02',
     'https://stream.example.test/series/episode-2.mkv',
+  ]);
+}
+
+final class _CountryFixtureSource implements M3uSource {
+  const _CountryFixtureSource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    '#EXTINF:-1 group-title="FR | News",Fixture France',
+    'https://stream.example.test/fr.m3u8',
+    '#EXTINF:-1 group-title="US | News",Fixture United States',
+    'https://stream.example.test/us.m3u8',
+    '#EXTINF:-1 group-title="AFR | News",Fixture Region',
+    'https://stream.example.test/region.m3u8',
   ]);
 }

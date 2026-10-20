@@ -44,6 +44,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: safe XMLTV file/HTTPS import, deterministic channel matching, local EPG persistence, and honest Now/Next display.
 - Verified: profile-scoped favorites and recently played history are persistent and exposed in the library UI.
 - Verified by widget tests: wide Live TV keeps the channel stack visible beside the player preview while a channel plays.
+- Verified by synthetic tests: Live TV derives a country rail from explicit group prefixes, starts with France when present, filters categories and channels by country, and keeps regional or ambiguous groups available through All countries.
 - In progress: zapping, quick switcher, variant selection, and targeted health checks remain planned.
 
 ## M5 — Movies and TV Shows (in progress)

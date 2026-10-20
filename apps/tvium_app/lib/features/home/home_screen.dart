@@ -24,6 +24,7 @@ import '../import/playlist_import_controller.dart';
 import '../import/playlist_import_provider.dart';
 import '../import/xtream_m3u_detector.dart';
 import '../library/library_bootstrap_controller.dart';
+import '../library/live_country.dart';
 import '../library/source_refresh_schedule.dart';
 import '../library/user_overlays_controller.dart';
 import '../metadata/metadata_details.dart';
@@ -1160,6 +1161,7 @@ final class _LibraryView extends ConsumerStatefulWidget {
 
 final class _LibraryViewState extends ConsumerState<_LibraryView> {
   var _destination = _CatalogDestination.home;
+  String? _selectedCountryCode;
   String _query = '';
   bool _searching = false;
 
@@ -1283,6 +1285,11 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       selectedEntry: widget.selectedEntry,
                       playbackEngine: widget.playbackEngine,
                       onGroupSelected: widget.onGroupSelected,
+                      selectedCountryCode: _selectedCountryCode,
+                      onCountrySelected: (code) {
+                        setState(() => _selectedCountryCode = code);
+                        widget.onGroupSelected(null);
+                      },
                       onPlay: widget.onEntrySelected,
                       profileId: widget.profileId,
                       favorites: widget.favorites,
@@ -1379,6 +1386,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   void _selectDestination(_CatalogDestination destination) {
     setState(() {
       _destination = destination;
+      _selectedCountryCode = null;
       _query = '';
       _searching = false;
     });
@@ -2103,6 +2111,8 @@ final class _CatalogPage extends ConsumerWidget {
     required this.selectedEntry,
     required this.playbackEngine,
     required this.onGroupSelected,
+    this.selectedCountryCode,
+    this.onCountrySelected,
     required this.onPlay,
     required this.profileId,
     required this.favorites,
@@ -2118,6 +2128,8 @@ final class _CatalogPage extends ConsumerWidget {
   final _LibraryEntry? selectedEntry;
   final PlaybackEngine? playbackEngine;
   final ValueChanged<String?> onGroupSelected;
+  final String? selectedCountryCode;
+  final ValueChanged<String?>? onCountrySelected;
   final ValueChanged<_LibraryEntry> onPlay;
   final String profileId;
   final Set<MediaLocator> favorites;
@@ -2127,10 +2139,36 @@ final class _CatalogPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unknownGroup = AppLocalizations.of(context).unknownGroup;
+    final countryByGroup = destination == _CatalogDestination.live
+        ? <String?, LiveCountry?>{
+            for (final group in entries.map((entry) => entry.group).toSet())
+              group: countryForGroup(group),
+          }
+        : const <String?, LiveCountry?>{};
+    final countries = destination == _CatalogDestination.live
+        ? countriesForGroups(countryByGroup.keys)
+        : const <LiveCountry>[];
+    final activeCountryCode = countries.length < 2
+        ? 'ALL'
+        : selectedCountryCode == 'ALL' ||
+              countries.any((country) => country.code == selectedCountryCode)
+        ? selectedCountryCode!
+        : countries.first.code;
+    final countryEntries = activeCountryCode == 'ALL'
+        ? entries
+        : entries
+              .where(
+                (entry) =>
+                    countryByGroup[entry.group]?.code == activeCountryCode,
+              )
+              .toList(growable: false);
     final groups =
-        entries.map((entry) => entry.group ?? unknownGroup).toSet().toList()
+        countryEntries
+            .map((entry) => entry.group ?? unknownGroup)
+            .toSet()
+            .toList()
           ..sort();
-    final visible = entries
+    final visible = countryEntries
         .where((entry) {
           final inGroup =
               selectedGroup == null ||
@@ -2299,6 +2337,33 @@ final class _CatalogPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: TviumSpacing.md),
+          if (countries.length >= 2) ...<Widget>[
+            SizedBox(
+              height: 58,
+              child: ListView(
+                key: const ValueKey('live-country-rail'),
+                scrollDirection: Axis.horizontal,
+                children: <Widget>[
+                  for (final country in <LiveCountry?>[null, ...countries])
+                    Padding(
+                      padding: const EdgeInsets.only(right: TviumSpacing.sm),
+                      child: ChoiceChip(
+                        key: ValueKey('country-${country?.code ?? 'all'}'),
+                        label: Text(
+                          country == null
+                              ? 'All countries'
+                              : '${country.flag}  ${country.name}',
+                        ),
+                        selected: (country?.code ?? 'ALL') == activeCountryCode,
+                        onSelected: (_) =>
+                            onCountrySelected?.call(country?.code ?? 'ALL'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: TviumSpacing.xs),
+          ],
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
