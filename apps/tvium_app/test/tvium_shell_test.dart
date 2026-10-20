@@ -27,6 +27,24 @@ void main() {
     expect(find.text('Demo News'), findsNothing);
   });
 
+  testWidgets('Home TV Shows count matches grouped series titles', (
+    tester,
+  ) async {
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('destination-shows')),
+        matching: find.text('1 title'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('live destination shows channels without movie or show rows', (
     tester,
   ) async {

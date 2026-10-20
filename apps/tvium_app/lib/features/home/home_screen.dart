@@ -1636,6 +1636,20 @@ final class _DestinationHomeState extends State<_DestinationHome> {
   Timer? _heroTimer;
   var _heroIndex = 0;
   bool? _reduceHeroMotion;
+  List<_LibraryEntry>? _countedEntries;
+  var _showCount = 0;
+
+  int _countShows(List<_LibraryEntry> entries) {
+    if (!identical(_countedEntries, entries)) {
+      _countedEntries = entries;
+      _showCount = _groupSeriesEntries(
+        entries
+            .where((entry) => entry.kind == MediaKind.episode)
+            .toList(growable: false),
+      ).length;
+    }
+    return _showCount;
+  }
 
   List<_LibraryEntry> get _heroEntries {
     final playable = widget.entries
@@ -1703,6 +1717,7 @@ final class _DestinationHomeState extends State<_DestinationHome> {
   @override
   Widget build(BuildContext context) {
     final entries = widget.entries;
+    final showCount = _countShows(entries);
     final destinations = const <_CatalogDestination>[
       _CatalogDestination.live,
       _CatalogDestination.movies,
@@ -1721,19 +1736,18 @@ final class _DestinationHomeState extends State<_DestinationHome> {
                   _DestinationCard(
                     key: ValueKey('destination-${destination.name}'),
                     destination: destination,
-                    count: entries
-                        .where(
-                          (entry) => switch (destination) {
-                            _CatalogDestination.live =>
-                              entry.kind == MediaKind.live,
-                            _CatalogDestination.movies =>
-                              entry.kind == MediaKind.movie,
-                            _CatalogDestination.shows =>
-                              entry.kind == MediaKind.episode,
-                            _CatalogDestination.home => false,
-                          },
-                        )
-                        .length,
+                    count: switch (destination) {
+                      _CatalogDestination.live =>
+                        entries
+                            .where((entry) => entry.kind == MediaKind.live)
+                            .length,
+                      _CatalogDestination.movies =>
+                        entries
+                            .where((entry) => entry.kind == MediaKind.movie)
+                            .length,
+                      _CatalogDestination.shows => showCount,
+                      _CatalogDestination.home => 0,
+                    },
                     onPressed: () => widget.onSelected(destination),
                   ),
               ];
