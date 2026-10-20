@@ -168,6 +168,7 @@ Future<void> showLibrarySettings(
   Future<String> Function()? onRefreshSources,
   Future<String> Function(IptvSource source)? onRefreshSource,
   Future<SourceRefreshInterval> Function(IptvSource source)? refreshIntervalFor,
+  Future<DateTime?> Function(IptvSource source)? lastRefreshAttemptFor,
   Future<void> Function(IptvSource source, SourceRefreshInterval interval)?
   onRefreshIntervalChanged,
   List<IptvSource> sources = const <IptvSource>[],
@@ -227,13 +228,37 @@ Future<void> showLibrarySettings(
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(source.displayName),
-                      subtitle: refreshIntervalFor == null
+                      subtitle:
+                          refreshIntervalFor == null &&
+                              lastRefreshAttemptFor == null
                           ? null
-                          : FutureBuilder<SourceRefreshInterval>(
-                              future: refreshIntervalFor(source),
-                              builder: (context, snapshot) => Text(
-                                'Refresh: ${snapshot.data?.label ?? 'Loading'}',
-                              ),
+                          : Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                if (refreshIntervalFor != null)
+                                  FutureBuilder<SourceRefreshInterval>(
+                                    future: refreshIntervalFor(source),
+                                    builder: (context, snapshot) => Text(
+                                      'Refresh: ${snapshot.data?.label ?? 'Loading'}',
+                                    ),
+                                  ),
+                                if (lastRefreshAttemptFor != null)
+                                  FutureBuilder<DateTime?>(
+                                    future: lastRefreshAttemptFor(source),
+                                    builder: (context, snapshot) {
+                                      final checked = snapshot.data;
+                                      final label =
+                                          snapshot.connectionState !=
+                                              ConnectionState.done
+                                          ? 'Loading check time…'
+                                          : checked == null
+                                          ? 'Never checked'
+                                          : 'Last checked: ${checked.toLocal().toString().substring(0, 16)}';
+                                      return Text(label);
+                                    },
+                                  ),
+                              ],
                             ),
                       trailing: Wrap(
                         spacing: 4,

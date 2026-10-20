@@ -353,6 +353,36 @@ void main() {
     expect(find.text('Playlist refreshed: no changes.'), findsOneWidget);
   });
 
+  testWidgets('playlist settings show the last check time', (tester) async {
+    const source = IptvSource(
+      id: 'source-1',
+      displayName: 'Family TV',
+      identityDigest: 'digest',
+      secretReference: 'secret',
+    );
+    final checked = DateTime.utc(2026, 1, 1, 12);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showLibrarySettings(
+              context,
+              configured: false,
+              sources: const [source],
+              lastRefreshAttemptFor: (_) async => checked,
+            ),
+            child: const Text('Open settings'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    final localTime = checked.toLocal().toString().substring(0, 16);
+    expect(find.text('Last checked: $localTime'), findsOneWidget);
+  });
+
   testWidgets('settings saves explicit protected categories', (tester) async {
     Set<String>? savedCategories;
     await tester.pumpWidget(

@@ -49,6 +49,26 @@ void main() {
     expect(await schedule.isDue('source-a'), isTrue);
   });
 
+  test('last check time is stored independently for each source', () async {
+    var now = DateTime.utc(2026, 1, 1, 12);
+    final schedule = SourceRefreshSchedule(
+      store: _MemoryStore(),
+      now: () => now,
+    );
+    expect(await schedule.lastAttemptFor('source-a'), isNull);
+    await schedule.markAttempt('source-a');
+    now = now.add(const Duration(hours: 2));
+    await schedule.markAttempt('source-b');
+    expect(
+      await schedule.lastAttemptFor('source-a'),
+      DateTime.utc(2026, 1, 1, 12),
+    );
+    expect(
+      await schedule.lastAttemptFor('source-b'),
+      DateTime.utc(2026, 1, 1, 14),
+    );
+  });
+
   test('runner refreshes due sources once while the app stays open', () async {
     var now = DateTime.utc(2026, 1, 1);
     final schedule = SourceRefreshSchedule(

@@ -75,6 +75,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by automated tests: cached library startup remains usable while each source follows its own configurable refresh interval; failed refreshes retain cached entries.
 - Verified by unit tests: due refresh checks are serialized per source; the application now checks once a minute while open and again on resume. Long-running device behavior still needs runtime validation.
 - Verified by unit tests: a device clock rollback restarts the interval, and one source failure does not prevent other due sources from refreshing.
+- Verified by widget tests: playlist settings show each source's last recorded refresh check time without exposing source connection details.
 - Verified by automated tests: conventional M3U export URLs are conservatively recognized, then upgraded to Xtream only after successful authentication and catalog loading. Failed upgrades fall back to the original M3U import.
 - In progress: viewed logo, poster, and backdrop bytes use an opaque-key disk cache on native platforms; cache eviction and first-load offline behavior need device validation.
 - Planned: migration of previously saved M3U sources to Xtream after explicit source-identity reconciliation.

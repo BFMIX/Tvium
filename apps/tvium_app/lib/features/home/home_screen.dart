@@ -246,6 +246,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                       refreshIntervalFor: (source) => ref
                           .read(sourceRefreshScheduleProvider)
                           .intervalFor(source.id),
+                      lastRefreshAttemptFor: (source) => ref
+                          .read(sourceRefreshScheduleProvider)
+                          .lastAttemptFor(source.id),
                       onRefreshIntervalChanged: (source, interval) => ref
                           .read(sourceRefreshScheduleProvider)
                           .setInterval(source.id, interval),
@@ -1147,6 +1150,7 @@ final class _LibraryView extends ConsumerStatefulWidget {
     required this.onRefreshSource,
     required this.onRefreshSources,
     required this.refreshIntervalFor,
+    required this.lastRefreshAttemptFor,
     required this.onRefreshIntervalChanged,
     required this.parentalConfigured,
     required this.parentalUnlocked,
@@ -1177,6 +1181,7 @@ final class _LibraryView extends ConsumerStatefulWidget {
   final Future<String> Function() onRefreshSources;
   final Future<SourceRefreshInterval> Function(IptvSource source)
   refreshIntervalFor;
+  final Future<DateTime?> Function(IptvSource source) lastRefreshAttemptFor;
   final Future<void> Function(IptvSource source, SourceRefreshInterval interval)
   onRefreshIntervalChanged;
   final bool parentalConfigured;
@@ -1235,6 +1240,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                     onRefreshSource: widget.onRefreshSource,
                     onRefreshSources: widget.onRefreshSources,
                     refreshIntervalFor: widget.refreshIntervalFor,
+                    lastRefreshAttemptFor: widget.lastRefreshAttemptFor,
                     onRefreshIntervalChanged: widget.onRefreshIntervalChanged,
                     sources: widget.sources,
                     onAddPlaylist: widget.onAddPlaylist,

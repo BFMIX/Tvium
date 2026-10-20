@@ -71,6 +71,11 @@ final class SourceRefreshSchedule {
   Future<void> markAttempt(String sourceId) =>
       _store.write(_key(sourceId, 'attempt'), _now().toUtc().toIso8601String());
 
+  Future<DateTime?> lastAttemptFor(String sourceId) async {
+    final stored = await _store.read(_key(sourceId, 'attempt'));
+    return stored == null ? null : DateTime.tryParse(stored)?.toUtc();
+  }
+
   Future<void> remove(String sourceId) async {
     await _store.delete(_key(sourceId, 'interval'));
     await _store.delete(_key(sourceId, 'attempt'));
