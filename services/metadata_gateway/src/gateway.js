@@ -53,13 +53,29 @@ export function createSearch({ fetchImpl = fetch, token = '', now = Date.now, tt
     url.search = new URLSearchParams({ query: query.title, language: query.language, include_adult: 'false', ...(query.year ? { [type === 'movie' ? 'year' : 'first_air_date_year']: String(query.year) } : {}) });
     const data = await json(url, { Authorization: `Bearer ${token}` });
     if (!Array.isArray(data.results)) throw new Error('upstream_unavailable');
-    return data.results.filter(item => Number.isInteger(item.id) && typeof (item.title ?? item.name) === 'string').slice(0, 20).map(item => ({
+    const candidates = data.results.filter(item => Number.isInteger(item.id) && typeof (item.title ?? item.name) === 'string').slice(0, 20).map(item => ({
       id: String(item.id), provider: 'tmdb', title: clean(item.title ?? item.name), originalTitle: clean(item.original_title ?? item.original_name), kind: query.kind,
       year: yearOf(item.release_date ?? item.first_air_date), overview: clean(item.overview),
       posterUrl: /^\/[a-zA-Z0-9._-]+$/.test(item.poster_path ?? '') ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
       backdropUrl: /^\/[a-zA-Z0-9._-]+$/.test(item.backdrop_path ?? '') ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : undefined,
       sourceUrl: `https://www.themoviedb.org/${type}/${item.id}`, license: 'TMDB terms; attribution required; non-commercial API use',
     }));
+    const title = normalize(query.title);
+    if (query.year && !candidates.some(item =>
+      item.year === query.year && [item.title, item.originalTitle].some(name => typeof name === 'string' && normalize(name) === title))) {
+      for (const candidate of candidates.filter(item => item.year === query.year).slice(0, 3)) {
+        try {
+          const details = await json(`https://api.themoviedb.org/3/${type}/${candidate.id}/alternative_titles`, { Authorization: `Bearer ${token}` });
+          const aliases = type === 'movie' ? details.titles : details.results;
+          if (!Array.isArray(aliases)) continue;
+          const matches = aliases.map(item => item?.title).filter(name =>
+            typeof name === 'string' && name.length <= 200 && !unsafe.test(name) &&
+            !bareAddress.test(name.trim()) && normalize(name) === title);
+          if (matches.length) candidate.alternativeTitles = [...new Set(matches)].slice(0, 5);
+        } catch { /* Optional verification must not discard search results. */ }
+      }
+    }
+    return candidates;
   }
   async function tvmaze(query) {
     const url = new URL('https://api.tvmaze.com/search/shows');

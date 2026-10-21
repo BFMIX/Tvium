@@ -21,24 +21,27 @@ void main() {
             'year': 2016,
             'language': 'en-US',
           });
-          return http.Response(
-            jsonEncode({
-              'candidates': [
-                {
-                  'id': '1',
-                  'provider': 'tmdb',
-                  'title': 'Arrival',
-                  'originalTitle': 'Original Arrival',
-                  'kind': 'movie',
-                  'year': 2016,
-                  'overview': 'A visitor arrives.',
-                  'backdropUrl':
-                      'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
-                  'sourceUrl': 'https://www.themoviedb.org/movie/1',
-                  'license': 'TMDB terms',
-                },
-              ],
-            }),
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'candidates': [
+                  {
+                    'id': '1',
+                    'provider': 'tmdb',
+                    'title': 'Arrival',
+                    'originalTitle': 'Original Arrival',
+                    'alternativeTitles': ['L arrivée', 'Arrival'],
+                    'kind': 'movie',
+                    'year': 2016,
+                    'overview': 'A visitor arrives.',
+                    'backdropUrl':
+                        'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
+                    'sourceUrl': 'https://www.themoviedb.org/movie/1',
+                    'license': 'TMDB terms',
+                  },
+                ],
+              }),
+            ),
             200,
           );
         }),
@@ -50,7 +53,11 @@ void main() {
       final first = await client.search(title);
       final second = await client.search(title);
       expect(first.single.candidate.title, 'Arrival');
-      expect(first.single.candidate.alternativeTitles, ['Original Arrival']);
+      expect(first.single.candidate.alternativeTitles, [
+        'Original Arrival',
+        'L arrivée',
+        'Arrival',
+      ]);
       expect(first.single.backdropUri?.host, 'image.tmdb.org');
       expect(second.single.overview, 'A visitor arrives.');
       expect(requests, 1);

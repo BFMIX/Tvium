@@ -170,9 +170,12 @@ final class MetadataGatewayClient {
                 provider: provider,
                 id: id,
                 title: name,
-                alternativeTitles: row['originalTitle'] is String
-                    ? <String>[row['originalTitle'] as String]
-                    : const <String>[],
+                alternativeTitles: [
+                  if (row['originalTitle'] case final String originalTitle)
+                    if (safeTitle(originalTitle)) originalTitle,
+                  if (row['alternativeTitles'] case final List<dynamic> aliases)
+                    ...aliases.whereType<String>().where(safeTitle).take(5),
+                ],
                 kind: title.kind,
                 year: row['year'] is int ? row['year'] as int : null,
                 provenance: MetadataProvenance(
