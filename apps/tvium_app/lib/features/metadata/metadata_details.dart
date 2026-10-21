@@ -1076,7 +1076,11 @@ final class _MetadataDetailsState extends ConsumerState<MetadataDetails> {
       }
       setState(() {
         _results = match.candidate == null
-            ? const []
+            ? match.status == MetadataMatchStatus.ambiguous &&
+                      widget.kind == MediaKind.episode &&
+                      rows.length == 1
+                  ? [rows.single]
+                  : const []
             : rows
                   .where(
                     (row) =>

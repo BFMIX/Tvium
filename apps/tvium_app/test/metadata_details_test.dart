@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:tvium_app/features/artwork/artwork_image.dart';
 import 'package:tvium_app/features/artwork/artwork_reference_store.dart';
 import 'package:tvium_app/features/metadata/metadata_details.dart';
 import 'package:tvium_app/features/metadata/metadata_gateway_client.dart';
@@ -336,6 +337,96 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('A possible series description.'), findsOneWidget);
     expect(find.textContaining('Possible match'), findsOneWidget);
+  });
+
+  testWidgets('online info shows one yearless series candidate as tentative', (
+    tester,
+  ) async {
+    metadataEnabled.value = true;
+    final client = MetadataGatewayClient(
+      endpoint: Uri.parse('https://metadata.example.test'),
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'id': 'series-1',
+                'provider': 'tmdb',
+                'title': 'Example Series',
+                'kind': 'series',
+                'year': 2020,
+                'overview': 'A tentative description.',
+                'posterUrl': 'https://image.tmdb.org/t/p/w500/series.jpg',
+                'license': 'TMDB terms',
+              },
+            ],
+          }),
+          200,
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [metadataGatewayProvider.overrideWithValue(client)],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: MetadataDetails(
+              originalTitle: 'Example Series',
+              kind: MediaKind.episode,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('A tentative description.'), findsOneWidget);
+    expect(find.textContaining('uncertain'), findsOneWidget);
+    expect(find.byType(ArtworkImage), findsOneWidget);
+  });
+
+  testWidgets('online info keeps competing series matches hidden', (
+    tester,
+  ) async {
+    metadataEnabled.value = true;
+    final client = MetadataGatewayClient(
+      endpoint: Uri.parse('https://metadata.example.test'),
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'candidates': [
+              for (final year in [2010, 2023])
+                {
+                  'id': 'series-$year',
+                  'provider': 'tmdb',
+                  'title': 'Example Series',
+                  'kind': 'series',
+                  'year': year,
+                  'overview': 'Description $year',
+                  'license': 'TMDB terms',
+                },
+            ],
+          }),
+          200,
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [metadataGatewayProvider.overrideWithValue(client)],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: MetadataDetails(
+              originalTitle: 'Example Series',
+              kind: MediaKind.episode,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('uncertain'), findsOneWidget);
+    expect(find.text('Description 2010'), findsNothing);
+    expect(find.text('Description 2023'), findsNothing);
   });
 
   testWidgets('a user can confirm one tentative series poster', (tester) async {
