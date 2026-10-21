@@ -8,6 +8,8 @@ final class LiveCountry {
 
   String get flag =>
       String.fromCharCodes(code.codeUnits.map((unit) => 0x1F1E6 + unit - 0x41));
+
+  String get flagAsset => 'assets/flags/flag-iso-${code.toLowerCase()}.png';
 }
 
 const _countryNames = <String, String>{

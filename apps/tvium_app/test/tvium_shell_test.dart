@@ -158,6 +158,59 @@ void main() {
     expect(find.byKey(const ValueKey('country-FR')), findsNothing);
   });
 
+  testWidgets('wide Live TV uses local flag artwork and category icons', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('country-flag-FR')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('live-category-icon-news')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Live channel artwork fits without an icon behind it', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _LogoFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    final row = find.byKey(const ValueKey('media-row-entry-1'));
+    final artwork = find.descendant(
+      of: row,
+      matching: find.byType(ArtworkImage),
+    );
+    expect(artwork, findsOneWidget);
+    expect(tester.widget<ArtworkImage>(artwork).fit, BoxFit.contain);
+    expect(
+      find.descendant(
+        of: row,
+        matching: find.byKey(const ValueKey('live-logo-fallback')),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('wide Live TV searches channels inside the channel pane', (
     tester,
   ) async {
@@ -269,6 +322,27 @@ void main() {
     );
   });
 
+  testWidgets('Live TV uses a page backdrop and preview guide actions', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('live-page-background')), findsOneWidget);
+    expect(find.byKey(const ValueKey('catalog-page-banner')), findsNothing);
+    expect(find.byKey(const ValueKey('live-preview-guide')), findsOneWidget);
+    expect(find.byKey(const ValueKey('live-preview-play')), findsOneWidget);
+  });
+
   testWidgets('wide Live TV remains usable with double accessibility text', (
     tester,
   ) async {
@@ -323,6 +397,48 @@ void main() {
       greaterThan(
         tester.getTopLeft(find.byKey(const ValueKey('live-channel-list'))).dx,
       ),
+    );
+  });
+
+  testWidgets('Live TV player opens a full screen view with channel controls', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+        playbackEngineFactory: _FakePlaybackEngine.new,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+    unawaited(controller.importSource(const _ZappingFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-row-entry-1')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('live-player-fullscreen')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('live-player-fullscreen')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('live-fullscreen-player')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('live-previous-channel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('live-next-channel')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('live-fullscreen-volume')),
+      findsOneWidget,
     );
   });
 
@@ -1174,6 +1290,29 @@ void main() {
     );
   });
 
+  testWidgets('compact Movies and TV Shows open without a feature carousel', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('catalog-feature')), findsNothing);
+    expect(find.byKey(const ValueKey('poster-grid')), findsOneWidget);
+
+    await tester.tap(find.text('TV Shows').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('catalog-feature')), findsNothing);
+    expect(find.byKey(const ValueKey('poster-grid')), findsOneWidget);
+  });
+
   testWidgets('TV Shows feature does not use an episode still as a poster', (
     tester,
   ) async {
@@ -1540,6 +1679,19 @@ final class _CountryFixtureSource implements M3uSource {
     'https://stream.example.test/us.m3u8',
     '#EXTINF:-1 group-title="AFR | News",Fixture Region',
     'https://stream.example.test/region.m3u8',
+  ]);
+}
+
+final class _LogoFixtureSource implements M3uSource {
+  const _LogoFixtureSource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    '#EXTINF:-1 tvg-logo="https://art.example.test/wide-logo.png" group-title="FR | News",Fixture One',
+    'https://stream.example.test/fr.m3u8',
+    '#EXTINF:-1 group-title="US | Sports",Fixture Two',
+    'https://stream.example.test/us.m3u8',
   ]);
 }
 

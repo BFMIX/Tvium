@@ -41,6 +41,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by widget tests: Live TV uses the approved scenic banner; Movies and TV Shows use a poster-left feature with real catalog artwork or a neutral fallback.
 - Verified by widget tests: M3U episode stills are not promoted to series posters in the feature or poster grid.
 - Verified by widget tests: title details place verified posters beside information and seasons on wide screens, stack on compact screens, and use neutral art for local series without a verified poster.
+- Verified by widget tests: compact Movies and TV Shows skip the feature panel so the poster grid is immediately available.
 - Verified by widget tests: Settings has separate navigation entries for playlists, metadata, parental controls, programme guide, and about information.
 - Highest current priority: apply the approved cinematic Home, Live TV, Movies, and TV Shows designs to the production Flutter screens.
 - In progress: accessibility audits and full D-pad/remote runtime coverage.
@@ -56,6 +57,9 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by widget tests: the wide country pane searches only detected countries; the adjacent category pane displays country-free labels while retaining original group values for filtering.
 - Verified by widget tests: the wide channel pane includes its own search above the channel stack, scoped to the active country and category.
 - Verified by widget tests: preview details remain tied to the playing channel when a different country is selected.
+- Verified by widget tests: Live TV uses the scenic artwork as a page backdrop, local circular flags from the approved design, category icons, and a transparent country/category layout.
+- Verified by widget tests: channel logos use contain sizing and show a fallback only when artwork is unavailable, avoiding overlapping logos.
+- Verified by widget tests: the preview offers Play, Favorite, and an honest Now/Next guide; the player has a full screen view with play, channel, and volume controls.
 - Verified by synthetic tests: Live TV derives a country rail from explicit group prefixes, starts with France when present, filters categories and channels by country, and keeps regional or ambiguous groups available through All countries.
 - Verified by widget tests: the player zaps forward and backward through the current visible playable channel list, including wraparound.
 - Verified by widget tests: focused Live TV playback responds to up/down remote keys for channel changes.

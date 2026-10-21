@@ -2252,6 +2252,7 @@ final class _CatalogPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final unknownGroup = AppLocalizations.of(context).unknownGroup;
     final shortWindow = MediaQuery.sizeOf(context).height < 700;
+    final compactWidth = MediaQuery.sizeOf(context).width < 720;
     final countryByGroup = destination == _CatalogDestination.live
         ? <String?, LiveCountry?>{
             for (final group in entries.map((entry) => entry.group).toSet())
@@ -2533,7 +2534,7 @@ final class _CatalogPage extends ConsumerWidget {
         Expanded(child: media),
       ],
     );
-    return Padding(
+    final pageContent = Padding(
       padding: const EdgeInsets.fromLTRB(
         TviumSpacing.lg,
         TviumSpacing.sm,
@@ -2543,7 +2544,8 @@ final class _CatalogPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          if (shortWindow)
+          if (shortWindow ||
+              (compactWidth && destination != _CatalogDestination.live))
             SizedBox(
               height: 42,
               child: Text(
@@ -2552,11 +2554,21 @@ final class _CatalogPage extends ConsumerWidget {
               ),
             )
           else if (destination == _CatalogDestination.live)
-            SizedBox(
-              height: MediaQuery.sizeOf(context).width >= 720 ? 132 : 94,
-              child: _CatalogBanner(
-                destination: destination,
-                count: entries.length,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: TviumSpacing.md),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'LIVE TV',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  Text(
+                    'Brings the world closer',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ],
               ),
             )
           else
@@ -2691,6 +2703,17 @@ final class _CatalogPage extends ConsumerWidget {
                           schedule: epgSchedules[previewEntry?.id],
                           selectedEntry: selectedEntry,
                           engine: playbackEngine,
+                          onPlay: previewEntry?.isPlayable == true
+                              ? () => onPlay(previewEntry!)
+                              : null,
+                          favorite:
+                              previewEntry != null &&
+                              favorites.contains(
+                                previewEntry.locator(profileId),
+                              ),
+                          onFavorite: previewEntry == null
+                              ? null
+                              : () => onFavoriteToggled(previewEntry),
                           onOpenChannelSwitcher: liveChannels.isNotEmpty
                               ? openChannelSwitcher
                               : null,
@@ -2802,6 +2825,20 @@ final class _CatalogPage extends ConsumerWidget {
         ],
       ),
     );
+    if (destination != _CatalogDestination.live) return pageContent;
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(
+          child: Image.asset(
+            'assets/destinations/hero-live-tv.png',
+            key: const ValueKey('live-page-background'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        const Positioned.fill(child: ColoredBox(color: Color(0xB8071422))),
+        pageContent,
+      ],
+    );
   }
 }
 
@@ -2909,63 +2946,6 @@ final class _CatalogFeature extends StatelessWidget {
   }
 }
 
-final class _CatalogBanner extends StatelessWidget {
-  const _CatalogBanner({required this.destination, required this.count});
-
-  final _CatalogDestination destination;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) => ClipRRect(
-    key: const ValueKey('catalog-page-banner'),
-    borderRadius: BorderRadius.circular(TviumRadius.hero),
-    child: Stack(
-      fit: StackFit.expand,
-      children: <Widget>[
-        Image.asset(
-          switch (destination) {
-            _CatalogDestination.live => 'assets/destinations/hero-live-tv.png',
-            _CatalogDestination.movies => 'assets/destinations/hero-movies.png',
-            _CatalogDestination.shows =>
-              'assets/destinations/hero-tv-shows.png',
-            _CatalogDestination.home => 'assets/destinations/hero-home.png',
-          },
-          fit: BoxFit.cover,
-          alignment: Alignment.centerRight,
-        ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: <Color>[
-                Color(0xF2071320),
-                Color(0x99071320),
-                Color(0x22071320),
-              ],
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: TviumSpacing.lg),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                _destinationLabel(destination),
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              Text(
-                '$count ${count == 1 ? 'title' : 'titles'}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 final class _CountrySidebar extends StatefulWidget {
   const _CountrySidebar({
     required this.countries,
@@ -2995,152 +2975,154 @@ final class _CountrySidebarState extends State<_CountrySidebar> {
               (country?.code.toLowerCase().contains(needle) ?? false),
         )
         .toList(growable: false);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xB30A1A2A),
-        borderRadius: BorderRadius.circular(TviumRadius.surface),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              TviumSpacing.md,
-              TviumSpacing.md,
-              TviumSpacing.md,
-              TviumSpacing.sm,
-            ),
-            child: Text(
-              'Countries · ${widget.countries.length}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            TviumSpacing.md,
+            TviumSpacing.md,
+            TviumSpacing.md,
+            TviumSpacing.sm,
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              TviumSpacing.xs,
-              0,
-              TviumSpacing.xs,
-              TviumSpacing.sm,
-            ),
-            child: TextField(
-              key: const ValueKey('live-country-search'),
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search_rounded),
-                hintText: 'Search countries',
-                isDense: true,
-              ),
-              onChanged: (value) => setState(() => query = value),
-            ),
+          child: Text(
+            'Countries · ${widget.countries.length}',
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-          Expanded(
-            child: options.isEmpty
-                ? const Center(child: Text('No countries found'))
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(
-                      TviumSpacing.xs,
-                      0,
-                      TviumSpacing.xs,
-                      TviumSpacing.sm,
-                    ),
-                    itemCount: options.length,
-                    itemBuilder: (context, index) {
-                      final country = options[index];
-                      final code = country?.code ?? 'ALL';
-                      final selected = code == widget.selectedCode;
-                      final artwork = countryArtwork[code];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: TviumSpacing.xs),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            key: ValueKey('country-${country?.code ?? 'all'}'),
-                            onTap: () => widget.onSelected?.call(code),
-                            borderRadius: BorderRadius.circular(
-                              TviumRadius.control,
-                            ),
-                            child: Ink(
-                              height: selected ? 150 : 68,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF183044),
-                                borderRadius: BorderRadius.circular(
-                                  TviumRadius.control,
-                                ),
-                                border: Border.all(
-                                  color: selected
-                                      ? TviumColors.accentDark
-                                      : Colors.white.withValues(alpha: 0.12),
-                                  width: selected ? 2 : 1,
-                                ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            TviumSpacing.xs,
+            0,
+            TviumSpacing.xs,
+            TviumSpacing.sm,
+          ),
+          child: TextField(
+            key: const ValueKey('live-country-search'),
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search_rounded),
+              hintText: 'Search countries',
+              isDense: true,
+            ),
+            onChanged: (value) => setState(() => query = value),
+          ),
+        ),
+        Expanded(
+          child: options.isEmpty
+              ? const Center(child: Text('No countries found'))
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(
+                    TviumSpacing.xs,
+                    0,
+                    TviumSpacing.xs,
+                    TviumSpacing.sm,
+                  ),
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final country = options[index];
+                    final code = country?.code ?? 'ALL';
+                    final selected = code == widget.selectedCode;
+                    final artwork = countryArtwork[code];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: TviumSpacing.xs),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          key: ValueKey('country-${country?.code ?? 'all'}'),
+                          onTap: () => widget.onSelected?.call(code),
+                          borderRadius: BorderRadius.circular(
+                            TviumRadius.control,
+                          ),
+                          child: Ink(
+                            height: selected ? 150 : 68,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF183044),
+                              borderRadius: BorderRadius.circular(
+                                TviumRadius.control,
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(
-                                  TviumRadius.control,
-                                ),
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: <Widget>[
-                                    if (artwork != null)
-                                      Image.asset(
-                                        artwork,
-                                        key: ValueKey('country-art-$code'),
-                                        fit: BoxFit.cover,
-                                      ),
-                                    const DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: <Color>[
-                                            Color(0x66071320),
-                                            Color(0xEB071320),
-                                          ],
-                                        ),
-                                      ),
+                              border: Border.all(
+                                color: selected
+                                    ? TviumColors.accentDark
+                                    : Colors.white.withValues(alpha: 0.12),
+                                width: selected ? 2 : 1,
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                TviumRadius.control,
+                              ),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: <Widget>[
+                                  if (artwork != null)
+                                    Image.asset(
+                                      artwork,
+                                      key: ValueKey('country-art-$code'),
+                                      fit: BoxFit.cover,
                                     ),
-                                    Padding(
-                                      padding: const EdgeInsets.all(
-                                        TviumSpacing.sm,
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        children: <Widget>[
-                                          Text(
-                                            country?.flag ?? '◎',
-                                            style: TextStyle(
-                                              fontSize: selected ? 28 : 20,
-                                            ),
-                                          ),
-                                          const SizedBox(
-                                            width: TviumSpacing.xs,
-                                          ),
-                                          Expanded(
-                                            child: Text(
-                                              country?.name ?? 'All countries',
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: selected ? 16 : 13,
-                                              ),
-                                            ),
-                                          ),
+                                  const DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: <Color>[
+                                          Color(0x66071320),
+                                          Color(0xEB071320),
                                         ],
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(
+                                      TviumSpacing.sm,
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: <Widget>[
+                                        if (country == null)
+                                          Icon(
+                                            Icons.public_rounded,
+                                            size: selected ? 40 : 28,
+                                          )
+                                        else
+                                          ClipOval(
+                                            child: Image.asset(
+                                              country.flagAsset,
+                                              key: ValueKey(
+                                                'country-flag-$code',
+                                              ),
+                                              width: selected ? 44 : 32,
+                                              height: selected ? 44 : 32,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                        const SizedBox(width: TviumSpacing.xs),
+                                        Expanded(
+                                          child: Text(
+                                            country?.name ?? 'All countries',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: selected ? 16 : 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }
@@ -3151,6 +3133,9 @@ final class _LivePreviewPanel extends StatelessWidget {
     required this.schedule,
     required this.selectedEntry,
     required this.engine,
+    this.onPlay,
+    this.favorite = false,
+    this.onFavorite,
     this.onPreviousChannel,
     this.onNextChannel,
     this.onOpenChannelSwitcher,
@@ -3160,6 +3145,9 @@ final class _LivePreviewPanel extends StatelessWidget {
   final EpgNowNext? schedule;
   final _LibraryEntry? selectedEntry;
   final PlaybackEngine? engine;
+  final VoidCallback? onPlay;
+  final bool favorite;
+  final VoidCallback? onFavorite;
   final VoidCallback? onPreviousChannel;
   final VoidCallback? onNextChannel;
   final VoidCallback? onOpenChannelSwitcher;
@@ -3205,7 +3193,70 @@ final class _LivePreviewPanel extends StatelessWidget {
                 if (next != null) ...<Widget>[
                   const Divider(height: TviumSpacing.lg),
                   Text('Up next · ${next.title}'),
+                ] else if (current != null) ...<Widget>[
+                  const Divider(height: TviumSpacing.lg),
+                  const Text('Up next · Not available'),
                 ],
+                const SizedBox(height: TviumSpacing.md),
+                Wrap(
+                  spacing: TviumSpacing.sm,
+                  runSpacing: TviumSpacing.sm,
+                  children: <Widget>[
+                    FilledButton.icon(
+                      key: const ValueKey('live-preview-play'),
+                      onPressed: onPlay,
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('Play'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('live-preview-guide'),
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('TV Guide'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(entry?.displayName ?? 'Select a channel'),
+                              const SizedBox(height: TviumSpacing.md),
+                              Text(
+                                current == null
+                                    ? 'Now · Not available'
+                                    : 'Now · ${current.title}',
+                              ),
+                              const SizedBox(height: TviumSpacing.sm),
+                              Text(
+                                next == null
+                                    ? 'Up next · Not available'
+                                    : 'Up next · ${next.title}',
+                              ),
+                            ],
+                          ),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(),
+                              child: const Text('Close'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      icon: const Icon(Icons.view_list_rounded),
+                      label: const Text('TV Guide'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('live-preview-favorite'),
+                      onPressed: onFavorite,
+                      icon: Icon(
+                        favorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                      ),
+                      label: Text(favorite ? 'Saved' : 'Favorite'),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -3229,78 +3280,95 @@ final class _GroupSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = <String?>[null, ...groups];
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xB30A1A2A),
-        borderRadius: BorderRadius.circular(TviumRadius.surface),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Padding(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            TviumSpacing.md,
+            TviumSpacing.md,
+            TviumSpacing.md,
+            TviumSpacing.sm,
+          ),
+          child: Text(
+            'Categories',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(
-              TviumSpacing.md,
-              TviumSpacing.md,
-              TviumSpacing.md,
+              TviumSpacing.xs,
+              0,
+              TviumSpacing.xs,
               TviumSpacing.sm,
             ),
-            child: Text(
-              'Categories',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(
-                TviumSpacing.xs,
-                0,
-                TviumSpacing.xs,
-                TviumSpacing.sm,
-              ),
-              itemCount: options.length,
-              itemBuilder: (context, index) {
-                final group = options[index];
-                final selected = group == selectedGroup;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: ListTile(
-                      dense: true,
-                      selected: selected,
-                      selectedTileColor: TviumColors.accentDark.withValues(
-                        alpha: 0.16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          TviumRadius.control,
-                        ),
-                      ),
-                      leading: Icon(
-                        selected
-                            ? Icons.radio_button_checked_rounded
-                            : Icons.radio_button_unchecked_rounded,
-                        size: 18,
-                      ),
-                      title: Text(
-                        group == null
-                            ? 'All categories'
-                            : liveCategoryLabel(group),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onTap: () => onSelected(group),
+            itemCount: options.length,
+            itemBuilder: (context, index) {
+              final group = options[index];
+              final selected = group == selectedGroup;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    selected: selected,
+                    selectedTileColor: TviumColors.accentDark.withValues(
+                      alpha: 0.16,
                     ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(TviumRadius.control),
+                    ),
+                    leading: Icon(
+                      _liveCategoryIcon(
+                        group == null ? '' : liveCategoryLabel(group),
+                      ),
+                      key: ValueKey(
+                        'live-category-icon-${group == null ? 'all' : liveCategoryLabel(group).toLowerCase()}',
+                      ),
+                      size: 22,
+                      color: selected ? TviumColors.accentDark : Colors.white70,
+                    ),
+                    title: Text(
+                      group == null
+                          ? 'All categories'
+                          : liveCategoryLabel(group),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => onSelected(group),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
+}
+
+IconData _liveCategoryIcon(String label) {
+  final value = label.toLowerCase();
+  if (value.contains('sport')) return Icons.emoji_events_outlined;
+  if (value.contains('news') || value.contains('info')) {
+    return Icons.newspaper_rounded;
+  }
+  if (value.contains('movie') ||
+      value.contains('cinema') ||
+      value.contains('film')) {
+    return Icons.movie_outlined;
+  }
+  if (value.contains('music')) return Icons.music_note_rounded;
+  if (value.contains('kid') || value.contains('child')) {
+    return Icons.child_care_rounded;
+  }
+  if (value.contains('document') || value.contains('nature')) {
+    return Icons.eco_outlined;
+  }
+  if (value.contains('entertainment')) return Icons.tv_rounded;
+  return label.isEmpty ? Icons.grid_view_rounded : Icons.category_outlined;
 }
 
 final class _LiveMediaRow extends StatelessWidget {
@@ -3499,38 +3567,42 @@ final class _CatalogArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uri = entry.imageUri;
+    final live = entry.kind == MediaKind.live;
     final episodeStillIsNotSeriesPoster =
         entry.kind == MediaKind.episode &&
         entry.seriesEpisodes.isNotEmpty &&
         entry.xtreamSeriesId == null;
+    final fallback = Center(
+      key: episodeStillIsNotSeriesPoster
+          ? const ValueKey('catalog-series-placeholder')
+          : live
+          ? const ValueKey('live-logo-fallback')
+          : null,
+      child: Icon(
+        _mediaIcon(entry.kind),
+        size: live ? 30 : 46,
+        color: Colors.white54,
+      ),
+    );
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: <Color>[Color(0xFF163D58), Color(0xFF09141F)],
         ),
       ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          Center(
-            key: episodeStillIsNotSeriesPoster
-                ? const ValueKey('catalog-series-placeholder')
-                : null,
-            child: Icon(
-              _mediaIcon(entry.kind),
-              size: 46,
-              color: Colors.white54,
+      child: episodeStillIsNotSeriesPoster
+          ? fallback
+          : Padding(
+              padding: EdgeInsets.all(live ? 4 : 0),
+              child: ArtworkImage(
+                sourceId: entry.sourceId,
+                entryId: entry.id,
+                role: live ? 'logo' : 'poster',
+                uri: uri,
+                fit: live ? BoxFit.contain : BoxFit.cover,
+                fallback: fallback,
+              ),
             ),
-          ),
-          if (!episodeStillIsNotSeriesPoster)
-            ArtworkImage(
-              sourceId: entry.sourceId,
-              entryId: entry.id,
-              role: entry.kind == MediaKind.live ? 'logo' : 'poster',
-              uri: uri,
-            ),
-        ],
-      ),
     );
   }
 }
@@ -3977,7 +4049,7 @@ Future<void> _showChannelSwitcher(
   },
 );
 
-final class _PlayerPanel extends ConsumerWidget {
+final class _PlayerPanel extends ConsumerStatefulWidget {
   const _PlayerPanel({
     required this.selectedEntry,
     required this.engine,
@@ -3993,23 +4065,162 @@ final class _PlayerPanel extends ConsumerWidget {
   final VoidCallback? onOpenChannelSwitcher;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final playbackEngine = engine;
+  ConsumerState<_PlayerPanel> createState() => _PlayerPanelState();
+}
+
+final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
+  bool _fullScreen = false;
+  double _volume = 1;
+
+  Future<void> _openFullScreen() async {
+    final engine = widget.engine;
+    if (engine == null) return;
+    setState(() => _fullScreen = true);
+    final viewBuilder = ref.read(playbackViewBuilderProvider);
+    try {
+      await showDialog<void>(
+        context: context,
+        useSafeArea: false,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => Dialog.fullscreen(
+            child: ColoredBox(
+              key: const ValueKey('live-fullscreen-player'),
+              color: Colors.black,
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  viewBuilder(engine),
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: SafeArea(
+                      child: IconButton.filledTonal(
+                        key: const ValueKey('live-fullscreen-exit'),
+                        tooltip: 'Exit full screen',
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.fullscreen_exit_rounded),
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: SafeArea(
+                      child: _controls(
+                        engine,
+                        fullScreen: true,
+                        onVolumeChanged: (value) {
+                          setDialogState(() => _volume = value);
+                          engine.setVolume(value);
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _fullScreen = false);
+    }
+  }
+
+  Widget _controls(
+    PlaybackEngine engine, {
+    required bool fullScreen,
+    ValueChanged<double>? onVolumeChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: TviumSpacing.sm),
+      color: Colors.black.withValues(alpha: 0.72),
+      child: StreamBuilder<PlaybackState>(
+        stream: engine.state,
+        initialData: engine.currentState,
+        builder: (context, snapshot) {
+          final playing = snapshot.data?.phase == PlaybackPhase.playing;
+          return Row(
+            children: <Widget>[
+              IconButton(
+                key: ValueKey(
+                  fullScreen ? 'live-fullscreen-play' : 'live-player-play',
+                ),
+                tooltip: playing ? 'Pause' : 'Play',
+                onPressed: () => playing ? engine.pause() : engine.play(),
+                icon: Icon(
+                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                ),
+              ),
+              if (fullScreen) ...<Widget>[
+                const Icon(Icons.volume_up_rounded, size: 18),
+                SizedBox(
+                  width: 110,
+                  child: Slider(
+                    key: const ValueKey('live-fullscreen-volume'),
+                    value: _volume,
+                    onChanged: onVolumeChanged,
+                  ),
+                ),
+              ] else if (widget.onOpenChannelSwitcher != null)
+                IconButton(
+                  key: const ValueKey('live-channel-switcher-button'),
+                  tooltip: 'Switch channel',
+                  onPressed: widget.onOpenChannelSwitcher,
+                  icon: const Icon(Icons.search_rounded),
+                ),
+              const Spacer(),
+              if (widget.onPreviousChannel != null) ...<Widget>[
+                IconButton(
+                  key: const ValueKey('live-previous-channel'),
+                  tooltip: 'Previous channel',
+                  onPressed: widget.onPreviousChannel,
+                  icon: const Icon(Icons.skip_previous_rounded),
+                ),
+                IconButton(
+                  key: const ValueKey('live-next-channel'),
+                  tooltip: 'Next channel',
+                  onPressed: widget.onNextChannel,
+                  icon: const Icon(Icons.skip_next_rounded),
+                ),
+              ],
+              const Spacer(),
+              if (!fullScreen)
+                IconButton(
+                  key: const ValueKey('live-player-fullscreen'),
+                  tooltip: 'Full screen',
+                  onPressed: _openFullScreen,
+                  icon: const Icon(Icons.fullscreen_rounded),
+                )
+              else
+                IconButton(
+                  tooltip: 'Exit full screen',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.fullscreen_exit_rounded),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final playbackEngine = widget.engine;
     return Focus(
       key: const ValueKey('live-player-focus'),
-      canRequestFocus: onNextChannel != null,
+      canRequestFocus: widget.onNextChannel != null,
       onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent || onNextChannel == null) {
+        if (event is! KeyDownEvent || widget.onNextChannel == null) {
           return KeyEventResult.ignored;
         }
         if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
             event.logicalKey == LogicalKeyboardKey.pageUp) {
-          onPreviousChannel?.call();
+          widget.onPreviousChannel?.call();
           return KeyEventResult.handled;
         }
         if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
             event.logicalKey == LogicalKeyboardKey.pageDown) {
-          onNextChannel?.call();
+          widget.onNextChannel?.call();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -4030,50 +4241,31 @@ final class _PlayerPanel extends ConsumerWidget {
                   ),
                 ),
               )
+            : _fullScreen
+            ? const SizedBox.expand()
             : Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
                   ref.watch(playbackViewBuilderProvider)(playbackEngine),
-                  Align(
-                    alignment: Alignment.bottomLeft,
-                    child: Container(
-                      padding: const EdgeInsets.all(TviumSpacing.md),
-                      color: Colors.black.withValues(alpha: 0.65),
-                      child: Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              selectedEntry?.name ?? '',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (onOpenChannelSwitcher != null)
-                            IconButton(
-                              key: const ValueKey(
-                                'live-channel-switcher-button',
-                              ),
-                              tooltip: 'Switch channel',
-                              onPressed: onOpenChannelSwitcher,
-                              icon: const Icon(Icons.search_rounded),
-                            ),
-                          if (onPreviousChannel != null) ...<Widget>[
-                            IconButton(
-                              key: const ValueKey('live-previous-channel'),
-                              tooltip: 'Previous channel',
-                              onPressed: onPreviousChannel,
-                              icon: const Icon(Icons.skip_previous_rounded),
-                            ),
-                            IconButton(
-                              key: const ValueKey('live-next-channel'),
-                              tooltip: 'Next channel',
-                              onPressed: onNextChannel,
-                              icon: const Icon(Icons.skip_next_rounded),
-                            ),
+                  if (widget.selectedEntry != null)
+                    Positioned(
+                      top: TviumSpacing.xs,
+                      left: TviumSpacing.sm,
+                      right: TviumSpacing.sm,
+                      child: Text(
+                        widget.selectedEntry!.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          shadows: <Shadow>[
+                            Shadow(color: Colors.black, blurRadius: 8),
                           ],
-                        ],
+                        ),
                       ),
                     ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: _controls(playbackEngine, fullScreen: false),
                   ),
                 ],
               ),

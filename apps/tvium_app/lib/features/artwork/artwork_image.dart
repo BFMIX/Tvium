@@ -28,6 +28,7 @@ final class ArtworkImage extends StatefulWidget {
     required this.uri,
     this.fit = BoxFit.cover,
     this.alignment = Alignment.center,
+    this.fallback,
     super.key,
   });
 
@@ -37,6 +38,7 @@ final class ArtworkImage extends StatefulWidget {
   final Uri? uri;
   final BoxFit fit;
   final Alignment alignment;
+  final Widget? fallback;
 
   @override
   State<ArtworkImage> createState() => _ArtworkImageState();
@@ -91,7 +93,8 @@ final class _ArtworkImageState extends State<ArtworkImage> {
         cacheManager: artworkCache,
         fit: widget.fit,
         alignment: widget.alignment,
-        errorWidget: (context, url, error) => const SizedBox.shrink(),
+        errorWidget: (context, url, error) =>
+            widget.fallback ?? const SizedBox.shrink(),
       );
     }
     return FutureBuilder<Uint8List?>(
@@ -99,7 +102,7 @@ final class _ArtworkImageState extends State<ArtworkImage> {
       builder: (context, snapshot) {
         final bytes = snapshot.data;
         return bytes == null
-            ? const SizedBox.shrink()
+            ? widget.fallback ?? const SizedBox.shrink()
             : Image.memory(bytes, fit: widget.fit, alignment: widget.alignment);
       },
     );
