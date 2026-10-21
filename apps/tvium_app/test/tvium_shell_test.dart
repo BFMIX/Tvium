@@ -494,6 +494,14 @@ void main() {
       findsOneWidget,
     );
     expect(find.byTooltip('Exit full screen'), findsOneWidget);
+    final fullScreen = find.byKey(const ValueKey('live-fullscreen-player'));
+    final controls = find.byKey(const ValueKey('live-fullscreen-controls'));
+    final volume = find.byKey(const ValueKey('live-fullscreen-volume'));
+    expect(tester.getSize(controls).height, 56);
+    expect(
+      tester.getCenter(volume).dy,
+      greaterThan(tester.getBottomLeft(fullScreen).dy - 120),
+    );
   });
 
   testWidgets('Live TV player zaps through visible playable channels', (

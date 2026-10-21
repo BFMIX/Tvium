@@ -4239,76 +4239,82 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
     required bool fullScreen,
     ValueChanged<double>? onVolumeChanged,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: TviumSpacing.sm),
-      color: Colors.black.withValues(alpha: 0.72),
-      child: StreamBuilder<PlaybackState>(
-        stream: engine.state,
-        initialData: engine.currentState,
-        builder: (context, snapshot) {
-          final playing = snapshot.data?.phase == PlaybackPhase.playing;
-          return Row(
-            children: <Widget>[
-              IconButton(
-                key: ValueKey(
-                  fullScreen ? 'live-fullscreen-play' : 'live-player-play',
-                ),
-                tooltip: playing ? 'Pause' : 'Play',
-                onPressed: () => playing ? engine.pause() : engine.play(),
-                icon: Icon(
-                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                ),
-              ),
-              if (fullScreen) ...<Widget>[
-                const Icon(Icons.volume_up_rounded, size: 18),
-                SizedBox(
-                  width: 110,
-                  child: Slider(
-                    key: const ValueKey('live-fullscreen-volume'),
-                    value: _volume,
-                    onChanged: onVolumeChanged,
+    return SizedBox(
+      key: ValueKey(
+        fullScreen ? 'live-fullscreen-controls' : 'live-preview-controls',
+      ),
+      height: 56,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: TviumSpacing.sm),
+        color: Colors.black.withValues(alpha: 0.72),
+        child: StreamBuilder<PlaybackState>(
+          stream: engine.state,
+          initialData: engine.currentState,
+          builder: (context, snapshot) {
+            final playing = snapshot.data?.phase == PlaybackPhase.playing;
+            return Row(
+              children: <Widget>[
+                IconButton(
+                  key: ValueKey(
+                    fullScreen ? 'live-fullscreen-play' : 'live-player-play',
+                  ),
+                  tooltip: playing ? 'Pause' : 'Play',
+                  onPressed: () => playing ? engine.pause() : engine.play(),
+                  icon: Icon(
+                    playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                   ),
                 ),
-              ] else if (widget.onOpenChannelSwitcher != null)
-                IconButton(
-                  key: const ValueKey('live-channel-switcher-button'),
-                  tooltip: 'Switch channel',
-                  onPressed: widget.onOpenChannelSwitcher,
-                  icon: const Icon(Icons.search_rounded),
-                ),
-              const Spacer(),
-              if (widget.onPreviousChannel != null) ...<Widget>[
-                IconButton(
-                  key: const ValueKey('live-previous-channel'),
-                  tooltip: 'Previous channel',
-                  onPressed: widget.onPreviousChannel,
-                  icon: const Icon(Icons.skip_previous_rounded),
-                ),
-                IconButton(
-                  key: const ValueKey('live-next-channel'),
-                  tooltip: 'Next channel',
-                  onPressed: widget.onNextChannel,
-                  icon: const Icon(Icons.skip_next_rounded),
-                ),
+                if (fullScreen) ...<Widget>[
+                  const Icon(Icons.volume_up_rounded, size: 18),
+                  SizedBox(
+                    width: 110,
+                    child: Slider(
+                      key: const ValueKey('live-fullscreen-volume'),
+                      value: _volume,
+                      onChanged: onVolumeChanged,
+                    ),
+                  ),
+                ] else if (widget.onOpenChannelSwitcher != null)
+                  IconButton(
+                    key: const ValueKey('live-channel-switcher-button'),
+                    tooltip: 'Switch channel',
+                    onPressed: widget.onOpenChannelSwitcher,
+                    icon: const Icon(Icons.search_rounded),
+                  ),
+                const Spacer(),
+                if (widget.onPreviousChannel != null) ...<Widget>[
+                  IconButton(
+                    key: const ValueKey('live-previous-channel'),
+                    tooltip: 'Previous channel',
+                    onPressed: widget.onPreviousChannel,
+                    icon: const Icon(Icons.skip_previous_rounded),
+                  ),
+                  IconButton(
+                    key: const ValueKey('live-next-channel'),
+                    tooltip: 'Next channel',
+                    onPressed: widget.onNextChannel,
+                    icon: const Icon(Icons.skip_next_rounded),
+                  ),
+                ],
+                const Spacer(),
+                if (!fullScreen)
+                  IconButton(
+                    key: const ValueKey('live-player-fullscreen'),
+                    tooltip: 'Full screen',
+                    onPressed: _openFullScreen,
+                    icon: const Icon(Icons.fullscreen_rounded),
+                  )
+                else
+                  IconButton(
+                    key: const ValueKey('live-fullscreen-exit'),
+                    tooltip: 'Exit full screen',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.fullscreen_exit_rounded),
+                  ),
               ],
-              const Spacer(),
-              if (!fullScreen)
-                IconButton(
-                  key: const ValueKey('live-player-fullscreen'),
-                  tooltip: 'Full screen',
-                  onPressed: _openFullScreen,
-                  icon: const Icon(Icons.fullscreen_rounded),
-                )
-              else
-                IconButton(
-                  key: const ValueKey('live-fullscreen-exit'),
-                  tooltip: 'Exit full screen',
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.fullscreen_exit_rounded),
-                ),
-            ],
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
