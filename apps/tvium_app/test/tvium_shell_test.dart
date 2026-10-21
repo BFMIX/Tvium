@@ -924,7 +924,35 @@ void main() {
     );
   });
 
-  testWidgets('catalog destinations use the approved scenic banners', (
+  testWidgets('Movies feature a real poster without a scenic banner', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _HeroArtworkFixtureSource()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    final feature = find.byKey(const ValueKey('catalog-feature'));
+    expect(feature, findsOneWidget);
+    expect(find.byKey(const ValueKey('catalog-page-banner')), findsNothing);
+    expect(
+      find.descendant(of: feature, matching: find.text('Illustrated Movie')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('catalog-feature-poster')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('TV Shows feature does not use an episode still as a poster', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -936,23 +964,31 @@ void main() {
     await tester.pumpWidget(TviumApp(importController: controller));
     unawaited(controller.importSource(const _DesignFixtureSource()));
     await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
     await tester.pumpAndSettle();
-    final banner = find.byKey(const ValueKey('catalog-page-banner'));
-    expect(banner, findsOneWidget);
+
+    expect(find.byKey(const ValueKey('catalog-feature')), findsOneWidget);
+    expect(find.byKey(const ValueKey('catalog-feature-poster')), findsNothing);
+  });
+
+  testWidgets('TV Shows grid does not promote an episode still to series art', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _EpisodeStillFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
+    await tester.pumpAndSettle();
+
     expect(
-      tester
-          .widgetList<Image>(
-            find.descendant(of: banner, matching: find.byType(Image)),
-          )
-          .any(
-            (image) =>
-                image.image is AssetImage &&
-                (image.image as AssetImage).assetName ==
-                    'assets/destinations/hero-movies.png',
-          ),
-      isTrue,
+      find.byKey(const ValueKey('catalog-series-placeholder')),
+      findsOneWidget,
     );
   });
 
@@ -977,11 +1013,21 @@ void main() {
     );
     expect(find.byKey(const ValueKey('catalog-group-sidebar')), findsNothing);
     expect(find.byKey(const ValueKey('poster-grid')), findsOneWidget);
-    expect(find.text('Fixture Adventure'), findsOneWidget);
+    final grid = find.byKey(const ValueKey('poster-grid'));
+    expect(
+      find.descendant(of: grid, matching: find.text('Fixture Adventure')),
+      findsOneWidget,
+    );
     await tester.tap(find.widgetWithText(ChoiceChip, 'Comedy'));
     await tester.pumpAndSettle();
-    expect(find.text('Fixture Adventure'), findsNothing);
-    expect(find.text('Fixture Comedy'), findsOneWidget);
+    expect(
+      find.descendant(of: grid, matching: find.text('Fixture Adventure')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: grid, matching: find.text('Fixture Comedy')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Home hero supports directional controls and defers autoplay', (
@@ -1205,6 +1251,17 @@ final class _ZappingFixtureSource implements M3uSource {
     'https://stream.example.test/live/two.m3u8',
     '#EXTINF:-1 group-title="News",Channel Three',
     'https://stream.example.test/live/three.m3u8',
+  ]);
+}
+
+final class _EpisodeStillFixtureSource implements M3uSource {
+  const _EpisodeStillFixtureSource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    '#EXTINF:-1 tvg-logo="https://art.example.test/episode-still.jpg" group-title="Series",Fixture Show S01E01',
+    'https://stream.example.test/series/episode.mkv',
   ]);
 }
 

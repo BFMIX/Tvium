@@ -34,8 +34,12 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Movies'));
     await tester.pumpAndSettle();
     expect(find.text('Cinema'), findsWidgets);
-    expect(find.text('Demo Movie'), findsOneWidget);
-    await tester.tap(find.text('Demo Movie'));
+    final movieCard = find.descendant(
+      of: find.byKey(const ValueKey('poster-grid')),
+      matching: find.text('Demo Movie'),
+    );
+    expect(movieCard, findsOneWidget);
+    await tester.tap(movieCard);
     await tester.pumpAndSettle();
     expect(
       find.text(
@@ -50,7 +54,13 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'TV Shows'));
     await tester.pumpAndSettle();
     expect(find.text('Series'), findsWidgets);
-    expect(find.text('Demo Show'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('poster-grid')),
+        matching: find.text('Demo Show'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('keeps live TV reachable in compact layouts', (tester) async {

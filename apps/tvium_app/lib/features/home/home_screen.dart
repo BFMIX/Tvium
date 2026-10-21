@@ -2257,6 +2257,17 @@ final class _CatalogPage extends ConsumerWidget {
                   entry.displayName.toLowerCase().contains(normalizedQuery));
         })
         .toList(growable: false);
+    final featureEntry = destination == _CatalogDestination.live
+        ? null
+        : visible
+                  .where(
+                    (entry) =>
+                        entry.imageUri?.hasScheme == true &&
+                        (destination == _CatalogDestination.movies ||
+                            entry.xtreamSeriesId != null),
+                  )
+                  .firstOrNull ??
+              visible.firstOrNull;
     final showPlayer =
         selectedEntry != null &&
         switch (destination) {
@@ -2505,12 +2516,30 @@ final class _CatalogPage extends ConsumerWidget {
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
             )
-          else
+          else if (destination == _CatalogDestination.live)
             SizedBox(
               height: MediaQuery.sizeOf(context).width >= 720 ? 132 : 94,
               child: _CatalogBanner(
                 destination: destination,
                 count: entries.length,
+              ),
+            )
+          else
+            SizedBox(
+              height: 220,
+              child: _CatalogFeature(
+                destination: destination,
+                entry: featureEntry,
+                count: visible.length,
+                onPlay: onPlay,
+                onDetails: featureEntry == null
+                    ? null
+                    : () => _showTitleDetails(
+                        context,
+                        featureEntry,
+                        onPlay,
+                        ref.read(xtreamConnectionServiceProvider),
+                      ),
               ),
             ),
           const SizedBox(height: TviumSpacing.md),
@@ -2736,6 +2765,110 @@ final class _CatalogPage extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+final class _CatalogFeature extends StatelessWidget {
+  const _CatalogFeature({
+    required this.destination,
+    required this.entry,
+    required this.count,
+    required this.onPlay,
+    required this.onDetails,
+  });
+
+  final _CatalogDestination destination;
+  final _LibraryEntry? entry;
+  final int count;
+  final ValueChanged<_LibraryEntry> onPlay;
+  final VoidCallback? onDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = entry;
+    final hasPoster =
+        item?.imageUri?.hasScheme == true &&
+        (destination == _CatalogDestination.movies ||
+            item?.xtreamSeriesId != null);
+    return DecoratedBox(
+      key: const ValueKey('catalog-feature'),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: <Color>[Color(0xFF102D42), Color(0xFF071A2A)],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: TviumSpacing.sm),
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: 140,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(TviumRadius.control),
+                child: hasPoster
+                    ? ArtworkImage(
+                        key: const ValueKey('catalog-feature-poster'),
+                        sourceId: item!.sourceId,
+                        entryId: item.id,
+                        role: 'poster',
+                        uri: item.imageUri,
+                        fit: BoxFit.cover,
+                      )
+                    : const ColoredBox(
+                        color: Color(0xFF163044),
+                        child: Center(
+                          child: Icon(Icons.movie_outlined, size: 44),
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: TviumSpacing.lg),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Text(
+                    _destinationLabel(destination),
+                    style: Theme.of(context).textTheme.labelLarge
+                        ?.copyWith(color: TviumColors.accentDark),
+                  ),
+                  const SizedBox(height: TviumSpacing.xs),
+                  Text(
+                    item?.displayName ?? 'No titles available',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: TviumSpacing.xs),
+                  Text('$count ${count == 1 ? 'title' : 'titles'}'),
+                  if (item != null) ...<Widget>[
+                    const SizedBox(height: TviumSpacing.sm),
+                    Wrap(
+                      spacing: TviumSpacing.sm,
+                      runSpacing: TviumSpacing.xs,
+                      children: <Widget>[
+                        if (destination == _CatalogDestination.movies &&
+                            item.isPlayable)
+                          FilledButton.icon(
+                            onPressed: () => onPlay(item),
+                            icon: const Icon(Icons.play_arrow_rounded),
+                            label: const Text('Play'),
+                          ),
+                        OutlinedButton(
+                          onPressed: onDetails,
+                          child: const Text('View details'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3331,6 +3464,10 @@ final class _CatalogArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uri = entry.imageUri;
+    final episodeStillIsNotSeriesPoster =
+        entry.kind == MediaKind.episode &&
+        entry.seriesEpisodes.isNotEmpty &&
+        entry.xtreamSeriesId == null;
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -3341,18 +3478,22 @@ final class _CatalogArtwork extends StatelessWidget {
         fit: StackFit.expand,
         children: <Widget>[
           Center(
+            key: episodeStillIsNotSeriesPoster
+                ? const ValueKey('catalog-series-placeholder')
+                : null,
             child: Icon(
               _mediaIcon(entry.kind),
               size: 46,
               color: Colors.white54,
             ),
           ),
-          ArtworkImage(
-            sourceId: entry.sourceId,
-            entryId: entry.id,
-            role: entry.kind == MediaKind.live ? 'logo' : 'poster',
-            uri: uri,
-          ),
+          if (!episodeStillIsNotSeriesPoster)
+            ArtworkImage(
+              sourceId: entry.sourceId,
+              entryId: entry.id,
+              role: entry.kind == MediaKind.live ? 'logo' : 'poster',
+              uri: uri,
+            ),
         ],
       ),
     );
