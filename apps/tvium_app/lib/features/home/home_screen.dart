@@ -4211,17 +4211,6 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
                 children: <Widget>[
                   viewBuilder(engine),
                   Align(
-                    alignment: Alignment.topRight,
-                    child: SafeArea(
-                      child: IconButton.filledTonal(
-                        key: const ValueKey('live-fullscreen-exit'),
-                        tooltip: 'Exit full screen',
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        icon: const Icon(Icons.fullscreen_exit_rounded),
-                      ),
-                    ),
-                  ),
-                  Align(
                     alignment: Alignment.bottomCenter,
                     child: SafeArea(
                       child: _controls(
@@ -4312,6 +4301,7 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
                 )
               else
                 IconButton(
+                  key: const ValueKey('live-fullscreen-exit'),
                   tooltip: 'Exit full screen',
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.fullscreen_exit_rounded),
