@@ -39,6 +39,8 @@ typedef MetadataHeroRequest = ({
 typedef MetadataCachedRequest = ({
   String sourceId,
   String entryId,
+  String title,
+  MediaKind kind,
   bool enabled,
 });
 
@@ -51,7 +53,12 @@ final metadataCachedOverlayProvider =
       try {
         return await ref
             .read(metadataOverlayStoreProvider)
-            .read(sourceId: request.sourceId, entryId: request.entryId);
+            .read(
+              sourceId: request.sourceId,
+              entryId: request.entryId,
+              originalTitle: request.title,
+              kind: request.kind,
+            );
       } on Object {
         return null;
       }
@@ -68,6 +75,8 @@ final metadataHeroOverlayProvider =
         final cached = await store.read(
           sourceId: request.sourceId,
           entryId: request.entryId,
+          originalTitle: request.title,
+          kind: request.kind,
         );
         if (cached != null) return cached;
         final client = ref.read(metadataGatewayProvider);
@@ -107,6 +116,8 @@ final metadataHeroOverlayProvider =
         await store.write(
           sourceId: request.sourceId,
           entryId: request.entryId,
+          originalTitle: request.title,
+          kind: request.kind,
           overlay: overlay,
         );
         return overlay;
@@ -143,14 +154,18 @@ final class MetadataOverlayStore {
 
   final SecureKeyValueStore _backend;
 
-  String _key(String sourceId, String entryId) {
-    final digest = sha256.convert(utf8.encode('$sourceId\u0000$entryId'));
+  String _key(String sourceId, String entryId, String title, MediaKind kind) {
+    final digest = sha256.convert(
+      utf8.encode('$sourceId\u0000$entryId\u0000${kind.name}\u0000$title'),
+    );
     return 'tvium.metadata.v1.$digest';
   }
 
   Future<void> write({
     required String sourceId,
     required String entryId,
+    required String originalTitle,
+    required MediaKind kind,
     required MetadataOverlay overlay,
   }) async {
     if (!overlay.verified ||
@@ -160,7 +175,7 @@ final class MetadataOverlayStore {
       return;
     }
     await _backend.write(
-      _key(sourceId, entryId),
+      _key(sourceId, entryId, originalTitle, kind),
       jsonEncode({
         'provider': overlay.provider,
         'providerId': overlay.providerId,
@@ -176,8 +191,12 @@ final class MetadataOverlayStore {
   Future<MetadataOverlay?> read({
     required String sourceId,
     required String entryId,
+    required String originalTitle,
+    required MediaKind kind,
   }) async {
-    final raw = await _backend.read(_key(sourceId, entryId));
+    final raw = await _backend.read(
+      _key(sourceId, entryId, originalTitle, kind),
+    );
     if (raw == null) return null;
     try {
       final data = jsonDecode(raw);

@@ -97,7 +97,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by unit tests: a device clock rollback restarts the interval, and one source failure does not prevent other due sources from refreshing.
 - Verified by widget tests: playlist settings show each source's last recorded refresh check time without exposing source connection details.
 - Verified by automated tests: conventional M3U export URLs are conservatively recognized, then upgraded to Xtream only after successful authentication and catalog loading. Failed upgrades fall back to the original M3U import.
-- In progress: viewed logo, poster, and backdrop bytes use an opaque-key disk cache on native platforms; cache eviction and first-load offline behavior need device validation.
+- Verified by synthetic tests: viewed logo, poster, and backdrop bytes use opaque disk-cache keys on native platforms; changing an image URL selects a different key, and saved verified metadata is bound to the source entry's original title and media kind so a replaced catalog row cannot inherit old artwork. Cache eviction and first-load offline behavior still need device validation.
 - Planned: migration of previously saved M3U sources to Xtream after explicit source-identity reconciliation.
 - Planned: credential reconnect and bulk organization.
 

@@ -14,6 +14,7 @@ import 'package:tvium_app/features/metadata/metadata_details.dart';
 import 'package:tvium_app/features/metadata/metadata_gateway_client.dart';
 import 'package:tvium_app/features/metadata/metadata_overlay_store.dart';
 import 'package:tvium_app/features/updates/update_checker.dart';
+import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
 import 'package:tvium_playback/tvium_playback.dart';
@@ -1450,6 +1451,8 @@ void main() {
     await store.write(
       sourceId: 'session.m3u',
       entryId: 'entry-2',
+      originalTitle: 'Demo Movie (2025)',
+      kind: MediaKind.movie,
       overlay: MetadataOverlay(
         provider: 'tmdb',
         providerId: '7',
@@ -1554,6 +1557,8 @@ void main() {
     await store.write(
       sourceId: 'session.m3u',
       entryId: 'local-series:session.m3u:fixture-show',
+      originalTitle: 'Fixture Show',
+      kind: MediaKind.episode,
       overlay: MetadataOverlay(
         provider: 'tmdb',
         providerId: '8',

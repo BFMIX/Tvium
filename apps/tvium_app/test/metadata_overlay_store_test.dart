@@ -15,6 +15,8 @@ void main() {
       await store.write(
         sourceId: 'source.test',
         entryId: 'movie.test',
+        originalTitle: 'Example Movie (2020)',
+        kind: MediaKind.movie,
         overlay: MetadataOverlay(
           provider: 'tmdb',
           providerId: '7',
@@ -32,6 +34,8 @@ void main() {
           metadataCachedOverlayProvider((
             sourceId: 'source.test',
             entryId: 'movie.test',
+            title: 'Example Movie (2020)',
+            kind: MediaKind.movie,
             enabled: false,
           )).future,
         ),
@@ -42,6 +46,8 @@ void main() {
           metadataCachedOverlayProvider((
             sourceId: 'source.test',
             entryId: 'movie.test',
+            title: 'Example Movie (2020)',
+            kind: MediaKind.movie,
             enabled: true,
           )).future,
         ))?.posterUri?.host,
@@ -64,6 +70,8 @@ void main() {
     await first.write(
       sourceId: 'source.test',
       entryId: 'movie.test',
+      originalTitle: 'Example Movie (2020)',
+      kind: MediaKind.movie,
       overlay: MetadataOverlay(
         provider: 'tmdb',
         providerId: '7',
@@ -75,14 +83,66 @@ void main() {
       ),
     );
 
-    final restored = await MetadataOverlayStore(backend)
-        .read(sourceId: 'source.test', entryId: 'movie.test');
+    final restored = await MetadataOverlayStore(backend).read(
+      sourceId: 'source.test',
+      entryId: 'movie.test',
+      originalTitle: 'Example Movie (2020)',
+      kind: MediaKind.movie,
+    );
     expect(restored?.title, 'Example Movie');
     expect(restored?.backdropUri?.host, 'image.tmdb.org');
     expect(restored?.verified, isTrue);
     expect(
-      await MetadataOverlayStore(backend)
-          .read(sourceId: 'other.test', entryId: 'movie.test'),
+      await MetadataOverlayStore(backend).read(
+        sourceId: 'other.test',
+        entryId: 'movie.test',
+        originalTitle: 'Example Movie (2020)',
+        kind: MediaKind.movie,
+      ),
+      isNull,
+    );
+  });
+
+  test('never attaches saved artwork to a replaced catalog title', () async {
+    final store = MetadataOverlayStore(MemoryArtworkKeyValueStore());
+    await store.write(
+      sourceId: 'source.test',
+      entryId: 'entry-1',
+      originalTitle: 'First Movie (2020)',
+      kind: MediaKind.movie,
+      overlay: MetadataOverlay(
+        provider: 'tmdb',
+        providerId: '7',
+        title: 'First Movie',
+        posterUri: Uri.parse('https://image.tmdb.org/t/p/w500/first.jpg'),
+        verified: true,
+      ),
+    );
+    expect(
+      await store.read(
+        sourceId: 'source.test',
+        entryId: 'entry-1',
+        originalTitle: 'First Movie (2020)',
+        kind: MediaKind.movie,
+      ),
+      isNotNull,
+    );
+    expect(
+      await store.read(
+        sourceId: 'source.test',
+        entryId: 'entry-1',
+        originalTitle: 'Second Movie (2020)',
+        kind: MediaKind.movie,
+      ),
+      isNull,
+    );
+    expect(
+      await store.read(
+        sourceId: 'source.test',
+        entryId: 'entry-1',
+        originalTitle: 'First Movie (2020)',
+        kind: MediaKind.episode,
+      ),
       isNull,
     );
   });
@@ -109,10 +169,17 @@ void main() {
         await store.write(
           sourceId: 'source.test',
           entryId: 'movie.test',
+          originalTitle: 'Example Movie (2020)',
+          kind: MediaKind.movie,
           overlay: overlay,
         );
         expect(
-          await store.read(sourceId: 'source.test', entryId: 'movie.test'),
+          await store.read(
+            sourceId: 'source.test',
+            entryId: 'movie.test',
+            originalTitle: 'Example Movie (2020)',
+            kind: MediaKind.movie,
+          ),
           isNull,
         );
       }
@@ -168,6 +235,8 @@ void main() {
         (await store.read(
           sourceId: request.sourceId,
           entryId: request.entryId,
+          originalTitle: request.title,
+          kind: request.kind,
         ))?.verified,
         isTrue,
       );

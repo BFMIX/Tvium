@@ -288,6 +288,8 @@ void main() {
       (await overlays.read(
         sourceId: 'source.test',
         entryId: 'movie.test',
+        originalTitle: 'Original Movie (2020)',
+        kind: MediaKind.movie,
       ))?.verified,
       isTrue,
     );
@@ -381,7 +383,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Possible match'), findsOneWidget);
     expect(
-      await overlays.read(sourceId: 'source.test', entryId: 'series.test'),
+      await overlays.read(
+        sourceId: 'source.test',
+        entryId: 'series.test',
+        originalTitle: 'Example Series',
+        kind: MediaKind.episode,
+      ),
       isNull,
     );
 
@@ -392,6 +399,8 @@ void main() {
       (await overlays.read(
         sourceId: 'source.test',
         entryId: 'series.test',
+        originalTitle: 'Example Series',
+        kind: MediaKind.episode,
       ))?.posterUri?.host,
       'image.tmdb.org',
     );
@@ -427,6 +436,8 @@ void main() {
     await overlays.write(
       sourceId: 'source.test',
       entryId: 'movie.test',
+      originalTitle: 'Example Movie (2020)',
+      kind: MediaKind.movie,
       overlay: const MetadataOverlay(
         provider: 'tmdb',
         providerId: '7',
@@ -469,6 +480,8 @@ void main() {
     await overlays.write(
       sourceId: 'source.test',
       entryId: 'movie.test',
+      originalTitle: 'Example Movie (2020)',
+      kind: MediaKind.movie,
       overlay: const MetadataOverlay(
         provider: 'tmdb',
         providerId: '7',

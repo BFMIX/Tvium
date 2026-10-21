@@ -822,7 +822,12 @@ final class _OnlineMetadataSummaryState
       try {
         final cached = await ref
             .read(metadataOverlayStoreProvider)
-            .read(sourceId: sourceId, entryId: entryId);
+            .read(
+              sourceId: sourceId,
+              entryId: entryId,
+              originalTitle: widget.originalTitle,
+              kind: widget.kind,
+            );
         if (cached != null && mounted) {
           setState(() {
             _result = EnrichedMetadata(
@@ -901,6 +906,8 @@ final class _OnlineMetadataSummaryState
       await store.write(
         sourceId: sourceId,
         entryId: entryId,
+        originalTitle: widget.originalTitle,
+        kind: widget.kind,
         overlay: MetadataOverlay(
           provider: result.candidate.provider,
           providerId: result.candidate.id,
@@ -911,13 +918,20 @@ final class _OnlineMetadataSummaryState
           verified: true,
         ),
       );
-      final saved = await store.read(sourceId: sourceId, entryId: entryId);
+      final saved = await store.read(
+        sourceId: sourceId,
+        entryId: entryId,
+        originalTitle: widget.originalTitle,
+        kind: widget.kind,
+      );
       if (saved?.providerId != result.candidate.id) return false;
       if (mounted) {
         ref.invalidate(
           metadataCachedOverlayProvider((
             sourceId: sourceId,
             entryId: entryId,
+            title: widget.originalTitle,
+            kind: widget.kind,
             enabled: true,
           )),
         );

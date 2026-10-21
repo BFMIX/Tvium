@@ -3720,6 +3720,8 @@ final class _CatalogArtwork extends ConsumerWidget {
                 metadataCachedOverlayProvider((
                   sourceId: entry.sourceId,
                   entryId: entry.id,
+                  title: entry.name,
+                  kind: entry.kind,
                   enabled: true,
                 )),
               )
