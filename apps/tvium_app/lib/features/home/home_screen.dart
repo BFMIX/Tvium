@@ -2492,7 +2492,7 @@ final class _CatalogPage extends ConsumerWidget {
             ),
           const SizedBox(height: TviumSpacing.md),
           if (countries.length >= 2 &&
-              MediaQuery.sizeOf(context).width < 1400) ...<Widget>[
+              MediaQuery.sizeOf(context).width < 1100) ...<Widget>[
             SizedBox(
               height: 58,
               child: ListView(
@@ -2545,13 +2545,13 @@ final class _CatalogPage extends ConsumerWidget {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 if (destination != _CatalogDestination.live) return catalog;
-                if (constraints.maxWidth >= 1350 && countries.length >= 2) {
+                if (constraints.maxWidth >= 1050 && countries.length >= 2) {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       SizedBox(
                         key: const ValueKey('live-country-sidebar'),
-                        width: 190,
+                        width: constraints.maxWidth < 1250 ? 170 : 190,
                         child: _CountrySidebar(
                           countries: countries,
                           selectedCode: activeCountryCode,
@@ -2561,7 +2561,7 @@ final class _CatalogPage extends ConsumerWidget {
                       const SizedBox(width: TviumSpacing.md),
                       SizedBox(
                         key: const ValueKey('catalog-group-sidebar'),
-                        width: 210,
+                        width: constraints.maxWidth < 1250 ? 170 : 210,
                         child: _GroupSidebar(
                           groups: groups,
                           selectedGroup: selectedGroup,
@@ -2574,7 +2574,15 @@ final class _CatalogPage extends ConsumerWidget {
                       SizedBox(
                         key: const ValueKey('catalog-player'),
                         width: constraints.maxWidth * 0.27,
-                        child: _PlayerPanel(
+                        child: _LivePreviewPanel(
+                          entry: selectedLiveIndex >= 0
+                              ? liveChannels[selectedLiveIndex]
+                              : liveChannels.firstOrNull,
+                          schedule:
+                              epgSchedules[(selectedLiveIndex >= 0
+                                      ? liveChannels[selectedLiveIndex]
+                                      : liveChannels.firstOrNull)
+                                  ?.id],
                           selectedEntry: selectedEntry,
                           engine: playbackEngine,
                           onOpenChannelSwitcher: liveChannels.isNotEmpty
@@ -2795,29 +2803,85 @@ final class _CountrySidebar extends StatelessWidget {
               itemBuilder: (context, index) {
                 final country = options[index];
                 final code = country?.code ?? 'ALL';
+                final selected = code == selectedCode;
+                final artwork = countryArtwork[code];
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
+                  padding: const EdgeInsets.only(bottom: TviumSpacing.xs),
                   child: Material(
                     color: Colors.transparent,
-                    child: ListTile(
+                    child: InkWell(
                       key: ValueKey('country-${country?.code ?? 'all'}'),
-                      dense: true,
-                      selected: code == selectedCode,
-                      selectedTileColor: TviumColors.accentDark.withValues(
-                        alpha: 0.16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          TviumRadius.control,
+                      onTap: () => onSelected?.call(code),
+                      borderRadius: BorderRadius.circular(TviumRadius.control),
+                      child: Ink(
+                        height: selected ? 150 : 68,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF183044),
+                          borderRadius: BorderRadius.circular(
+                            TviumRadius.control,
+                          ),
+                          border: Border.all(
+                            color: selected
+                                ? TviumColors.accentDark
+                                : Colors.white.withValues(alpha: 0.12),
+                            width: selected ? 2 : 1,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                            TviumRadius.control,
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: <Widget>[
+                              if (artwork != null)
+                                Image.asset(
+                                  artwork,
+                                  key: ValueKey('country-art-$code'),
+                                  fit: BoxFit.cover,
+                                ),
+                              const DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: <Color>[
+                                      Color(0x66071320),
+                                      Color(0xEB071320),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(TviumSpacing.sm),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: <Widget>[
+                                    Text(
+                                      country?.flag ?? '◎',
+                                      style: TextStyle(
+                                        fontSize: selected ? 28 : 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: TviumSpacing.xs),
+                                    Expanded(
+                                      child: Text(
+                                        country?.name ?? 'All countries',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: selected ? 16 : 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      leading: Text(country?.flag ?? '◎'),
-                      title: Text(
-                        country?.name ?? 'All countries',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onTap: () => onSelected?.call(code),
                     ),
                   ),
                 );
@@ -2826,6 +2890,76 @@ final class _CountrySidebar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+final class _LivePreviewPanel extends StatelessWidget {
+  const _LivePreviewPanel({
+    required this.entry,
+    required this.schedule,
+    required this.selectedEntry,
+    required this.engine,
+    this.onPreviousChannel,
+    this.onNextChannel,
+    this.onOpenChannelSwitcher,
+  });
+
+  final _LibraryEntry? entry;
+  final EpgNowNext? schedule;
+  final _LibraryEntry? selectedEntry;
+  final PlaybackEngine? engine;
+  final VoidCallback? onPreviousChannel;
+  final VoidCallback? onNextChannel;
+  final VoidCallback? onOpenChannelSwitcher;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = schedule?.current;
+    final next = schedule?.next;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: _PlayerPanel(
+            selectedEntry: selectedEntry,
+            engine: engine,
+            onPreviousChannel: onPreviousChannel,
+            onNextChannel: onNextChannel,
+            onOpenChannelSwitcher: onOpenChannelSwitcher,
+          ),
+        ),
+        const SizedBox(height: TviumSpacing.md),
+        Expanded(
+          child: SingleChildScrollView(
+            key: const ValueKey('live-preview-info'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  entry?.displayName ?? 'Select a channel',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: TviumSpacing.sm),
+                if (current == null)
+                  const Text('Program guide unavailable')
+                else ...<Widget>[
+                  Text('Now · ${current.title}'),
+                  if (current.description case final description?) ...<Widget>[
+                    const SizedBox(height: TviumSpacing.xs),
+                    Text(description),
+                  ],
+                ],
+                if (next != null) ...<Widget>[
+                  const Divider(height: TviumSpacing.lg),
+                  Text('Up next · ${next.title}'),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

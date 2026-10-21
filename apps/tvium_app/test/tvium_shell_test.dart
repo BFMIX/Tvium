@@ -64,7 +64,7 @@ void main() {
     expect(find.text('Program guide unavailable'), findsOneWidget);
   });
 
-  testWidgets('Live TV country rail filters only explicit country groups', (
+  testWidgets('Live TV country sidebar filters only explicit country groups', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -79,18 +79,51 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('destination-live')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('live-country-rail')), findsOneWidget);
-    expect(find.text('Fixture France'), findsOneWidget);
+    expect(find.byKey(const ValueKey('live-country-sidebar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('live-country-rail')), findsNothing);
+    expect(find.byKey(const ValueKey('country-art-FR')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('live-channel-list')),
+        matching: find.text('Fixture France'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Fixture United States'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('country-US')));
     await tester.pumpAndSettle();
-    expect(find.text('Fixture United States'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('live-channel-list')),
+        matching: find.text('Fixture United States'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Fixture France'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('country-all')));
     await tester.pumpAndSettle();
     expect(find.text('Fixture Region'), findsOneWidget);
+  });
+
+  testWidgets('compact Live TV keeps countries in a horizontal rail', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('live-country-rail')), findsOneWidget);
+    expect(find.byKey(const ValueKey('live-country-sidebar')), findsNothing);
   });
 
   testWidgets('wide Live TV uses the four zones from the approved design', (
@@ -116,6 +149,7 @@ void main() {
     expect(groups, findsOneWidget);
     expect(channels, findsOneWidget);
     expect(preview, findsOneWidget);
+    expect(find.byKey(const ValueKey('live-preview-info')), findsOneWidget);
     expect(
       tester.getTopLeft(country).dx,
       lessThan(tester.getTopLeft(groups).dx),

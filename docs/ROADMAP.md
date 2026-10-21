@@ -48,6 +48,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: profile-scoped favorites and recently played history are persistent and exposed in the library UI.
 - Verified by widget tests: wide Live TV keeps the channel stack visible beside the player preview while a channel plays.
 - Verified by widget tests: the wide Live TV screen follows the approved four-zone layout with country, category, channel, and preview panels; narrower screens retain the country rail.
+- Verified by widget tests: the country pane stays at left at 1280 px, uses approved local landmark illustrations for detected countries, and shows real or unavailable programme information below the player.
 - Verified by synthetic tests: Live TV derives a country rail from explicit group prefixes, starts with France when present, filters categories and channels by country, and keeps regional or ambiguous groups available through All countries.
 - Verified by widget tests: the player zaps forward and backward through the current visible playable channel list, including wraparound.
 - Verified by widget tests: focused Live TV playback responds to up/down remote keys for channel changes.
