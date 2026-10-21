@@ -14,6 +14,18 @@ void main() {
       expect(result.language, 'fr');
       expect(result.quality, '1080P');
     });
+    test('recognizes explicitly separated release years', () {
+      for (final title in ['Exemple [2024]', 'Exemple - 2024']) {
+        final result = normalizer.normalize(title, kind: MediaKind.movie);
+        expect(result.title, 'Exemple');
+        expect(result.year, 2024);
+        expect(result.originalTitle, title);
+      }
+      expect(
+        normalizer.normalize('Studio 2024', kind: MediaKind.movie).year,
+        isNull,
+      );
+    });
     test('does not mistake ordinary title words or years for tags', () {
       for (final title in ['It', 'Up', '1917', 'HD Radio', 'Studio 2024']) {
         expect(normalizer.normalize(title).title, title);
@@ -102,6 +114,45 @@ void main() {
       expect(match.status, MetadataMatchStatus.matched);
       expect(match.candidate?.id, 'localized');
     });
+    test('matches a unique French title with a missing accent and year', () {
+      final match = matcher.match(
+        normalizer.normalize('La Cite (2024)', kind: MediaKind.movie),
+        const [
+          MetadataCandidate(
+            provider: 'synthetic',
+            id: 'localized',
+            title: 'Original Title',
+            alternativeTitles: ['La Cité'],
+            kind: MediaKind.movie,
+            year: 2024,
+          ),
+        ],
+      );
+      expect(match.status, MetadataMatchStatus.matched);
+      expect(match.candidate?.id, 'localized');
+    });
+    test('same-year accent-folded collisions remain ambiguous', () {
+      final match = matcher.match(
+        normalizer.normalize('La Cite (2024)', kind: MediaKind.movie),
+        const [
+          MetadataCandidate(
+            provider: 'synthetic',
+            id: '1',
+            title: 'La Cité',
+            kind: MediaKind.movie,
+            year: 2024,
+          ),
+          MetadataCandidate(
+            provider: 'synthetic',
+            id: '2',
+            title: 'La Cite',
+            kind: MediaKind.movie,
+            year: 2024,
+          ),
+        ],
+      );
+      expect(match.status, MetadataMatchStatus.ambiguous);
+    });
     test(
       'title alone cannot silently associate a remake or regional channel',
       () {
@@ -155,23 +206,20 @@ void main() {
         MetadataMatchStatus.unmatched,
       );
     });
-    test(
-      'punctuation, accents and type differences are not silently erased',
-      () {
-        final query = normalizer.normalize(
-          'Example! (2024)',
-          kind: MediaKind.movie,
-        );
-        expect(
-          matcher.match(query, [movie('1')]).status,
-          MetadataMatchStatus.unmatched,
-        );
-        expect(
-          matcher.match(normalizer.normalize('Example'), [movie('1')]).status,
-          MetadataMatchStatus.unmatched,
-        );
-      },
-    );
+    test('punctuation and type differences are not silently erased', () {
+      final query = normalizer.normalize(
+        'Example! (2024)',
+        kind: MediaKind.movie,
+      );
+      expect(
+        matcher.match(query, [movie('1')]).status,
+        MetadataMatchStatus.unmatched,
+      );
+      expect(
+        matcher.match(normalizer.normalize('Example'), [movie('1')]).status,
+        MetadataMatchStatus.unmatched,
+      );
+    });
     test('episode identity needs coordinates and series year', () {
       const candidate = MetadataCandidate(
         provider: 'synthetic',

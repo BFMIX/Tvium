@@ -173,4 +173,50 @@ void main() {
       );
     },
   );
+
+  test('hero accepts a localized title with a separated year', () async {
+    final store = MetadataOverlayStore(MemoryArtworkKeyValueStore());
+    final client = MetadataGatewayClient(
+      endpoint: Uri.parse('https://metadata.example.test'),
+      client: MockClient(
+        (_) async => http.Response(
+          '{"candidates":[{"id":"9","provider":"tmdb","title":"La Cité","originalTitle":"The City","kind":"movie","year":2024,"posterUrl":"https://image.tmdb.org/t/p/w500/city.jpg","license":"TMDB terms"}]}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        ),
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        metadataGatewayProvider.overrideWithValue(client),
+        metadataOverlayStoreProvider.overrideWithValue(store),
+      ],
+    );
+    addTearDown(container.dispose);
+    final normalized = const PlaylistTitleNormalizer().normalize(
+      'La Cite [2024]',
+      kind: MediaKind.movie,
+    );
+    expect(normalized.title, 'La Cite');
+    expect(normalized.year, 2024);
+    final candidates = await client.search(normalized);
+    expect(candidates, hasLength(1));
+    expect(
+      const MetadataMatcher()
+          .match(normalized, candidates.map((row) => row.candidate))
+          .status,
+      MetadataMatchStatus.matched,
+    );
+    final result = await container.read(
+      metadataHeroOverlayProvider((
+        sourceId: 'source.test',
+        entryId: 'movie.test',
+        title: 'La Cite [2024]',
+        kind: MediaKind.movie,
+        enabled: true,
+      )).future,
+    );
+    expect(result?.posterUri?.host, 'image.tmdb.org');
+    expect(result?.title, 'La Cité');
+  });
 }

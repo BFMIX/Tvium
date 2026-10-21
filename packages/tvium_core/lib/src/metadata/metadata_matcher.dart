@@ -133,6 +133,38 @@ final class MetadataMatcher {
     );
   }
 
-  String _key(String text) =>
-      text.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  String _key(String text) {
+    const accents = <String, String>{
+      'à': 'a',
+      'â': 'a',
+      'ä': 'a',
+      'á': 'a',
+      'ç': 'c',
+      'é': 'e',
+      'è': 'e',
+      'ê': 'e',
+      'ë': 'e',
+      'î': 'i',
+      'ï': 'i',
+      'í': 'i',
+      'ì': 'i',
+      'ô': 'o',
+      'ö': 'o',
+      'ó': 'o',
+      'ò': 'o',
+      'ù': 'u',
+      'û': 'u',
+      'ü': 'u',
+      'ú': 'u',
+      'ÿ': 'y',
+    };
+    return text
+        .trim()
+        .toLowerCase()
+        .replaceAllMapped(
+          RegExp('[${accents.keys.join()}]'),
+          (match) => accents[match[0]]!,
+        )
+        .replaceAll(RegExp(r'\s+'), ' ');
+  }
 }
