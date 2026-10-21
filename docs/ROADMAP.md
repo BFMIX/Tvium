@@ -36,6 +36,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by widget tests: the Home TV Shows card counts grouped series titles, matching the catalog rather than raw episode entries.
 - Verified by synthetic tests: the carousel features playable titles with usable artwork first, and blank M3U logo attributes no longer create empty artwork references.
 - Verified by widget tests: Home does not present an episode still as a series poster and includes each conventionally named local series only once in the carousel.
+- Verified by widget tests: the Home carousel pauses behind an open title details dialog; its candidate list is reused between ticks until the catalog changes.
 - Verified by widget tests: the carousel uses clean Movies/TV Shows labels instead of raw source category names while preserving the original metadata.
 - Verified by widget tests: Live TV uses the approved scenic banner; Movies and TV Shows use a poster-left feature with real catalog artwork or a neutral fallback.
 - Verified by widget tests: M3U episode stills are not promoted to series posters in the feature or poster grid.

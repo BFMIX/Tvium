@@ -934,6 +934,32 @@ void main() {
     expect(nextTitle.data, isNot(initialTitle.data));
   });
 
+  testWidgets('Home carousel pauses while title details are open', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _HeroArtworkFixtureSource()));
+    await tester.pumpAndSettle();
+    final heroTitle = find.byKey(
+      const ValueKey('home-hero-title'),
+      skipOffstage: false,
+    );
+    final before = tester.widget<Text>(heroTitle).data;
+
+    await tester.tap(find.byKey(const ValueKey('home-hero-details')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('title-details')), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(tester.widget<Text>(heroTitle).data, before);
+  });
+
   testWidgets('Home uses fixed destination art and a spacious hero gap', (
     tester,
   ) async {

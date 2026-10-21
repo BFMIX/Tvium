@@ -1660,6 +1660,8 @@ final class _DestinationHomeState extends State<_DestinationHome> {
   bool? _reduceHeroMotion;
   List<_LibraryEntry>? _countedEntries;
   var _showCount = 0;
+  List<_LibraryEntry>? _heroSource;
+  List<_LibraryEntry>? _cachedHeroEntries;
 
   int _countShows(List<_LibraryEntry> entries) {
     if (!identical(_countedEntries, entries)) {
@@ -1674,6 +1676,9 @@ final class _DestinationHomeState extends State<_DestinationHome> {
   }
 
   List<_LibraryEntry> get _heroEntries {
+    if (identical(_heroSource, widget.entries) && _cachedHeroEntries != null) {
+      return _cachedHeroEntries!;
+    }
     final playable = widget.entries
         .where((entry) => entry.kind != MediaKind.live && entry.isPlayable)
         .toList(growable: false);
@@ -1689,7 +1694,7 @@ final class _DestinationHomeState extends State<_DestinationHome> {
           );
         })
         .toList(growable: false);
-    return <_LibraryEntry>[
+    final selected = <_LibraryEntry>[
       ...distinct.where(
         (entry) =>
             entry.kind == MediaKind.movie && entry.imageUri?.hasScheme == true,
@@ -1699,6 +1704,9 @@ final class _DestinationHomeState extends State<_DestinationHome> {
             entry.kind != MediaKind.movie || entry.imageUri?.hasScheme != true,
       ),
     ].take(5).toList(growable: false);
+    _heroSource = widget.entries;
+    _cachedHeroEntries = selected;
+    return selected;
   }
 
   @override
@@ -1724,6 +1732,8 @@ final class _DestinationHomeState extends State<_DestinationHome> {
         .join('\u0000');
     final currentIds = widget.entries.map((entry) => entry.id).join('\u0000');
     if (previousIds != currentIds) {
+      _heroSource = null;
+      _cachedHeroEntries = null;
       _heroIndex = 0;
       _startHeroTimer();
     }
@@ -1733,7 +1743,7 @@ final class _DestinationHomeState extends State<_DestinationHome> {
     _heroTimer?.cancel();
     if (_reduceHeroMotion != false || _heroEntries.length < 2) return;
     _heroTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!mounted) return;
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       setState(() => _heroIndex = (_heroIndex + 1) % _heroEntries.length);
     });
   }
