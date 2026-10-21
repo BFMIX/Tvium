@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_design_system/tvium_design_system.dart';
+import 'package:tvium_epg/tvium_epg.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
 import 'package:tvium_playback/tvium_playback.dart';
 import 'package:tvium_xtream/tvium_xtream.dart';
@@ -3222,6 +3223,23 @@ final class _LivePreviewPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = schedule?.current;
     final next = schedule?.next;
+    final currentDuration = current == null
+        ? Duration.zero
+        : current.stopUtc.difference(current.startUtc);
+    final currentProgress = currentDuration.inMilliseconds > 0
+        ? (DateTime.now().toUtc().difference(current!.startUtc).inMilliseconds /
+                  currentDuration.inMilliseconds)
+              .clamp(0.0, 1.0)
+        : null;
+    String timeRange(EpgProgramme programme) {
+      String time(DateTime utc) {
+        final local = utc.toLocal();
+        return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+      }
+
+      return '${time(programme.startUtc)} – ${time(programme.stopUtc)}';
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -3251,6 +3269,15 @@ final class _LivePreviewPanel extends StatelessWidget {
                   const Text('Program guide unavailable')
                 else ...<Widget>[
                   Text('Now · ${current.title}'),
+                  const SizedBox(height: TviumSpacing.xs),
+                  Text(timeRange(current)),
+                  if (currentProgress != null) ...<Widget>[
+                    const SizedBox(height: TviumSpacing.sm),
+                    LinearProgressIndicator(
+                      key: const ValueKey('live-preview-progress'),
+                      value: currentProgress,
+                    ),
+                  ],
                   if (current.description case final description?) ...<Widget>[
                     const SizedBox(height: TviumSpacing.xs),
                     Text(description),
@@ -3259,6 +3286,8 @@ final class _LivePreviewPanel extends StatelessWidget {
                 if (next != null) ...<Widget>[
                   const Divider(height: TviumSpacing.lg),
                   Text('Up next · ${next.title}'),
+                  const SizedBox(height: TviumSpacing.xs),
+                  Text(timeRange(next)),
                 ] else if (current != null) ...<Widget>[
                   const Divider(height: TviumSpacing.lg),
                   const Text('Up next · Not available'),

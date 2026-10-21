@@ -11,6 +11,10 @@ void main() {
   testWidgets('shows real Now and Next titles for a matched live channel', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final setup = await tester.runAsync(() async {
       final directory = await Directory.systemTemp.createTemp('tvium-epg-ui-');
       final repository = SqlitePlaylistRepository.open(
@@ -30,9 +34,18 @@ void main() {
           sourceReference: 'secret-reference',
           originalName: 'Test News',
           displayName: 'Test News',
-          groupName: 'News',
+          groupName: 'FR | News',
           kind: MediaKind.live,
           epgChannelId: 'guide.news',
+        ),
+        PersistedMediaEntry(
+          id: 'live:other',
+          playlistId: 'source.test',
+          sourceReference: 'secret-reference',
+          originalName: 'Other Channel',
+          displayName: 'Other Channel',
+          groupName: 'US | News',
+          kind: MediaKind.live,
         ),
       ]);
       final now = DateTime.now().toUtc();
@@ -83,5 +96,6 @@ void main() {
     expect(find.text('Current News'), findsOneWidget);
     expect(find.text('Next: Next News'), findsOneWidget);
     expect(find.text('Program guide unavailable'), findsNothing);
+    expect(find.byKey(const ValueKey('live-preview-progress')), findsOneWidget);
   });
 }
