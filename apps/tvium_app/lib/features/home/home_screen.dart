@@ -4337,28 +4337,39 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
         context: context,
         useSafeArea: false,
         builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogContext, setDialogState) => Dialog.fullscreen(
-            child: ColoredBox(
-              key: const ValueKey('live-fullscreen-player'),
-              color: Colors.black,
-              child: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  viewBuilder(engine),
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: SafeArea(
-                      child: _controls(
-                        engine,
-                        fullScreen: true,
-                        onVolumeChanged: (value) {
-                          setDialogState(() => _volume = value);
-                          engine.setVolume(value);
-                        },
+          builder: (dialogContext, setDialogState) => Focus(
+            autofocus: true,
+            onKeyEvent: (node, event) {
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.keyF) {
+                Navigator.of(dialogContext).pop();
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: Dialog.fullscreen(
+              child: ColoredBox(
+                key: const ValueKey('live-fullscreen-player'),
+                color: Colors.black,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: <Widget>[
+                    viewBuilder(engine),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: SafeArea(
+                        child: _controls(
+                          engine,
+                          fullScreen: true,
+                          onVolumeChanged: (value) {
+                            setDialogState(() => _volume = value);
+                            engine.setVolume(value);
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -4461,9 +4472,15 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
       key: const ValueKey('live-player-focus'),
       canRequestFocus: widget.onNextChannel != null,
       onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent || widget.onNextChannel == null) {
+        if (event is! KeyDownEvent) {
           return KeyEventResult.ignored;
         }
+        if (event.logicalKey == LogicalKeyboardKey.keyF &&
+            playbackEngine != null) {
+          unawaited(_openFullScreen());
+          return KeyEventResult.handled;
+        }
+        if (widget.onNextChannel == null) return KeyEventResult.ignored;
         if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
             event.logicalKey == LogicalKeyboardKey.pageUp) {
           widget.onPreviousChannel?.call();

@@ -519,6 +519,55 @@ void main() {
     );
   });
 
+  testWidgets('Live TV F shortcut uses the same full screen player', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+        playbackEngineFactory: _FakePlaybackEngine.new,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+    unawaited(controller.importSource(const _ZappingFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-row-entry-1')));
+    await tester.pumpAndSettle();
+    Focus.of(
+      tester.element(find.byKey(const ValueKey('live-preview-controls'))),
+    ).requestFocus();
+    await tester.pump();
+    expect(
+      Focus.of(
+        tester.element(find.byKey(const ValueKey('live-preview-controls'))),
+      ).hasFocus,
+      isTrue,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('live-fullscreen-player')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('live-preview-controls')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('live-fullscreen-controls')),
+      findsOneWidget,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('live-fullscreen-player')), findsNothing);
+  });
+
   testWidgets('Live TV player zaps through visible playable channels', (
     tester,
   ) async {

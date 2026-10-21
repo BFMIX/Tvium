@@ -69,6 +69,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by widget tests: the preview offers Play, Favorite, and an honest Now/Next guide; the player has a full screen view with play, channel, and volume controls.
 - Verified by synthetic tests: Live TV derives a country rail from explicit group prefixes, starts with France when present, filters categories and channels by country, and keeps regional or ambiguous groups available through All countries.
 - Verified by widget tests: the player zaps forward and backward through the current visible playable channel list, including wraparound.
+- Verified by widget tests: the F shortcut and the preview full-screen button open the same single-control player view; F also closes it.
 - Verified by widget tests: focused Live TV playback responds to up/down remote keys for channel changes.
 - Verified by widget tests: the Live TV player opens a searchable quick switcher scoped to visible playable channels; submitting a search selects the first match and leaves empty results open.
 - In progress: physical remote validation, variant selection, and targeted health checks remain planned.
