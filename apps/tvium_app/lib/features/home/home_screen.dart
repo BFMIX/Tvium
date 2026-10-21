@@ -26,6 +26,7 @@ import '../import/m3u_import_persistence.dart';
 import '../import/playlist_import_controller.dart';
 import '../import/playlist_import_provider.dart';
 import '../import/xtream_m3u_detector.dart';
+import '../import/xtream_m3u_reconciliation.dart';
 import '../library/library_bootstrap_controller.dart';
 import '../library/live_country.dart';
 import '../library/source_refresh_schedule.dart';
@@ -35,6 +36,7 @@ import '../metadata/metadata_gateway_client.dart';
 import '../metadata/metadata_overlay_store.dart';
 import '../parental/parental_pin_service.dart';
 import '../profiles/profile_switcher.dart';
+import '../sources/source_identity_service.dart';
 import '../updates/update_checker.dart';
 import '../xtream/secure_xtream_profile_store.dart';
 import '../xtream/xtream_connection_form.dart';
@@ -759,16 +761,46 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     final candidate = uri == null ? null : detectXtreamM3u(uri);
     if (candidate == null) return false;
     try {
-      await ref
-          .read(xtreamConnectionServiceProvider)
-          .addPlaylist(
-            XtreamConnectionInput(
-              profileName: source.displayName,
-              serverUri: candidate.serverUri,
-              credentials: candidate.credentials,
-            ),
-          );
+      final service = ref.read(xtreamConnectionServiceProvider);
+      if (service is! XtreamCatalogPreviewService) return false;
+      final previewService = service as XtreamCatalogPreviewService;
       final repository = await ref.read(libraryRepositoryProvider.future);
+      if (repository is! UserOverlayRepository) return false;
+      final overlays = repository as UserOverlayRepository;
+      final digest = await SourceIdentityService(FlutterSecureKeyValueStore())
+          .xtreamDigest(candidate.serverUri, candidate.credentials.username);
+      if (await repository.sourceByIdentity(digest) != null) return false;
+      final saved = await repository.entriesForPlaylist(source.id);
+      if (await _hasSavedSourceOverlays(repository, overlays, source.id)) {
+        return false;
+      }
+      final input = XtreamConnectionInput(
+        profileName: source.displayName,
+        serverUri: candidate.serverUri,
+        credentials: candidate.credentials,
+      );
+      final preview = await previewService.previewCatalog(input);
+      if (!canReplaceSavedM3u(saved, preview)) return false;
+      final profile = await service.addPlaylist(input);
+      if (profile.wasExisting ||
+          !canReplaceSavedM3u(saved, profile.catalog) ||
+          !canReplaceSavedM3u(
+            await repository.entriesForPlaylist(source.id),
+            profile.catalog,
+          ) ||
+          await _hasSavedSourceOverlays(repository, overlays, source.id)) {
+        if (!profile.wasAlreadyLinked) {
+          final active = await repository.activeProfile();
+          final orphan = await repository.unlinkSource(
+            active.id,
+            profile.sourceId,
+          );
+          if (orphan != null) {
+            await _removeOrphanedSources(<IptvSource>[orphan]);
+          }
+        }
+        return false;
+      }
       final active = await repository.activeProfile();
       final orphan = await repository.unlinkSource(active.id, source.id);
       if (orphan != null) await _removeOrphanedSources(<IptvSource>[orphan]);
@@ -778,6 +810,24 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     } on Object {
       return false;
     }
+  }
+
+  Future<bool> _hasSavedSourceOverlays(
+    ProfileSourceRepository repository,
+    UserOverlayRepository overlays,
+    String sourceId,
+  ) async {
+    final profiles = await repository.profiles();
+    for (final profile in profiles) {
+      final favorites = await overlays.favoritesForProfile(profile.id);
+      if (favorites.any((item) => item.sourceId == sourceId)) return true;
+      final history = await overlays.historyForProfile(profile.id, limit: 1001);
+      if (history.length >= 1001 ||
+          history.any((item) => item.media.sourceId == sourceId)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> _refreshDueSources(List<IptvSource> sources) async {

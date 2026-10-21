@@ -77,6 +77,10 @@ abstract interface class XtreamSourceRefreshService {
   Future<XtreamRefreshResult> refreshSource(String sourceId);
 }
 
+abstract interface class XtreamCatalogPreviewService {
+  Future<XtreamCatalog> previewCatalog(XtreamConnectionInput input);
+}
+
 abstract interface class XtreamSeriesService {
   Future<XtreamSeriesDetails> loadSeriesDetails(
     String profileId,
@@ -108,6 +112,7 @@ final class XtreamRefreshResult {
 final class DefaultXtreamConnectionService
     implements
         XtreamConnectionService,
+        XtreamCatalogPreviewService,
         XtreamSourceRefreshService,
         XtreamSeriesService {
   DefaultXtreamConnectionService({
@@ -137,6 +142,14 @@ final class DefaultXtreamConnectionService
   Future<XtreamAccountInfo> testConnection(XtreamConnectionInput input) {
     return XtreamClient(_httpClient)
         .authenticate(_profile(input, 'connection-test'), input.credentials);
+  }
+
+  @override
+  Future<XtreamCatalog> previewCatalog(XtreamConnectionInput input) async {
+    final profile = _profile(input, 'catalog-preview');
+    final client = XtreamClient(_httpClient);
+    await client.authenticate(profile, input.credentials);
+    return client.loadCatalog(profile, input.credentials);
   }
 
   Future<T> _serialized<T>(Future<T> Function() operation) async {
