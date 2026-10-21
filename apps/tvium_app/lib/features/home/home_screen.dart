@@ -2491,7 +2491,8 @@ final class _CatalogPage extends ConsumerWidget {
               ),
             ),
           const SizedBox(height: TviumSpacing.md),
-          if (countries.length >= 2) ...<Widget>[
+          if (countries.length >= 2 &&
+              MediaQuery.sizeOf(context).width < 1400) ...<Widget>[
             SizedBox(
               height: 58,
               child: ListView(
@@ -2544,6 +2545,54 @@ final class _CatalogPage extends ConsumerWidget {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 if (destination != _CatalogDestination.live) return catalog;
+                if (constraints.maxWidth >= 1350 && countries.length >= 2) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      SizedBox(
+                        key: const ValueKey('live-country-sidebar'),
+                        width: 190,
+                        child: _CountrySidebar(
+                          countries: countries,
+                          selectedCode: activeCountryCode,
+                          onSelected: onCountrySelected,
+                        ),
+                      ),
+                      const SizedBox(width: TviumSpacing.md),
+                      SizedBox(
+                        key: const ValueKey('catalog-group-sidebar'),
+                        width: 210,
+                        child: _GroupSidebar(
+                          groups: groups,
+                          selectedGroup: selectedGroup,
+                          onSelected: onGroupSelected,
+                        ),
+                      ),
+                      const SizedBox(width: TviumSpacing.md),
+                      Expanded(child: media),
+                      const SizedBox(width: TviumSpacing.md),
+                      SizedBox(
+                        key: const ValueKey('catalog-player'),
+                        width: constraints.maxWidth * 0.27,
+                        child: _PlayerPanel(
+                          selectedEntry: selectedEntry,
+                          engine: playbackEngine,
+                          onOpenChannelSwitcher: liveChannels.isNotEmpty
+                              ? openChannelSwitcher
+                              : null,
+                          onPreviousChannel:
+                              selectedLiveIndex >= 0 && liveChannels.length > 1
+                              ? () => zapChannel(-1)
+                              : null,
+                          onNextChannel:
+                              selectedLiveIndex >= 0 && liveChannels.length > 1
+                              ? () => zapChannel(1)
+                              : null,
+                        ),
+                      ),
+                    ],
+                  );
+                }
                 if (constraints.maxWidth >= 1100 &&
                     destination == _CatalogDestination.live &&
                     showPlayer) {
@@ -2697,6 +2746,88 @@ final class _CatalogBanner extends StatelessWidget {
       ],
     ),
   );
+}
+
+final class _CountrySidebar extends StatelessWidget {
+  const _CountrySidebar({
+    required this.countries,
+    required this.selectedCode,
+    required this.onSelected,
+  });
+
+  final List<LiveCountry> countries;
+  final String selectedCode;
+  final ValueChanged<String>? onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final options = <LiveCountry?>[null, ...countries];
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xB30A1A2A),
+        borderRadius: BorderRadius.circular(TviumRadius.surface),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              TviumSpacing.md,
+              TviumSpacing.md,
+              TviumSpacing.md,
+              TviumSpacing.sm,
+            ),
+            child: Text(
+              'Countries',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(
+                TviumSpacing.xs,
+                0,
+                TviumSpacing.xs,
+                TviumSpacing.sm,
+              ),
+              itemCount: options.length,
+              itemBuilder: (context, index) {
+                final country = options[index];
+                final code = country?.code ?? 'ALL';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      key: ValueKey('country-${country?.code ?? 'all'}'),
+                      dense: true,
+                      selected: code == selectedCode,
+                      selectedTileColor: TviumColors.accentDark.withValues(
+                        alpha: 0.16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          TviumRadius.control,
+                        ),
+                      ),
+                      leading: Text(country?.flag ?? '◎'),
+                      title: Text(
+                        country?.name ?? 'All countries',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => onSelected?.call(code),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 final class _GroupSidebar extends StatelessWidget {

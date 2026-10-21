@@ -93,6 +93,43 @@ void main() {
     expect(find.text('Fixture Region'), findsOneWidget);
   });
 
+  testWidgets('wide Live TV uses the four zones from the approved design', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    final country = find.byKey(const ValueKey('live-country-sidebar'));
+    final groups = find.byKey(const ValueKey('catalog-group-sidebar'));
+    final channels = find.byKey(const ValueKey('live-channel-list'));
+    final preview = find.byKey(const ValueKey('catalog-player'));
+    expect(country, findsOneWidget);
+    expect(groups, findsOneWidget);
+    expect(channels, findsOneWidget);
+    expect(preview, findsOneWidget);
+    expect(
+      tester.getTopLeft(country).dx,
+      lessThan(tester.getTopLeft(groups).dx),
+    );
+    expect(
+      tester.getTopLeft(groups).dx,
+      lessThan(tester.getTopLeft(channels).dx),
+    );
+    expect(
+      tester.getTopLeft(channels).dx,
+      lessThan(tester.getTopLeft(preview).dx),
+    );
+  });
+
   testWidgets('wide Live TV places player beside the channel stack', (
     tester,
   ) async {
