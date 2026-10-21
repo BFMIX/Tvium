@@ -2475,6 +2475,7 @@ final class _CatalogPage extends ConsumerWidget {
                     ? const ValueKey('media-card-movie')
                     : ValueKey('media-card-${entry.id}'),
                 entry: entry,
+                prefetchMetadata: index < 4,
                 schedule: epgSchedules[entry.id],
                 destination: destination,
                 favorite: favorites.contains(entry.locator(profileId)),
@@ -3651,6 +3652,7 @@ final class _MediaCard extends StatelessWidget {
   const _MediaCard({
     super.key,
     required this.entry,
+    this.prefetchMetadata = false,
     required this.schedule,
     required this.destination,
     required this.onTap,
@@ -3659,6 +3661,7 @@ final class _MediaCard extends StatelessWidget {
   });
 
   final _LibraryEntry entry;
+  final bool prefetchMetadata;
   final EpgNowNext? schedule;
   final _CatalogDestination destination;
   final VoidCallback? onTap;
@@ -3680,7 +3683,10 @@ final class _MediaCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
-                  _CatalogArtwork(entry: entry),
+                  _CatalogArtwork(
+                    entry: entry,
+                    prefetchMetadata: prefetchMetadata,
+                  ),
                   Align(
                     alignment: Alignment.topRight,
                     child: IconButton.filledTonal(
@@ -3750,9 +3756,14 @@ final class _MediaCard extends StatelessWidget {
 }
 
 final class _CatalogArtwork extends ConsumerWidget {
-  const _CatalogArtwork({super.key, required this.entry});
+  const _CatalogArtwork({
+    super.key,
+    required this.entry,
+    this.prefetchMetadata = false,
+  });
 
   final _LibraryEntry entry;
+  final bool prefetchMetadata;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -3766,6 +3777,18 @@ final class _CatalogArtwork extends ConsumerWidget {
     final live = entry.kind == MediaKind.live;
     final overlay = live || !enabled
         ? null
+        : prefetchMetadata
+        ? ref
+              .watch(
+                metadataHeroOverlayProvider((
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
+                  title: entry.name,
+                  kind: entry.kind,
+                  enabled: true,
+                )),
+              )
+              .value
         : ref
               .watch(
                 metadataCachedOverlayProvider((

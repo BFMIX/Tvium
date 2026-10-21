@@ -1355,6 +1355,61 @@ void main() {
     );
   });
 
+  testWidgets(
+    'opted-in Movies enriches visible posters without opening details',
+    (tester) async {
+      metadataEnabled.value = true;
+      addTearDown(() => metadataEnabled.value = false);
+      final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
+      await consent.write(true);
+      final requested = <String>[];
+      final client = MetadataGatewayClient(
+        endpoint: Uri.parse('https://metadata.example.test'),
+        client: MockClient((request) async {
+          final title =
+              (jsonDecode(request.body) as Map<String, dynamic>)['title']
+                  as String;
+          requested.add(title);
+          return http.Response(
+            jsonEncode({
+              'candidates': [
+                {
+                  'id': title == 'Second Movie' ? '2' : '1',
+                  'provider': 'tmdb',
+                  'title': title,
+                  'kind': 'movie',
+                  'year': 2025,
+                  'posterUrl': 'https://image.tmdb.org/t/p/w500/poster.jpg',
+                  'license': 'TMDB terms',
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+      final controller = PlaylistImportController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        TviumApp(
+          importController: controller,
+          metadataGatewayClient: client,
+          metadataOverlayStore: MetadataOverlayStore(
+            MemoryArtworkKeyValueStore(),
+          ),
+          metadataConsentStore: consent,
+        ),
+      );
+      unawaited(controller.importSource(const _MetadataGridFixtureSource()));
+      await tester.pumpAndSettle();
+      expect(requested, isNot(contains('Second Movie')));
+      await tester.tap(find.byKey(const ValueKey('destination-movies')));
+      await tester.pumpAndSettle();
+      expect(requested, contains('Second Movie'));
+      expect(find.byKey(const ValueKey('poster-grid')), findsOneWidget);
+    },
+  );
+
   testWidgets('Home does not display an episode still as a series poster', (
     tester,
   ) async {
@@ -2006,6 +2061,19 @@ final class _DesignFixtureSource implements M3uSource {
     'https://stream.example.test/series/episode.mkv',
     '#EXTINF:-1 group-title="Series",Demo Show 1x02',
     'https://stream.example.test/series/episode-2.mkv',
+  ]);
+}
+
+final class _MetadataGridFixtureSource implements M3uSource {
+  const _MetadataGridFixtureSource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    '#EXTINF:-1 tvg-logo="https://art.example.test/first.jpg" group-title="Movies",First Movie (2025)',
+    'https://stream.example.test/vod/first.mp4',
+    '#EXTINF:-1 group-title="Movies",Second Movie (2025)',
+    'https://stream.example.test/vod/second.mp4',
   ]);
 }
 
