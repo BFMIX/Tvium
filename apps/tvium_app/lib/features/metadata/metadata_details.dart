@@ -864,6 +864,14 @@ final class _MetadataDetailsState extends ConsumerState<MetadataDetails> {
                   'Online metadata is off. You can enable it in Settings.',
                 ),
               ),
+            if (metadataEnabled.value &&
+                ref.watch(metadataGatewayProvider) == null)
+              const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: Text(
+                  'The local metadata service is not configured for this app launch.',
+                ),
+              ),
             if (_loading) const LinearProgressIndicator(),
             if (_message != null)
               Padding(

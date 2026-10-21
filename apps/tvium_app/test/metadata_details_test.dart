@@ -154,6 +154,28 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsNothing);
   });
 
+  testWidgets('enabled metadata explains a missing local gateway', (
+    tester,
+  ) async {
+    metadataEnabled.value = true;
+    await tester.pumpWidget(
+      const ProviderScope(
+        overrides: [],
+        child: MaterialApp(
+          home: Scaffold(
+            body: MetadataDetails(
+              originalTitle: 'Example Movie (2020)',
+              kind: MediaKind.movie,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('local metadata service'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+  });
+
   testWidgets('series details accept a unique title and year match', (
     tester,
   ) async {
