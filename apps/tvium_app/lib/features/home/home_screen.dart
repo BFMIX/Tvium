@@ -2268,6 +2268,7 @@ final class _CatalogPage extends ConsumerWidget {
     final liveChannels = destination == _CatalogDestination.live
         ? visible.where((entry) => entry.isPlayable).toList(growable: false)
         : const <_LibraryEntry>[];
+    final previewEntry = showPlayer ? selectedEntry : liveChannels.firstOrNull;
     final selectedLiveLocator = selectedEntry?.locator(profileId);
     final selectedLiveIndex = selectedLiveLocator == null
         ? -1
@@ -2622,14 +2623,8 @@ final class _CatalogPage extends ConsumerWidget {
                         key: const ValueKey('catalog-player'),
                         width: constraints.maxWidth * 0.27,
                         child: _LivePreviewPanel(
-                          entry: selectedLiveIndex >= 0
-                              ? liveChannels[selectedLiveIndex]
-                              : liveChannels.firstOrNull,
-                          schedule:
-                              epgSchedules[(selectedLiveIndex >= 0
-                                      ? liveChannels[selectedLiveIndex]
-                                      : liveChannels.firstOrNull)
-                                  ?.id],
+                          entry: previewEntry,
+                          schedule: epgSchedules[previewEntry?.id],
                           selectedEntry: selectedEntry,
                           engine: playbackEngine,
                           onOpenChannelSwitcher: liveChannels.isNotEmpty

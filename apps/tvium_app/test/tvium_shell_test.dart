@@ -193,6 +193,43 @@ void main() {
     );
   });
 
+  testWidgets('live preview details keep describing the playing channel', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+        playbackEngineFactory: _FakePlaybackEngine.new,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-row-entry-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('country-US')));
+    await tester.pumpAndSettle();
+
+    final info = find.byKey(const ValueKey('live-preview-info'));
+    expect(
+      find.descendant(of: info, matching: find.text('Fixture France')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: info, matching: find.text('Fixture United States')),
+      findsNothing,
+    );
+  });
+
   testWidgets('wide Live TV uses the four zones from the approved design', (
     tester,
   ) async {

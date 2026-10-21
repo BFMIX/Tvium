@@ -51,6 +51,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by widget tests: the country pane stays at left at 1280 px, uses approved local landmark illustrations for detected countries, and shows real or unavailable programme information below the player.
 - Verified by widget tests: the wide country pane searches only detected countries; the adjacent category pane displays country-free labels while retaining original group values for filtering.
 - Verified by widget tests: the wide channel pane includes its own search above the channel stack, scoped to the active country and category.
+- Verified by widget tests: preview details remain tied to the playing channel when a different country is selected.
 - Verified by synthetic tests: Live TV derives a country rail from explicit group prefixes, starts with France when present, filters categories and channels by country, and keeps regional or ambiguous groups available through All countries.
 - Verified by widget tests: the player zaps forward and backward through the current visible playable channel list, including wraparound.
 - Verified by widget tests: focused Live TV playback responds to up/down remote keys for channel changes.
