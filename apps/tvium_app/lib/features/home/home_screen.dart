@@ -1199,6 +1199,13 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   String? _selectedCountryCode;
   String _query = '';
   bool _searching = false;
+  final _queryController = TextEditingController();
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1227,7 +1234,10 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                 onDestinationSelected: _selectDestination,
                 onSearch: () => setState(() {
                   _searching = !_searching;
-                  if (!_searching) _query = '';
+                  if (!_searching) {
+                    _query = '';
+                    _queryController.clear();
+                  }
                 }),
                 onSettings: () => showSettingsPages(
                   context,
@@ -1283,6 +1293,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                   ),
                   child: TextField(
                     key: const ValueKey('library-search'),
+                    controller: _queryController,
                     autofocus: true,
                     decoration: const InputDecoration(
                       hintText: 'Search this section',
@@ -1317,6 +1328,10 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       entries: _entriesFor(_destination),
                       epgSchedules: widget.epgSchedules,
                       query: _query,
+                      channelSearchController: _queryController,
+                      onQueryChanged: (value) =>
+                          setState(() => _query = value.trim()),
+                      showLocalChannelSearch: !_searching,
                       selectedGroup: widget.selectedGroup,
                       selectedEntry: widget.selectedEntry,
                       playbackEngine: widget.playbackEngine,
@@ -1420,6 +1435,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   }
 
   void _selectDestination(_CatalogDestination destination) {
+    _queryController.clear();
     setState(() {
       _destination = destination;
       _selectedCountryCode = null;
@@ -2162,6 +2178,9 @@ final class _CatalogPage extends ConsumerWidget {
     required this.entries,
     required this.epgSchedules,
     required this.query,
+    this.channelSearchController,
+    this.onQueryChanged,
+    this.showLocalChannelSearch = false,
     required this.selectedGroup,
     required this.selectedEntry,
     required this.playbackEngine,
@@ -2179,6 +2198,9 @@ final class _CatalogPage extends ConsumerWidget {
   final List<_LibraryEntry> entries;
   final Map<String, EpgNowNext?> epgSchedules;
   final String query;
+  final TextEditingController? channelSearchController;
+  final ValueChanged<String>? onQueryChanged;
+  final bool showLocalChannelSearch;
   final String? selectedGroup;
   final _LibraryEntry? selectedEntry;
   final PlaybackEngine? playbackEngine;
@@ -2569,7 +2591,32 @@ final class _CatalogPage extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(width: TviumSpacing.md),
-                      Expanded(child: media),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            Text(
+                              'Channels · ${visible.length}',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            if (showLocalChannelSearch) ...<Widget>[
+                              const SizedBox(height: TviumSpacing.sm),
+                              TextField(
+                                key: const ValueKey('live-channel-search'),
+                                controller: channelSearchController,
+                                decoration: const InputDecoration(
+                                  prefixIcon: Icon(Icons.search_rounded),
+                                  hintText: 'Search channels',
+                                  isDense: true,
+                                ),
+                                onChanged: onQueryChanged,
+                              ),
+                            ],
+                            const SizedBox(height: TviumSpacing.sm),
+                            Expanded(child: media),
+                          ],
+                        ),
+                      ),
                       const SizedBox(width: TviumSpacing.md),
                       SizedBox(
                         key: const ValueKey('catalog-player'),

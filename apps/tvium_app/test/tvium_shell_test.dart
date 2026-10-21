@@ -157,6 +157,42 @@ void main() {
     expect(find.byKey(const ValueKey('country-FR')), findsNothing);
   });
 
+  testWidgets('wide Live TV searches channels inside the channel pane', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('country-all')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('live-channel-search')),
+      'United States',
+    );
+    await tester.pumpAndSettle();
+    final channels = find.byKey(const ValueKey('live-channel-list'));
+    expect(
+      find.descendant(
+        of: channels,
+        matching: find.text('Fixture United States'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: channels, matching: find.text('Fixture France')),
+      findsNothing,
+    );
+  });
+
   testWidgets('wide Live TV uses the four zones from the approved design', (
     tester,
   ) async {
