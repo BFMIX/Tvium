@@ -900,6 +900,39 @@ void main() {
     expect(find.byKey(const ValueKey('home-hero-poster')), findsOneWidget);
   });
 
+  testWidgets('Home does not display an episode still as a series poster', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _EpisodeStillFixtureSource()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('home-hero')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-hero-poster')), findsNothing);
+  });
+
+  testWidgets('Home carousel features each local series once', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('home-hero-page-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-hero-page-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-hero-page-2')), findsNothing);
+  });
+
   testWidgets('Home hero uses a clean media label instead of source groups', (
     tester,
   ) async {

@@ -1677,9 +1677,27 @@ final class _DestinationHomeState extends State<_DestinationHome> {
     final playable = widget.entries
         .where((entry) => entry.kind != MediaKind.live && entry.isPlayable)
         .toList(growable: false);
+    const normalizer = PlaylistTitleNormalizer();
+    final seenSeries = <String>{};
+    final distinct = playable
+        .where((entry) {
+          if (entry.kind != MediaKind.episode) return true;
+          final title = normalizer.normalize(entry.name, kind: entry.kind);
+          if (title.season == null || title.episode == null) return true;
+          return seenSeries.add(
+            '${entry.sourceId}\u0000${title.title.toLowerCase()}',
+          );
+        })
+        .toList(growable: false);
     return <_LibraryEntry>[
-      ...playable.where((entry) => entry.imageUri?.hasScheme == true),
-      ...playable.where((entry) => entry.imageUri?.hasScheme != true),
+      ...distinct.where(
+        (entry) =>
+            entry.kind == MediaKind.movie && entry.imageUri?.hasScheme == true,
+      ),
+      ...distinct.where(
+        (entry) =>
+            entry.kind != MediaKind.movie || entry.imageUri?.hasScheme != true,
+      ),
     ].take(5).toList(growable: false);
   }
 
@@ -1904,7 +1922,8 @@ final class _HomeHero extends StatelessWidget {
                   ),
                 ),
               ),
-              if (entry.imageUri?.hasScheme == true &&
+              if (entry.kind == MediaKind.movie &&
+                  entry.imageUri?.hasScheme == true &&
                   MediaQuery.sizeOf(context).width >= 920)
                 Positioned(
                   key: const ValueKey('home-hero-poster'),
