@@ -55,6 +55,37 @@ void main() {
     expect(find.byKey(const ValueKey('epg-url-field')), findsNothing);
   });
 
+  testWidgets('Settings explains update checks for development builds', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showSettingsPages(
+                context,
+                openSection: (section) => showLibrarySettings(
+                  context,
+                  configured: false,
+                  section: section,
+                ),
+              ),
+              child: const Text('Open settings pages'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open settings pages'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-page-updates')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Updates'), findsWidgets);
+    expect(find.textContaining('development build'), findsOneWidget);
+  });
+
   testWidgets(
     'details show cleaned and original title without opt-in traffic',
     (tester) async {

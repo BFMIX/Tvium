@@ -9,6 +9,11 @@ Tvium publishes three testable downloads from one GitHub Actions workflow:
 The same workflow deploys the Web build to GitHub Pages with the repository
 base path `/Tvium/`.
 
+Each tagged build embeds its release tag. Tvium checks public GitHub releases
+on startup, announces a newer published version, and offers a manual check in
+Settings > Updates. A source-code push without a release does not create an
+installable update. Development builds do not check for updates.
+
 ## Create a Test Release
 
 1. Open **Actions > Release > Run workflow** in GitHub.
@@ -29,6 +34,12 @@ ad-hoc signed and is not notarized. The Android APK uses the project's temporary
 debug signing configuration. Store distribution requires protected signing
 credentials, Apple notarization, and an Android upload key. Never commit those
 credentials to the repository.
+
+Automatic installation stays disabled until a signed macOS appcast and
+platform-specific distribution paths are configured. iOS and Store-distributed
+apps use their Store's update mechanism; Google Play in-app updates do not
+support Android TV. The Web release is refreshed by redeploying Pages and
+reloading the browser.
 
 ## Local Packaging
 

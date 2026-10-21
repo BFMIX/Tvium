@@ -25,6 +25,7 @@ concurrency:
 
 env:
   APP_DIRECTORY: apps/tvium_app
+  TVIUM_RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
 jobs:
   macos:
@@ -45,7 +46,9 @@ jobs:
       - name: Build macOS release
         working-directory: ${{ env.APP_DIRECTORY }}
         run: |
-          flutter build macos --release --config-only
+          flutter build macos --release --config-only \
+            --build-number="$GITHUB_RUN_NUMBER" \
+            --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG"
           xcodebuild \
             -workspace macos/Runner.xcworkspace \
             -scheme Runner \
@@ -95,7 +98,10 @@ jobs:
           dart run melos bootstrap
       - name: Build Android ARM64 release APK
         working-directory: ${{ env.APP_DIRECTORY }}
-        run: flutter build apk --release --target-platform android-arm64
+        run: >-
+          flutter build apk --release --target-platform android-arm64
+          --build-number="$GITHUB_RUN_NUMBER"
+          --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG"
       - name: Stage APK
         run: |
           mkdir -p dist
@@ -138,6 +144,7 @@ jobs:
           --release
           --no-wasm-dry-run
           --base-href /Tvium/
+          --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG"
       - name: Package Web download
         run: >-
           scripts/release/package_web.sh

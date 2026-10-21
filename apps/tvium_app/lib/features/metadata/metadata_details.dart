@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 
 import '../artwork/artwork_image.dart';
 import '../library/source_refresh_schedule.dart';
+import '../updates/update_checker.dart';
 import 'metadata_gateway_client.dart';
 
 final metadataEnabled = ValueNotifier<bool>(false);
 
-enum SettingsSection { playlists, metadata, parental, guide, about }
+enum SettingsSection { playlists, metadata, parental, guide, updates, about }
 
 Future<void> showSettingsPages(
   BuildContext context, {
@@ -41,6 +43,11 @@ Future<void> showSettingsPages(
                   SettingsSection.guide,
                   'Programme guide',
                   Icons.calendar_month_outlined,
+                ),
+                (
+                  SettingsSection.updates,
+                  'Updates',
+                  Icons.system_update_rounded,
                 ),
                 (
                   SettingsSection.about,
@@ -187,6 +194,9 @@ Future<void> showLibrarySettings(
   final parentalPinController = TextEditingController();
   String? epgStatus;
   String? parentalStatus;
+  String? updateStatus;
+  AvailableUpdate? availableUpdate;
+  var checkingUpdates = false;
   var importingEpg = false;
   String? refreshingSourceId;
   var dialogParentalConfigured = parentalConfigured;
@@ -201,6 +211,7 @@ Future<void> showLibrarySettings(
     SettingsSection.metadata => 'Metadata',
     SettingsSection.parental => 'Parental controls',
     SettingsSection.guide => 'Programme guide',
+    SettingsSection.updates => 'Updates',
     SettingsSection.about => 'About and licenses',
     null => 'Settings',
   };
@@ -639,6 +650,67 @@ Future<void> showLibrarySettings(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(epgStatus!),
                   ),
+              ],
+              if (section == null ||
+                  section == SettingsSection.updates) ...<Widget>[
+                const SizedBox(height: 16),
+                Text(
+                  installedReleaseTag.isEmpty
+                      ? 'This is a development build. Update checks start with a tagged release.'
+                      : 'Installed release: $installedReleaseTag',
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  key: const ValueKey('check-for-updates'),
+                  onPressed: installedReleaseTag.isEmpty || checkingUpdates
+                      ? null
+                      : () async {
+                          setDialogState(() => checkingUpdates = true);
+                          final checker = UpdateChecker();
+                          try {
+                            final result = await checker.check(
+                              installedReleaseTag,
+                            );
+                            if (context.mounted) {
+                              setDialogState(() {
+                                availableUpdate = result;
+                                updateStatus = result == null
+                                    ? 'You are up to date.'
+                                    : 'New release available: ${result.tag}';
+                              });
+                            }
+                          } on UpdateCheckException {
+                            if (context.mounted) {
+                              setDialogState(
+                                () => updateStatus = 'Could not check for updates. Try again later.',
+                              );
+                            }
+                          } finally {
+                            checker.close();
+                            if (context.mounted) {
+                              setDialogState(() => checkingUpdates = false);
+                            }
+                          }
+                        },
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Check for updates'),
+                ),
+                if (checkingUpdates) const LinearProgressIndicator(),
+                if (updateStatus != null) Text(updateStatus!),
+                if (availableUpdate != null) ...<Widget>[
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => Clipboard.setData(
+                      ClipboardData(text: availableUpdate!.page.toString()),
+                    ),
+                    icon: const Icon(Icons.copy_rounded),
+                    label: const Text('Copy release link'),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                const Text(
+                  'Automatic installation will be available after signed update packages are configured for each platform.',
+                ),
               ],
               if (section == null ||
                   section == SettingsSection.about) ...<Widget>[

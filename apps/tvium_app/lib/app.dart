@@ -11,6 +11,7 @@ import 'features/import/local_playlist_picker.dart';
 import 'features/import/playlist_import_controller.dart';
 import 'features/import/playlist_import_provider.dart';
 import 'features/library/library_bootstrap_controller.dart';
+import 'features/updates/update_checker.dart';
 import 'features/xtream/xtream_connection_service.dart';
 import 'l10n/generated/app_localizations.dart';
 
@@ -29,6 +30,8 @@ final class TviumApp extends StatelessWidget {
     this.artworkReferenceStore,
     this.playbackEngineFactory,
     this.playbackViewBuilder,
+    this.updateChecker,
+    this.releaseTag,
     super.key,
   });
 
@@ -39,6 +42,8 @@ final class TviumApp extends StatelessWidget {
   final ArtworkReferenceStore? artworkReferenceStore;
   final PlaybackEngineFactory? playbackEngineFactory;
   final PlaybackViewBuilder? playbackViewBuilder;
+  final UpdateChecker? updateChecker;
+  final String? releaseTag;
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +76,10 @@ final class TviumApp extends StatelessWidget {
           ),
         if (playbackViewBuilder != null)
           playbackViewBuilderProvider.overrideWithValue(playbackViewBuilder!),
+        if (updateChecker != null)
+          updateCheckerProvider.overrideWithValue(updateChecker!),
+        if (releaseTag != null)
+          installedReleaseTagProvider.overrideWithValue(releaseTag!),
       ],
       child: MaterialApp.router(
         title: 'Tvium',

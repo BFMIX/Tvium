@@ -31,6 +31,7 @@ import '../library/user_overlays_controller.dart';
 import '../metadata/metadata_details.dart';
 import '../parental/parental_pin_service.dart';
 import '../profiles/profile_switcher.dart';
+import '../updates/update_checker.dart';
 import '../xtream/secure_xtream_profile_store.dart';
 import '../xtream/xtream_connection_form.dart';
 import '../xtream/xtream_connection_service.dart';
@@ -87,10 +88,41 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_checkForAppUpdate());
+    });
     WidgetsBinding.instance.addObserver(this);
     _scheduledRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       unawaited(_checkDueSources());
     });
+  }
+
+  Future<void> _checkForAppUpdate() async {
+    final currentTag = ref.read(installedReleaseTagProvider);
+    if (currentTag.isEmpty) return;
+    try {
+      final update = await ref.read(updateCheckerProvider).check(currentTag);
+      if (!mounted || update == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Tvium ${update.tag} is available'),
+          duration: const Duration(seconds: 10),
+          action: SnackBarAction(
+            label: 'Updates',
+            onPressed: () => showSettingsPages(
+              context,
+              openSection: (section) => showLibrarySettings(
+                context,
+                configured: ref.read(metadataGatewayProvider) != null,
+                section: section,
+              ),
+            ),
+          ),
+        ),
+      );
+    } on UpdateCheckException {
+      // Update availability is optional and never blocks the local library.
+    }
   }
 
   @override

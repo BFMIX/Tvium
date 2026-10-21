@@ -1,16 +1,47 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:tvium_app/app.dart';
 import 'package:tvium_app/features/artwork/artwork_image.dart';
 import 'package:tvium_app/features/import/playlist_import_controller.dart';
+import 'package:tvium_app/features/updates/update_checker.dart';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
 import 'package:tvium_playback/tvium_playback.dart';
 
 void main() {
+  testWidgets('release builds announce a newer published update', (
+    tester,
+  ) async {
+    final checker = UpdateChecker(
+      client: MockClient(
+        (request) async => http.Response(
+          jsonEncode(<Object>[
+            <String, Object>{
+              'tag_name': 'v1.0.0-alpha.7',
+              'draft': false,
+              'prerelease': true,
+              'html_url':
+                  'https://github.com/BFMIX/Tvium/releases/tag/v1.0.0-alpha.7',
+            },
+          ]),
+          200,
+        ),
+      ),
+    );
+    addTearDown(checker.close);
+    await tester.pumpWidget(
+      TviumApp(updateChecker: checker, releaseTag: 'v1.0.0-alpha.6'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('v1.0.0-alpha.7 is available'), findsOneWidget);
+  });
   testWidgets('home leads with exactly the three catalog destinations', (
     tester,
   ) async {
