@@ -3724,30 +3724,29 @@ Future<void> _showTitleDetails(
     context: context,
     builder: (dialogContext) {
       final wide = MediaQuery.sizeOf(dialogContext).width >= 720;
-      final details = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Text(
-            entry.kind == MediaKind.movie ? 'MOVIE' : 'TV SHOW',
-            style: Theme.of(dialogContext).textTheme.labelLarge
-                ?.copyWith(color: TviumColors.accentDark),
-          ),
-          const SizedBox(height: TviumSpacing.sm),
-          Text(
-            entry.displayName,
-            key: const ValueKey('title-details-heading'),
-            style: Theme.of(dialogContext).textTheme.headlineMedium,
-          ),
-          if (entry.group != null) ...<Widget>[
+      final details = SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              entry.kind == MediaKind.movie ? 'MOVIE' : 'TV SHOW',
+              style: Theme.of(dialogContext).textTheme.labelLarge
+                  ?.copyWith(color: TviumColors.accentDark),
+            ),
             const SizedBox(height: TviumSpacing.sm),
-            Text(entry.group!),
+            Text(
+              entry.displayName,
+              key: const ValueKey('title-details-heading'),
+              style: Theme.of(dialogContext).textTheme.headlineMedium,
+            ),
+            if (entry.group != null) ...<Widget>[
+              const SizedBox(height: TviumSpacing.sm),
+              Text(entry.group!),
+            ],
+            const SizedBox(height: TviumSpacing.md),
+            OnlineMetadataSummary(originalTitle: entry.name, kind: entry.kind),
           ],
-          const SizedBox(height: TviumSpacing.md),
-          const Text(
-            'Online descriptions and ratings are optional and do not affect playback.',
-          ),
-        ],
+        ),
       );
       return AlertDialog(
         key: const ValueKey('title-details'),
@@ -3773,17 +3772,11 @@ Future<void> _showTitleDetails(
                       child: _TitleDetailsPoster(entry: entry),
                     ),
                     const SizedBox(height: TviumSpacing.md),
-                    Expanded(child: SingleChildScrollView(child: details)),
+                    Expanded(child: details),
                   ],
                 ),
         ),
         actions: <Widget>[
-          TextButton.icon(
-            key: const ValueKey('title-online-info'),
-            onPressed: () => _openOnlineTitleInfo(dialogContext, entry),
-            icon: const Icon(Icons.info_outline_rounded),
-            label: const Text('Online info'),
-          ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Close'),
@@ -3802,13 +3795,6 @@ Future<void> _showTitleDetails(
     },
   );
 }
-
-Future<void> _openOnlineTitleInfo(BuildContext context, _LibraryEntry entry) =>
-    showDialog<void>(
-      context: context,
-      builder: (context) =>
-          MetadataDetails(originalTitle: entry.name, kind: entry.kind),
-    );
 
 final class _TitleDetailsPoster extends StatelessWidget {
   const _TitleDetailsPoster({required this.entry});
@@ -3913,6 +3899,8 @@ Future<void> _showLocalSeriesDetails(
         entry: entry,
         child: ListView(
           children: <Widget>[
+            OnlineMetadataSummary(originalTitle: entry.name, kind: entry.kind),
+            const SizedBox(height: TviumSpacing.sm),
             for (final seasonNumber in seasonNumbers)
               ExpansionTile(
                 key: ValueKey('season-$seasonNumber'),
@@ -3955,12 +3943,6 @@ Future<void> _showLocalSeriesDetails(
         ),
       ),
       actions: <Widget>[
-        TextButton.icon(
-          key: const ValueKey('title-online-info'),
-          onPressed: () => _openOnlineTitleInfo(dialogContext, entry),
-          icon: const Icon(Icons.info_outline_rounded),
-          label: const Text('Online info'),
-        ),
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
           child: const Text('Close'),
@@ -4007,6 +3989,11 @@ Future<void> _showSeriesDetails(
             }
             return ListView(
               children: <Widget>[
+                OnlineMetadataSummary(
+                  originalTitle: entry.name,
+                  kind: entry.kind,
+                ),
+                const SizedBox(height: TviumSpacing.sm),
                 if (series.plot case final plot?) ...<Widget>[
                   Text(plot),
                   const SizedBox(height: TviumSpacing.sm),
@@ -4049,12 +4036,6 @@ Future<void> _showSeriesDetails(
         ),
       ),
       actions: <Widget>[
-        TextButton.icon(
-          key: const ValueKey('title-online-info'),
-          onPressed: () => _openOnlineTitleInfo(dialogContext, entry),
-          icon: const Icon(Icons.info_outline_rounded),
-          label: const Text('Online info'),
-        ),
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
           child: const Text('Close'),

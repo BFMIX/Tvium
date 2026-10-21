@@ -187,7 +187,7 @@ void main() {
           'title': 'Example',
           'kind': 'series',
           'year': 2020,
-          'language': 'en',
+          'language': 'fr-FR',
         });
         return http.Response(
           jsonEncode({
@@ -224,6 +224,101 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('A series overview.'), findsOneWidget);
     expect(find.text('Source: tmdb'), findsOneWidget);
+  });
+
+  testWidgets('online summary loads localized movie details automatically', (
+    tester,
+  ) async {
+    metadataEnabled.value = true;
+    final client = MetadataGatewayClient(
+      endpoint: Uri.parse('https://metadata.example.test'),
+      client: MockClient((request) async {
+        expect(
+          (jsonDecode(request.body) as Map<String, dynamic>)['language'],
+          'fr-FR',
+        );
+        return http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'id': 'movie-1',
+                'provider': 'tmdb',
+                'title': 'Translated Movie',
+                'originalTitle': 'Original Movie',
+                'kind': 'movie',
+                'year': 2020,
+                'overview': 'A localized description.',
+                'posterUrl': 'https://image.tmdb.org/t/p/w500/poster.jpg',
+                'backdropUrl': 'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
+                'sourceUrl': 'https://www.themoviedb.org/movie/1',
+                'license': 'TMDB terms',
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [metadataGatewayProvider.overrideWithValue(client)],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: OnlineMetadataSummary(
+              originalTitle: 'Original Movie (2020)',
+              kind: MediaKind.movie,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('A localized description.'), findsOneWidget);
+    expect(find.textContaining('Source: tmdb'), findsOneWidget);
+    expect(find.byKey(const ValueKey('metadata-backdrop')), findsOneWidget);
+  });
+
+  testWidgets('yearless series shows a tentative result with a warning', (
+    tester,
+  ) async {
+    metadataEnabled.value = true;
+    final client = MetadataGatewayClient(
+      endpoint: Uri.parse('https://metadata.example.test'),
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'id': 'series-1',
+                'provider': 'tmdb',
+                'title': 'Example Series',
+                'kind': 'series',
+                'year': 2020,
+                'overview': 'A possible series description.',
+                'license': 'TMDB terms',
+              },
+            ],
+          }),
+          200,
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [metadataGatewayProvider.overrideWithValue(client)],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: OnlineMetadataSummary(
+              originalTitle: 'Example Series',
+              kind: MediaKind.episode,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('A possible series description.'), findsOneWidget);
+    expect(find.textContaining('Possible match'), findsOneWidget);
   });
 
   testWidgets('unconfigured settings show disabled opt-in switch', (

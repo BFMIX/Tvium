@@ -836,9 +836,10 @@ void main() {
     expect(poster, findsOneWidget);
     expect(title, findsOneWidget);
     expect(tester.getTopLeft(poster).dx, lessThan(tester.getTopLeft(title).dx));
+    expect(find.text('Online details are off in Settings.'), findsOneWidget);
   });
 
-  testWidgets('movie details can open optional online information', (
+  testWidgets('movie details show online information without another dialog', (
     tester,
   ) async {
     final controller = PlaylistImportController();
@@ -852,9 +853,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('media-card-movie')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('title-online-info')));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Online metadata is off'), findsOneWidget);
+    expect(find.text('Online details are off in Settings.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('title-online-info')), findsNothing);
   });
 
   testWidgets('local series details use a neutral poster beside seasons', (
@@ -891,9 +891,10 @@ void main() {
       tester.getTopLeft(poster).dx,
       lessThan(tester.getTopLeft(season).dx),
     );
+    expect(find.text('Online details are off in Settings.'), findsOneWidget);
   });
 
-  testWidgets('series details can open optional online information', (
+  testWidgets('series details show online information without another dialog', (
     tester,
   ) async {
     final controller = PlaylistImportController();
@@ -906,9 +907,8 @@ void main() {
     await tester.tap(find.text('Demo Show'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('title-online-info')));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Online metadata is off'), findsOneWidget);
+    expect(find.text('Online details are off in Settings.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('title-online-info')), findsNothing);
   });
 
   testWidgets('compact movie details stack the poster above the title', (

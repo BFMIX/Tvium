@@ -761,6 +761,135 @@ Future<void> showLibrarySettings(
   parentalPinController.dispose();
 }
 
+final class OnlineMetadataSummary extends ConsumerStatefulWidget {
+  const OnlineMetadataSummary({
+    required this.originalTitle,
+    required this.kind,
+    super.key,
+  });
+
+  final String originalTitle;
+  final MediaKind kind;
+
+  @override
+  ConsumerState<OnlineMetadataSummary> createState() =>
+      _OnlineMetadataSummaryState();
+}
+
+final class _OnlineMetadataSummaryState
+    extends ConsumerState<OnlineMetadataSummary> {
+  EnrichedMetadata? _result;
+  bool _uncertain = false;
+  bool _loading = false;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    if (metadataEnabled.value) Future.microtask(_lookup);
+  }
+
+  Future<void> _lookup() async {
+    final client = ref.read(metadataGatewayProvider);
+    if (!mounted || !metadataEnabled.value || client == null) return;
+    final query = const PlaylistTitleNormalizer().normalize(
+      widget.originalTitle,
+      kind: widget.kind,
+    );
+    setState(() => _loading = true);
+    try {
+      final rows = await client.search(query);
+      final match = const MetadataMatcher().match(
+        query,
+        rows.map((row) => row.candidate),
+      );
+      if (!mounted) return;
+      setState(() {
+        _uncertain = match.status == MetadataMatchStatus.ambiguous;
+        _result = match.candidate == null
+            ? rows.length == 1 && _uncertain
+                  ? rows.single
+                  : null
+            : rows
+                  .where(
+                    (row) =>
+                        row.candidate.id == match.candidate!.id &&
+                        row.candidate.provider == match.candidate!.provider,
+                  )
+                  .firstOrNull;
+        _message = _result == null
+            ? 'No reliable information found for this title.'
+            : null;
+      });
+    } on Object {
+      if (mounted) {
+        setState(() => _message = const MetadataLookupException().toString());
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!metadataEnabled.value) {
+      return const Text('Online details are off in Settings.');
+    }
+    if (ref.watch(metadataGatewayProvider) == null) {
+      return const Text('The local metadata service is not configured.');
+    }
+    final result = _result;
+    if (_loading) return const LinearProgressIndicator();
+    if (result == null) return Text(_message ?? 'Searching for details…');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        if (_uncertain)
+          const Text(
+            'Possible match — verify the title before relying on these details.',
+          ),
+        if (result.backdropUri case final backdrop?)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 8),
+            child: SizedBox(
+              key: const ValueKey('metadata-backdrop'),
+              height: 96,
+              width: double.infinity,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: ArtworkImage(
+                  sourceId: 'metadata',
+                  entryId:
+                      '${result.candidate.provider}:${result.candidate.id}',
+                  role: 'backdrop',
+                  uri: backdrop,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+        if (result.posterUri case final poster?)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 8),
+            child: SizedBox(
+              width: 72,
+              height: 108,
+              child: ArtworkImage(
+                sourceId: 'metadata',
+                entryId: '${result.candidate.provider}:${result.candidate.id}',
+                role: 'poster',
+                uri: poster,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        if (result.overview case final overview?) Text(overview),
+        Text('Source: ${result.candidate.provider}'),
+      ],
+    );
+  }
+}
+
 final class MetadataDetails extends ConsumerStatefulWidget {
   const MetadataDetails({
     required this.originalTitle,
