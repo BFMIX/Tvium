@@ -829,6 +829,25 @@ void main() {
     expect(tester.getTopLeft(poster).dx, lessThan(tester.getTopLeft(title).dx));
   });
 
+  testWidgets('movie details can open optional online information', (
+    tester,
+  ) async {
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('media-card-movie')));
+    await tester.tap(find.byKey(const ValueKey('media-card-movie')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('title-online-info')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Online metadata is off'), findsOneWidget);
+  });
+
   testWidgets('local series details use a neutral poster beside seasons', (
     tester,
   ) async {
@@ -863,6 +882,24 @@ void main() {
       tester.getTopLeft(poster).dx,
       lessThan(tester.getTopLeft(season).dx),
     );
+  });
+
+  testWidgets('series details can open optional online information', (
+    tester,
+  ) async {
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Demo Show'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('title-online-info')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Online metadata is off'), findsOneWidget);
   });
 
   testWidgets('compact movie details stack the poster above the title', (

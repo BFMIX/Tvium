@@ -41,6 +41,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by widget tests: Live TV uses the approved scenic banner; Movies and TV Shows use a poster-left feature with real catalog artwork or a neutral fallback.
 - Verified by widget tests: M3U episode stills are not promoted to series posters in the feature or poster grid.
 - Verified by widget tests: title details place verified posters beside information and seasons on wide screens, stack on compact screens, and use neutral art for local series without a verified poster.
+- Verified by widget tests: movie and series detail dialogs expose the existing opt-in online metadata view; live TMDB results still require a configured gateway and server-side token.
 - Verified by widget tests: compact Movies and TV Shows skip the feature panel so the poster grid is immediately available.
 - Verified by widget tests: Settings has separate navigation entries for playlists, metadata, parental controls, programme guide, and about information.
 - Highest current priority: apply the approved cinematic Home, Live TV, Movies, and TV Shows designs to the production Flutter screens.

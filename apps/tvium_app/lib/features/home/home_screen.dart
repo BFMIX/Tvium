@@ -3749,6 +3749,12 @@ Future<void> _showTitleDetails(
                 ),
         ),
         actions: <Widget>[
+          TextButton.icon(
+            key: const ValueKey('title-online-info'),
+            onPressed: () => _openOnlineTitleInfo(dialogContext, entry),
+            icon: const Icon(Icons.info_outline_rounded),
+            label: const Text('Online info'),
+          ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Close'),
@@ -3767,6 +3773,13 @@ Future<void> _showTitleDetails(
     },
   );
 }
+
+Future<void> _openOnlineTitleInfo(BuildContext context, _LibraryEntry entry) =>
+    showDialog<void>(
+      context: context,
+      builder: (context) =>
+          MetadataDetails(originalTitle: entry.name, kind: entry.kind),
+    );
 
 final class _TitleDetailsPoster extends StatelessWidget {
   const _TitleDetailsPoster({required this.entry});
@@ -3913,6 +3926,12 @@ Future<void> _showLocalSeriesDetails(
         ),
       ),
       actions: <Widget>[
+        TextButton.icon(
+          key: const ValueKey('title-online-info'),
+          onPressed: () => _openOnlineTitleInfo(dialogContext, entry),
+          icon: const Icon(Icons.info_outline_rounded),
+          label: const Text('Online info'),
+        ),
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
           child: const Text('Close'),
@@ -4001,6 +4020,12 @@ Future<void> _showSeriesDetails(
         ),
       ),
       actions: <Widget>[
+        TextButton.icon(
+          key: const ValueKey('title-online-info'),
+          onPressed: () => _openOnlineTitleInfo(dialogContext, entry),
+          icon: const Icon(Icons.info_outline_rounded),
+          label: const Text('Online info'),
+        ),
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
           child: const Text('Close'),
