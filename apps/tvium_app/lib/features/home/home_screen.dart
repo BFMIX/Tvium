@@ -2756,7 +2756,7 @@ final class _CatalogBanner extends StatelessWidget {
   );
 }
 
-final class _CountrySidebar extends StatelessWidget {
+final class _CountrySidebar extends StatefulWidget {
   const _CountrySidebar({
     required this.countries,
     required this.selectedCode,
@@ -2768,8 +2768,23 @@ final class _CountrySidebar extends StatelessWidget {
   final ValueChanged<String>? onSelected;
 
   @override
+  State<_CountrySidebar> createState() => _CountrySidebarState();
+}
+
+final class _CountrySidebarState extends State<_CountrySidebar> {
+  String query = '';
+
+  @override
   Widget build(BuildContext context) {
-    final options = <LiveCountry?>[null, ...countries];
+    final needle = query.trim().toLowerCase();
+    final options = <LiveCountry?>[null, ...widget.countries]
+        .where(
+          (country) =>
+              needle.isEmpty ||
+              (country?.name.toLowerCase().contains(needle) ?? false) ||
+              (country?.code.toLowerCase().contains(needle) ?? false),
+        )
+        .toList(growable: false);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: const Color(0xB30A1A2A),
@@ -2787,106 +2802,132 @@ final class _CountrySidebar extends StatelessWidget {
               TviumSpacing.sm,
             ),
             child: Text(
-              'Countries',
+              'Countries · ${widget.countries.length}',
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(
-                TviumSpacing.xs,
-                0,
-                TviumSpacing.xs,
-                TviumSpacing.sm,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              TviumSpacing.xs,
+              0,
+              TviumSpacing.xs,
+              TviumSpacing.sm,
+            ),
+            child: TextField(
+              key: const ValueKey('live-country-search'),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search_rounded),
+                hintText: 'Search countries',
+                isDense: true,
               ),
-              itemCount: options.length,
-              itemBuilder: (context, index) {
-                final country = options[index];
-                final code = country?.code ?? 'ALL';
-                final selected = code == selectedCode;
-                final artwork = countryArtwork[code];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: TviumSpacing.xs),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      key: ValueKey('country-${country?.code ?? 'all'}'),
-                      onTap: () => onSelected?.call(code),
-                      borderRadius: BorderRadius.circular(TviumRadius.control),
-                      child: Ink(
-                        height: selected ? 150 : 68,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF183044),
-                          borderRadius: BorderRadius.circular(
-                            TviumRadius.control,
-                          ),
-                          border: Border.all(
-                            color: selected
-                                ? TviumColors.accentDark
-                                : Colors.white.withValues(alpha: 0.12),
-                            width: selected ? 2 : 1,
-                          ),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(
-                            TviumRadius.control,
-                          ),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: <Widget>[
-                              if (artwork != null)
-                                Image.asset(
-                                  artwork,
-                                  key: ValueKey('country-art-$code'),
-                                  fit: BoxFit.cover,
+              onChanged: (value) => setState(() => query = value),
+            ),
+          ),
+          Expanded(
+            child: options.isEmpty
+                ? const Center(child: Text('No countries found'))
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(
+                      TviumSpacing.xs,
+                      0,
+                      TviumSpacing.xs,
+                      TviumSpacing.sm,
+                    ),
+                    itemCount: options.length,
+                    itemBuilder: (context, index) {
+                      final country = options[index];
+                      final code = country?.code ?? 'ALL';
+                      final selected = code == widget.selectedCode;
+                      final artwork = countryArtwork[code];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: TviumSpacing.xs),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            key: ValueKey('country-${country?.code ?? 'all'}'),
+                            onTap: () => widget.onSelected?.call(code),
+                            borderRadius: BorderRadius.circular(
+                              TviumRadius.control,
+                            ),
+                            child: Ink(
+                              height: selected ? 150 : 68,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF183044),
+                                borderRadius: BorderRadius.circular(
+                                  TviumRadius.control,
                                 ),
-                              const DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: <Color>[
-                                      Color(0x66071320),
-                                      Color(0xEB071320),
-                                    ],
-                                  ),
+                                border: Border.all(
+                                  color: selected
+                                      ? TviumColors.accentDark
+                                      : Colors.white.withValues(alpha: 0.12),
+                                  width: selected ? 2 : 1,
                                 ),
                               ),
-                              Padding(
-                                padding: const EdgeInsets.all(TviumSpacing.sm),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(
+                                  TviumRadius.control,
+                                ),
+                                child: Stack(
+                                  fit: StackFit.expand,
                                   children: <Widget>[
-                                    Text(
-                                      country?.flag ?? '◎',
-                                      style: TextStyle(
-                                        fontSize: selected ? 28 : 20,
+                                    if (artwork != null)
+                                      Image.asset(
+                                        artwork,
+                                        key: ValueKey('country-art-$code'),
+                                        fit: BoxFit.cover,
+                                      ),
+                                    const DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: <Color>[
+                                            Color(0x66071320),
+                                            Color(0xEB071320),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                    const SizedBox(width: TviumSpacing.xs),
-                                    Expanded(
-                                      child: Text(
-                                        country?.name ?? 'All countries',
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: selected ? 16 : 13,
-                                        ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(
+                                        TviumSpacing.sm,
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: <Widget>[
+                                          Text(
+                                            country?.flag ?? '◎',
+                                            style: TextStyle(
+                                              fontSize: selected ? 28 : 20,
+                                            ),
+                                          ),
+                                          const SizedBox(
+                                            width: TviumSpacing.xs,
+                                          ),
+                                          Expanded(
+                                            child: Text(
+                                              country?.name ?? 'All countries',
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: selected ? 16 : 13,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),
@@ -3033,7 +3074,9 @@ final class _GroupSidebar extends StatelessWidget {
                         size: 18,
                       ),
                       title: Text(
-                        group ?? 'All categories',
+                        group == null
+                            ? 'All categories'
+                            : liveCategoryLabel(group),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),

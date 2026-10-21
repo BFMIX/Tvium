@@ -87,6 +87,15 @@ LiveCountry? countryForGroup(String? group) {
   return name == null ? null : LiveCountry(code!, name);
 }
 
+/// Removes only a recognized country prefix for display in the category pane.
+/// The original group remains the stable filter value.
+String liveCategoryLabel(String group) {
+  if (countryForGroup(group) == null) return group;
+  final match = RegExp(r'^\s*[^|:–—-]+?\s*[|:–—-]\s*(.+)$').firstMatch(group);
+  final label = match?.group(1)?.trim();
+  return label == null || label.isEmpty ? group : label;
+}
+
 List<LiveCountry> countriesForGroups(Iterable<String?> groups) {
   final countries = <String, LiveCountry>{};
   for (final group in groups) {
