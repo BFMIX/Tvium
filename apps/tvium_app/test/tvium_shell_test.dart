@@ -269,6 +269,31 @@ void main() {
     );
   });
 
+  testWidgets('wide Live TV remains usable with double accessibility text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    tester.binding.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(
+      tester.binding.platformDispatcher.clearTextScaleFactorTestValue,
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('live-country-sidebar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('catalog-group-sidebar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('live-channel-list')), findsOneWidget);
+    expect(find.byKey(const ValueKey('catalog-player')), findsOneWidget);
+  });
+
   testWidgets('wide Live TV places player beside the channel stack', (
     tester,
   ) async {

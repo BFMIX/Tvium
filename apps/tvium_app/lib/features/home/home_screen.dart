@@ -2180,21 +2180,23 @@ final class _DestinationCard extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(TviumSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: <Widget>[
-                  Icon(_destinationIcon(destination), size: 38),
-                  const SizedBox(height: TviumSpacing.sm),
-                  Text(
-                    _destinationLabel(destination),
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  Text(
-                    '$count ${count == 1 ? 'title' : 'titles'}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
+              child: SingleChildScrollView(
+                reverse: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Icon(_destinationIcon(destination), size: 38),
+                    const SizedBox(height: TviumSpacing.sm),
+                    Text(
+                      _destinationLabel(destination),
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    Text(
+                      '$count ${count == 1 ? 'title' : 'titles'}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
