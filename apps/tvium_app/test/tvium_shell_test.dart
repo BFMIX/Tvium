@@ -960,6 +960,50 @@ void main() {
     expect(tester.widget<Text>(heroTitle).data, before);
   });
 
+  testWidgets('Home carousel keeps long multilingual titles inside its hero', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _LongTitleFixtureSource()));
+    await tester.pumpAndSettle();
+
+    final hero = find.byKey(const ValueKey('home-hero'));
+    final details = find.byKey(const ValueKey('home-hero-details'));
+    expect(hero, findsOneWidget);
+    expect(details, findsOneWidget);
+    expect(
+      tester.getBottomRight(details).dy,
+      lessThan(tester.getBottomRight(hero).dy),
+    );
+  });
+
+  testWidgets('Home carousel supports larger accessibility text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    tester.binding.platformDispatcher.textScaleFactorTestValue = 1.6;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(
+      tester.binding.platformDispatcher.clearTextScaleFactorTestValue,
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _LongTitleFixtureSource()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('home-hero')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-hero-details')), findsOneWidget);
+  });
+
   testWidgets('Home uses fixed destination art and a spacious hero gap', (
     tester,
   ) async {
@@ -1404,6 +1448,17 @@ final class _ZappingFixtureSource implements M3uSource {
     'https://stream.example.test/live/two.m3u8',
     '#EXTINF:-1 group-title="News",Channel Three',
     'https://stream.example.test/live/three.m3u8',
+  ]);
+}
+
+final class _LongTitleFixtureSource implements M3uSource {
+  const _LongTitleFixtureSource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    '#EXTINF:-1 group-title="Movies",International Film — Chapter Twelve: A Journey Beyond the Last Horizon שלום (2026)',
+    'https://stream.example.test/vod/long-title.mp4',
   ]);
 }
 

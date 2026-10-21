@@ -2023,90 +2023,94 @@ final class _HomeHeroContent extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  if (!compact) ...<Widget>[
-                    Text(
-                      entry.kind == MediaKind.movie
-                          ? 'Featured movie'
-                          : 'Featured series',
-                      style: Theme.of(context).textTheme.labelLarge
-                          ?.copyWith(color: TviumColors.accentDark),
-                    ),
-                    const SizedBox(height: TviumSpacing.xs),
-                  ],
-                  Text(
-                    entry.displayName,
-                    key: const ValueKey('home-hero-title'),
-                    maxLines: compact ? 1 : 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: compact
-                        ? Theme.of(context).textTheme.headlineMedium
-                        : Theme.of(context).textTheme.displaySmall,
-                  ),
-                  if (!compact) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.xs),
-                    Text(
-                      entry.kind == MediaKind.movie ? 'Movies' : 'TV Shows',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                  SizedBox(height: compact ? TviumSpacing.sm : TviumSpacing.md),
-                  Wrap(
-                    spacing: TviumSpacing.sm,
-                    runSpacing: TviumSpacing.xs,
-                    children: <Widget>[
-                      FilledButton.icon(
-                        key: const ValueKey('home-hero-play'),
-                        onPressed: () => onPlay(entry),
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Play'),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    if (!compact) ...<Widget>[
+                      Text(
+                        entry.kind == MediaKind.movie
+                            ? 'Featured movie'
+                            : 'Featured series',
+                        style: Theme.of(context).textTheme.labelLarge
+                            ?.copyWith(color: TviumColors.accentDark),
                       ),
-                      OutlinedButton.icon(
-                        key: const ValueKey('home-hero-details'),
-                        onPressed: () => onDetails(entry),
-                        icon: const Icon(Icons.info_outline_rounded),
-                        label: const Text('View details'),
+                      const SizedBox(height: TviumSpacing.xs),
+                    ],
+                    Text(
+                      entry.displayName,
+                      key: const ValueKey('home-hero-title'),
+                      maxLines: compact ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: compact
+                          ? Theme.of(context).textTheme.headlineMedium
+                          : Theme.of(context).textTheme.displaySmall,
+                    ),
+                    if (!compact) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.xs),
+                      Text(
+                        entry.kind == MediaKind.movie ? 'Movies' : 'TV Shows',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
                     ],
-                  ),
-                  if (!compact) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.md),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
+                    SizedBox(
+                      height: compact ? TviumSpacing.sm : TviumSpacing.md,
+                    ),
+                    Wrap(
+                      spacing: TviumSpacing.sm,
+                      runSpacing: TviumSpacing.xs,
                       children: <Widget>[
-                        for (var index = 0; index < entries.length; index++)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 7),
-                            child: InkWell(
-                              key: ValueKey('home-hero-page-$index'),
-                              borderRadius: BorderRadius.circular(
-                                TviumRadius.pill,
-                              ),
-                              onTap: () => onSelected(index),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                width: index == selectedIndex ? 24 : 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: index == selectedIndex
-                                      ? TviumColors.accentDark
-                                      : Colors.white38,
-                                  borderRadius: BorderRadius.circular(
-                                    TviumRadius.pill,
+                        FilledButton.icon(
+                          key: const ValueKey('home-hero-play'),
+                          onPressed: () => onPlay(entry),
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          label: const Text('Play'),
+                        ),
+                        OutlinedButton.icon(
+                          key: const ValueKey('home-hero-details'),
+                          onPressed: () => onDetails(entry),
+                          icon: const Icon(Icons.info_outline_rounded),
+                          label: const Text('View details'),
+                        ),
+                      ],
+                    ),
+                    if (!compact) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.md),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          for (var index = 0; index < entries.length; index++)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 7),
+                              child: InkWell(
+                                key: ValueKey('home-hero-page-$index'),
+                                borderRadius: BorderRadius.circular(
+                                  TviumRadius.pill,
+                                ),
+                                onTap: () => onSelected(index),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  width: index == selectedIndex ? 24 : 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: index == selectedIndex
+                                        ? TviumColors.accentDark
+                                        : Colors.white38,
+                                    borderRadius: BorderRadius.circular(
+                                      TviumRadius.pill,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
