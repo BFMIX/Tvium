@@ -8,13 +8,27 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:tvium_app/app.dart';
 import 'package:tvium_app/features/artwork/artwork_image.dart';
+import 'package:tvium_app/features/artwork/artwork_reference_store.dart';
 import 'package:tvium_app/features/import/playlist_import_controller.dart';
+import 'package:tvium_app/features/metadata/metadata_details.dart';
+import 'package:tvium_app/features/metadata/metadata_gateway_client.dart';
+import 'package:tvium_app/features/metadata/metadata_overlay_store.dart';
 import 'package:tvium_app/features/updates/update_checker.dart';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
 import 'package:tvium_playback/tvium_playback.dart';
 
 void main() {
+  testWidgets('restores metadata consent on startup', (tester) async {
+    metadataEnabled.value = false;
+    addTearDown(() => metadataEnabled.value = false);
+    final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
+    await consent.write(true);
+    await tester.pumpWidget(TviumApp(metadataConsentStore: consent));
+    await tester.pumpAndSettle();
+    expect(metadataEnabled.value, isTrue);
+  });
+
   testWidgets('release builds announce a newer published update', (
     tester,
   ) async {
@@ -1302,6 +1316,42 @@ void main() {
     );
     expect(title.data, 'Illustrated Movie');
     expect(find.byKey(const ValueKey('home-hero-poster')), findsOneWidget);
+  });
+
+  testWidgets('opted-in Home uses a verified backdrop from metadata', (
+    tester,
+  ) async {
+    metadataEnabled.value = true;
+    addTearDown(() => metadataEnabled.value = false);
+    final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
+    await consent.write(true);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    final client = MetadataGatewayClient(
+      endpoint: Uri.parse('https://metadata.example.test'),
+      client: MockClient(
+        (_) async => http.Response(
+          '{"candidates":[{"id":"7","provider":"tmdb","title":"Demo Movie","kind":"movie","year":2025,"backdropUrl":"https://image.tmdb.org/t/p/w1280/backdrop.jpg","license":"TMDB terms"}]}',
+          200,
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        metadataGatewayClient: client,
+        metadataOverlayStore: MetadataOverlayStore(
+          MemoryArtworkKeyValueStore(),
+        ),
+        metadataConsentStore: consent,
+      ),
+    );
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('home-hero-enriched-backdrop')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Home does not display an episode still as a series poster', (

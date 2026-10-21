@@ -1,7 +1,17 @@
 import 'dart:convert';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:tvium_core/tvium_core.dart';
+
+final metadataGatewayProvider = Provider<MetadataGatewayClient?>((ref) {
+  const address = String.fromEnvironment('TVIUM_METADATA_GATEWAY');
+  final uri = Uri.tryParse(address);
+  if (uri == null || !uri.hasAuthority) return null;
+  final client = MetadataGatewayClient(endpoint: uri);
+  ref.onDispose(client.close);
+  return client;
+});
 
 final class EnrichedMetadata {
   const EnrichedMetadata({

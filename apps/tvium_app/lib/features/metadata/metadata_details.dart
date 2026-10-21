@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,8 +10,25 @@ import '../artwork/artwork_image.dart';
 import '../library/source_refresh_schedule.dart';
 import '../updates/update_checker.dart';
 import 'metadata_gateway_client.dart';
+import 'metadata_overlay_store.dart';
 
 final metadataEnabled = ValueNotifier<bool>(false);
+
+Future<void> _persistMetadataConsent(
+  BuildContext context,
+  MetadataConsentStore store,
+  bool enabled,
+) async {
+  try {
+    await store.write(enabled);
+  } on Object {
+    if (context.mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('Could not save metadata preference.')),
+      );
+    }
+  }
+}
 
 enum SettingsSection { playlists, metadata, parental, guide, updates, about }
 
@@ -67,15 +86,6 @@ Future<void> showSettingsPages(
     ),
   ),
 );
-final metadataGatewayProvider = Provider<MetadataGatewayClient?>((ref) {
-  const address = String.fromEnvironment('TVIUM_METADATA_GATEWAY');
-  final uri = Uri.tryParse(address);
-  if (uri == null || !uri.hasAuthority) return null;
-  final client = MetadataGatewayClient(endpoint: uri);
-  ref.onDispose(client.close);
-  return client;
-});
-
 Future<String?> _renameSource(
   BuildContext context,
   IptvSource source,
@@ -169,6 +179,7 @@ Future<bool> _confirmRemoveSource(
 Future<void> showLibrarySettings(
   BuildContext context, {
   required bool configured,
+  MetadataConsentStore? metadataConsentStore,
   SettingsSection? section,
   Future<String> Function()? onImportEpgFile,
   Future<String> Function(Uri uri)? onImportEpgUrl,
@@ -436,12 +447,23 @@ Future<void> showLibrarySettings(
                     title: const Text('Online metadata'),
                     subtitle: Text(
                       configured
-                          ? 'Send cleaned titles, content type, year and language to metadata services when opening details. Applies to this session.'
+                          ? 'Send cleaned titles, content type, year and language when viewing details or featured artwork. Saved on this device.'
                           : 'Online metadata is not configured in this build.',
                     ),
                     value: enabled,
                     onChanged: configured
-                        ? (value) => metadataEnabled.value = value
+                        ? (value) {
+                            metadataEnabled.value = value;
+                            if (metadataConsentStore != null) {
+                              unawaited(
+                                _persistMetadataConsent(
+                                  context,
+                                  metadataConsentStore,
+                                  value,
+                                ),
+                              );
+                            }
+                          }
                         : null,
                   ),
                 ),
@@ -765,11 +787,15 @@ final class OnlineMetadataSummary extends ConsumerStatefulWidget {
   const OnlineMetadataSummary({
     required this.originalTitle,
     required this.kind,
+    this.sourceId,
+    this.entryId,
     super.key,
   });
 
   final String originalTitle;
   final MediaKind kind;
+  final String? sourceId;
+  final String? entryId;
 
   @override
   ConsumerState<OnlineMetadataSummary> createState() =>
@@ -786,7 +812,37 @@ final class _OnlineMetadataSummaryState
   @override
   void initState() {
     super.initState();
-    if (metadataEnabled.value) Future.microtask(_lookup);
+    if (metadataEnabled.value) Future.microtask(_restoreThenLookup);
+  }
+
+  Future<void> _restoreThenLookup() async {
+    final sourceId = widget.sourceId;
+    final entryId = widget.entryId;
+    if (sourceId != null && entryId != null) {
+      try {
+        final cached = await ref
+            .read(metadataOverlayStoreProvider)
+            .read(sourceId: sourceId, entryId: entryId);
+        if (cached != null && mounted) {
+          setState(() {
+            _result = EnrichedMetadata(
+              candidate: MetadataCandidate(
+                provider: cached.provider,
+                id: cached.providerId,
+                title: cached.title,
+                kind: widget.kind,
+              ),
+              overview: cached.overview,
+              posterUri: cached.posterUri,
+              backdropUri: cached.backdropUri,
+            );
+          });
+        }
+      } on Object {
+        // Optional cached data must not prevent an online lookup.
+      }
+    }
+    await _lookup();
   }
 
   Future<void> _lookup() async {
@@ -806,7 +862,7 @@ final class _OnlineMetadataSummaryState
       if (!mounted) return;
       setState(() {
         _uncertain = match.status == MetadataMatchStatus.ambiguous;
-        _result = match.candidate == null
+        final resolved = match.candidate == null
             ? rows.length == 1 && _uncertain
                   ? rows.single
                   : null
@@ -817,12 +873,51 @@ final class _OnlineMetadataSummaryState
                         row.candidate.provider == match.candidate!.provider,
                   )
                   .firstOrNull;
+        _result = resolved ?? _result;
         _message = _result == null
             ? 'No reliable information found for this title.'
             : null;
       });
+      final result = _result;
+      final sourceId = widget.sourceId;
+      final entryId = widget.entryId;
+      if (match.status == MetadataMatchStatus.matched &&
+          result != null &&
+          sourceId != null &&
+          entryId != null) {
+        try {
+          await ref
+              .read(metadataOverlayStoreProvider)
+              .write(
+                sourceId: sourceId,
+                entryId: entryId,
+                overlay: MetadataOverlay(
+                  provider: result.candidate.provider,
+                  providerId: result.candidate.id,
+                  title: result.candidate.title,
+                  overview: result.overview,
+                  posterUri: result.posterUri,
+                  backdropUri: result.backdropUri,
+                  verified: true,
+                ),
+              );
+          if (mounted) {
+            ref.invalidate(
+              metadataHeroOverlayProvider((
+                sourceId: sourceId,
+                entryId: entryId,
+                title: widget.originalTitle,
+                kind: widget.kind,
+                enabled: true,
+              )),
+            );
+          }
+        } on Object {
+          // Metadata remains visible if the optional cache is unavailable.
+        }
+      }
     } on Object {
-      if (mounted) {
+      if (mounted && _result == null) {
         setState(() => _message = const MetadataLookupException().toString());
       }
     } finally {
@@ -835,15 +930,16 @@ final class _OnlineMetadataSummaryState
     if (!metadataEnabled.value) {
       return const Text('Online details are off in Settings.');
     }
-    if (ref.watch(metadataGatewayProvider) == null) {
+    if (ref.watch(metadataGatewayProvider) == null && _result == null) {
       return const Text('The local metadata service is not configured.');
     }
     final result = _result;
-    if (_loading) return const LinearProgressIndicator();
+    if (_loading && result == null) return const LinearProgressIndicator();
     if (result == null) return Text(_message ?? 'Searching for details…');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
+        if (_loading) const LinearProgressIndicator(),
         if (_uncertain)
           const Text(
             'Possible match — verify the title before relying on these details.',

@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:tvium_app/features/artwork/artwork_reference_store.dart';
 import 'package:tvium_app/features/metadata/metadata_details.dart';
 import 'package:tvium_app/features/metadata/metadata_gateway_client.dart';
+import 'package:tvium_app/features/metadata/metadata_overlay_store.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 
@@ -230,6 +232,7 @@ void main() {
     tester,
   ) async {
     metadataEnabled.value = true;
+    final overlays = MetadataOverlayStore(MemoryArtworkKeyValueStore());
     final client = MetadataGatewayClient(
       endpoint: Uri.parse('https://metadata.example.test'),
       client: MockClient((request) async {
@@ -261,12 +264,17 @@ void main() {
     );
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [metadataGatewayProvider.overrideWithValue(client)],
+        overrides: [
+          metadataGatewayProvider.overrideWithValue(client),
+          metadataOverlayStoreProvider.overrideWithValue(overlays),
+        ],
         child: const MaterialApp(
           home: Scaffold(
             body: OnlineMetadataSummary(
               originalTitle: 'Original Movie (2020)',
               kind: MediaKind.movie,
+              sourceId: 'source.test',
+              entryId: 'movie.test',
             ),
           ),
         ),
@@ -276,6 +284,13 @@ void main() {
     expect(find.text('A localized description.'), findsOneWidget);
     expect(find.textContaining('Source: tmdb'), findsOneWidget);
     expect(find.byKey(const ValueKey('metadata-backdrop')), findsOneWidget);
+    expect(
+      (await overlays.read(
+        sourceId: 'source.test',
+        entryId: 'movie.test',
+      ))?.verified,
+      isTrue,
+    );
   });
 
   testWidgets('yearless series shows a tentative result with a warning', (
@@ -321,6 +336,86 @@ void main() {
     expect(find.textContaining('Possible match'), findsOneWidget);
   });
 
+  testWidgets('verified metadata stays visible when the gateway is offline', (
+    tester,
+  ) async {
+    metadataEnabled.value = true;
+    final overlays = MetadataOverlayStore(MemoryArtworkKeyValueStore());
+    await overlays.write(
+      sourceId: 'source.test',
+      entryId: 'movie.test',
+      overlay: const MetadataOverlay(
+        provider: 'tmdb',
+        providerId: '7',
+        title: 'Example Movie',
+        overview: 'Previously verified summary.',
+        verified: true,
+      ),
+    );
+    final client = MetadataGatewayClient(
+      endpoint: Uri.parse('https://metadata.example.test'),
+      client: MockClient((_) async => throw StateError('offline')),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          metadataGatewayProvider.overrideWithValue(client),
+          metadataOverlayStoreProvider.overrideWithValue(overlays),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: OnlineMetadataSummary(
+              originalTitle: 'Example Movie (2020)',
+              kind: MediaKind.movie,
+              sourceId: 'source.test',
+              entryId: 'movie.test',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Previously verified summary.'), findsOneWidget);
+  });
+
+  testWidgets('verified metadata stays visible without a gateway address', (
+    tester,
+  ) async {
+    metadataEnabled.value = true;
+    final overlays = MetadataOverlayStore(MemoryArtworkKeyValueStore());
+    await overlays.write(
+      sourceId: 'source.test',
+      entryId: 'movie.test',
+      overlay: const MetadataOverlay(
+        provider: 'tmdb',
+        providerId: '7',
+        title: 'Example Movie',
+        overview: 'Saved public description.',
+        verified: true,
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          metadataGatewayProvider.overrideWithValue(null),
+          metadataOverlayStoreProvider.overrideWithValue(overlays),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: OnlineMetadataSummary(
+              originalTitle: 'Example Movie (2020)',
+              kind: MediaKind.movie,
+              sourceId: 'source.test',
+              entryId: 'movie.test',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Saved public description.'), findsOneWidget);
+  });
+
   testWidgets('unconfigured settings show disabled opt-in switch', (
     tester,
   ) async {
@@ -345,6 +440,34 @@ void main() {
       find.text('Online metadata is not configured in this build.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('settings persist online metadata consent on this device', (
+    tester,
+  ) async {
+    final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showLibrarySettings(
+                context,
+                configured: true,
+                section: SettingsSection.metadata,
+                metadataConsentStore: consent,
+              ),
+              child: const Text('Open settings'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('online-metadata-toggle')));
+    await tester.pumpAndSettle();
+    expect(await consent.read(), isTrue);
   });
 
   testWidgets('settings refresh connected sources and show a safe summary', (

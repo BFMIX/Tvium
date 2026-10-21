@@ -31,6 +31,8 @@ import '../library/live_country.dart';
 import '../library/source_refresh_schedule.dart';
 import '../library/user_overlays_controller.dart';
 import '../metadata/metadata_details.dart';
+import '../metadata/metadata_gateway_client.dart';
+import '../metadata/metadata_overlay_store.dart';
 import '../parental/parental_pin_service.dart';
 import '../profiles/profile_switcher.dart';
 import '../updates/update_checker.dart';
@@ -90,6 +92,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void initState() {
     super.initState();
+    unawaited(_restoreMetadataConsent());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_checkForAppUpdate());
     });
@@ -97,6 +100,15 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     _scheduledRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       unawaited(_checkDueSources());
     });
+  }
+
+  Future<void> _restoreMetadataConsent() async {
+    try {
+      final enabled = await ref.read(metadataConsentStoreProvider).read();
+      if (mounted) metadataEnabled.value = enabled;
+    } on Object {
+      // A missing secure store leaves online metadata off for this session.
+    }
   }
 
   Future<void> _checkForAppUpdate() async {
@@ -116,6 +128,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
               openSection: (section) => showLibrarySettings(
                 context,
                 configured: ref.read(metadataGatewayProvider) != null,
+                metadataConsentStore: ref.read(metadataConsentStoreProvider),
                 section: section,
               ),
             ),
@@ -1279,6 +1292,9 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                     context,
                     section: section,
                     configured: ref.read(metadataGatewayProvider) != null,
+                    metadataConsentStore: ref.read(
+                      metadataConsentStoreProvider,
+                    ),
                     onImportEpgFile: widget.onImportEpgFile,
                     onImportEpgUrl: widget.onImportEpgUrl,
                     onRefreshSource: widget.onRefreshSource,
@@ -1838,15 +1854,19 @@ final class _DestinationHomeState extends State<_DestinationHome> {
               final heroEntries = _heroEntries;
               final hero = heroEntries.isEmpty
                   ? null
-                  : _HomeHero(
-                      entry: heroEntries[_heroIndex % heroEntries.length],
-                      entries: heroEntries,
-                      selectedIndex: _heroIndex % heroEntries.length,
-                      onSelected: _selectHero,
-                      onPrevious: () => _selectHero(_heroIndex - 1),
-                      onNext: () => _selectHero(_heroIndex + 1),
-                      onPlay: widget.onPlay,
-                      onDetails: widget.onDetails,
+                  : ValueListenableBuilder<bool>(
+                      valueListenable: metadataEnabled,
+                      builder: (context, enabled, _) => _HomeHero(
+                        entry: heroEntries[_heroIndex % heroEntries.length],
+                        entries: heroEntries,
+                        selectedIndex: _heroIndex % heroEntries.length,
+                        metadataEnabled: enabled,
+                        onSelected: _selectHero,
+                        onPrevious: () => _selectHero(_heroIndex - 1),
+                        onNext: () => _selectHero(_heroIndex + 1),
+                        onPlay: widget.onPlay,
+                        onDetails: widget.onDetails,
+                      ),
                     );
               final destinationCards = horizontal
                   ? SizedBox(
@@ -1904,11 +1924,12 @@ final class _DestinationHomeState extends State<_DestinationHome> {
   }
 }
 
-final class _HomeHero extends StatelessWidget {
+final class _HomeHero extends ConsumerWidget {
   const _HomeHero({
     required this.entry,
     required this.entries,
     required this.selectedIndex,
+    required this.metadataEnabled,
     required this.onSelected,
     required this.onPrevious,
     required this.onNext,
@@ -1919,6 +1940,7 @@ final class _HomeHero extends StatelessWidget {
   final _LibraryEntry entry;
   final List<_LibraryEntry> entries;
   final int selectedIndex;
+  final bool metadataEnabled;
   final ValueChanged<int> onSelected;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -1926,7 +1948,19 @@ final class _HomeHero extends StatelessWidget {
   final ValueChanged<_LibraryEntry> onDetails;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overlay = ref
+        .watch(
+          metadataHeroOverlayProvider((
+            sourceId: entry.sourceId,
+            entryId: entry.id,
+            title: entry.name,
+            kind: entry.kind,
+            enabled: metadataEnabled,
+          )),
+        )
+        .value;
+    final posterUri = overlay?.posterUri ?? entry.imageUri;
     return GestureDetector(
       key: const ValueKey('home-hero'),
       behavior: HitTestBehavior.opaque,
@@ -1947,12 +1981,22 @@ final class _HomeHero extends StatelessWidget {
             key: ValueKey('home-hero-${entry.id}'),
             fit: StackFit.expand,
             children: <Widget>[
-              Image.asset(
-                'assets/destinations/hero-home.png',
-                key: const ValueKey('home-hero-backdrop'),
-                fit: BoxFit.cover,
-                alignment: Alignment.centerRight,
-              ),
+              if (overlay?.backdropUri case final backdrop?)
+                ArtworkImage(
+                  key: const ValueKey('home-hero-enriched-backdrop'),
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
+                  role: 'backdrop',
+                  uri: backdrop,
+                  fit: BoxFit.cover,
+                )
+              else
+                Image.asset(
+                  'assets/destinations/hero-home.png',
+                  key: const ValueKey('home-hero-backdrop'),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.centerRight,
+                ),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -1967,7 +2011,7 @@ final class _HomeHero extends StatelessWidget {
                 ),
               ),
               if (entry.kind == MediaKind.movie &&
-                  entry.imageUri?.hasScheme == true &&
+                  posterUri?.hasScheme == true &&
                   MediaQuery.sizeOf(context).width >= 920)
                 Positioned(
                   key: const ValueKey('home-hero-poster'),
@@ -1983,7 +2027,7 @@ final class _HomeHero extends StatelessWidget {
                         sourceId: entry.sourceId,
                         entryId: entry.id,
                         role: 'poster',
-                        uri: entry.imageUri,
+                        uri: posterUri,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -3744,7 +3788,12 @@ Future<void> _showTitleDetails(
               Text(entry.group!),
             ],
             const SizedBox(height: TviumSpacing.md),
-            OnlineMetadataSummary(originalTitle: entry.name, kind: entry.kind),
+            OnlineMetadataSummary(
+              originalTitle: entry.name,
+              kind: entry.kind,
+              sourceId: entry.sourceId,
+              entryId: entry.id,
+            ),
           ],
         ),
       );
@@ -3899,7 +3948,12 @@ Future<void> _showLocalSeriesDetails(
         entry: entry,
         child: ListView(
           children: <Widget>[
-            OnlineMetadataSummary(originalTitle: entry.name, kind: entry.kind),
+            OnlineMetadataSummary(
+              originalTitle: entry.name,
+              kind: entry.kind,
+              sourceId: entry.sourceId,
+              entryId: entry.id,
+            ),
             const SizedBox(height: TviumSpacing.sm),
             for (final seasonNumber in seasonNumbers)
               ExpansionTile(
@@ -3992,6 +4046,8 @@ Future<void> _showSeriesDetails(
                 OnlineMetadataSummary(
                   originalTitle: entry.name,
                   kind: entry.kind,
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
                 ),
                 const SizedBox(height: TviumSpacing.sm),
                 if (series.plot case final plot?) ...<Widget>[

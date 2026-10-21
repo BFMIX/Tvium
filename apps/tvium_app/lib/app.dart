@@ -11,6 +11,8 @@ import 'features/import/local_playlist_picker.dart';
 import 'features/import/playlist_import_controller.dart';
 import 'features/import/playlist_import_provider.dart';
 import 'features/library/library_bootstrap_controller.dart';
+import 'features/metadata/metadata_gateway_client.dart';
+import 'features/metadata/metadata_overlay_store.dart';
 import 'features/updates/update_checker.dart';
 import 'features/xtream/xtream_connection_service.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -28,6 +30,9 @@ final class TviumApp extends StatelessWidget {
     this.xtreamConnectionService,
     this.profileSourceRepository,
     this.artworkReferenceStore,
+    this.metadataGatewayClient,
+    this.metadataOverlayStore,
+    this.metadataConsentStore,
     this.playbackEngineFactory,
     this.playbackViewBuilder,
     this.updateChecker,
@@ -40,6 +45,9 @@ final class TviumApp extends StatelessWidget {
   final XtreamConnectionService? xtreamConnectionService;
   final ProfileSourceRepository? profileSourceRepository;
   final ArtworkReferenceStore? artworkReferenceStore;
+  final MetadataGatewayClient? metadataGatewayClient;
+  final MetadataOverlayStore? metadataOverlayStore;
+  final MetadataConsentStore? metadataConsentStore;
   final PlaybackEngineFactory? playbackEngineFactory;
   final PlaybackViewBuilder? playbackViewBuilder;
   final UpdateChecker? updateChecker;
@@ -61,6 +69,12 @@ final class TviumApp extends StatelessWidget {
             artworkReferenceStore ??
                 ArtworkReferenceStore(MemoryArtworkKeyValueStore()),
           ),
+        if (metadataGatewayClient != null)
+          metadataGatewayProvider.overrideWithValue(metadataGatewayClient),
+        if (metadataOverlayStore != null)
+          metadataOverlayStoreProvider.overrideWithValue(metadataOverlayStore!),
+        if (metadataConsentStore != null)
+          metadataConsentStoreProvider.overrideWithValue(metadataConsentStore!),
         if (controller != null)
           playlistImportControllerProvider.overrideWith(
             (ref) => controller,
