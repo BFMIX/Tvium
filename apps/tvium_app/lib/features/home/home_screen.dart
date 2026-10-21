@@ -2004,7 +2004,7 @@ final class _HomeHeroContent extends StatelessWidget {
                   if (!compact) ...<Widget>[
                     const SizedBox(height: TviumSpacing.xs),
                     Text(
-                      entry.group ?? 'Your library',
+                      entry.kind == MediaKind.movie ? 'Movies' : 'TV Shows',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyLarge,

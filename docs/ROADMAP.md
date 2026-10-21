@@ -35,6 +35,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by widget tests: the three Home cards use fixed approved artwork, the carousel is spaced below them, and its provider poster is shown at a bounded size over a stable scenic backdrop.
 - Verified by widget tests: the Home TV Shows card counts grouped series titles, matching the catalog rather than raw episode entries.
 - Verified by synthetic tests: the carousel features playable titles with usable artwork first, and blank M3U logo attributes no longer create empty artwork references.
+- Verified by widget tests: the carousel uses clean Movies/TV Shows labels instead of raw source category names while preserving the original metadata.
 - Verified by widget tests: Live TV, Movies, and TV Shows use approved scenic catalog banners that shrink on shorter windows.
 - Verified by widget tests: Settings has separate navigation entries for playlists, metadata, parental controls, programme guide, and about information.
 - Highest current priority: apply the approved cinematic Home, Live TV, Movies, and TV Shows designs to the production Flutter screens.

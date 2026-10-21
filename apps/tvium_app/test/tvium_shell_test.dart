@@ -725,6 +725,30 @@ void main() {
     expect(find.byKey(const ValueKey('home-hero-poster')), findsOneWidget);
   });
 
+  testWidgets('Home hero uses a clean media label instead of source groups', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _RawGroupFixtureSource()));
+    await tester.pumpAndSettle();
+
+    final hero = find.byKey(const ValueKey('home-hero'));
+    expect(
+      find.descendant(of: hero, matching: find.text('Movies')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: hero, matching: find.text('VOD | FRANCE')),
+      findsNothing,
+    );
+  });
+
   testWidgets('catalog destinations use the approved scenic banners', (
     tester,
   ) async {
@@ -981,6 +1005,17 @@ final class _FakePlaybackEngine implements PlaybackEngine {
 
   @override
   Future<void> stop() async {}
+}
+
+final class _RawGroupFixtureSource implements M3uSource {
+  const _RawGroupFixtureSource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    '#EXTINF:-1 group-title="VOD | FRANCE",Synthetic Movie',
+    'https://stream.example.test/vod/synthetic.mp4',
+  ]);
 }
 
 final class _ZappingFixtureSource implements M3uSource {
