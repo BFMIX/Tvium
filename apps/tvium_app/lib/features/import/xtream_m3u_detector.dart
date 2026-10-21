@@ -21,6 +21,10 @@ XtreamM3uCandidate? detectXtreamM3u(Uri uri) {
     return null;
   }
   final parameters = uri.queryParametersAll;
+  const exportParameters = {'username', 'password', 'type', 'output'};
+  if (parameters.keys.any((key) => !exportParameters.contains(key))) {
+    return null;
+  }
   final usernames = parameters['username'];
   final passwords = parameters['password'];
   if (usernames == null ||

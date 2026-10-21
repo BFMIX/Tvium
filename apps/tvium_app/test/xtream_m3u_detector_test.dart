@@ -20,6 +20,8 @@ void main() {
       'https://provider.test/get.php?username=a&username=b&password=c',
       'https://provider.test/get.php?username=a&password=b#fragment',
       'https://provider.test/get.php?username=a&password=b&output=unknown',
+      'https://provider.test/get.php?username=a&password=b&category=movies',
+      'https://provider.test/get.php?username=a&password=b&token=extra',
       'https://user:pass@provider.test/get.php?username=a&password=b',
     ]) {
       expect(detectXtreamM3u(Uri.parse(url)), isNull);
