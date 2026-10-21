@@ -36,6 +36,27 @@ typedef MetadataHeroRequest = ({
   bool enabled,
 });
 
+typedef MetadataCachedRequest = ({
+  String sourceId,
+  String entryId,
+  bool enabled,
+});
+
+final metadataCachedOverlayProvider =
+    FutureProvider.family<MetadataOverlay?, MetadataCachedRequest>((
+      ref,
+      request,
+    ) async {
+      if (!request.enabled) return null;
+      try {
+        return await ref
+            .read(metadataOverlayStoreProvider)
+            .read(sourceId: request.sourceId, entryId: request.entryId);
+      } on Object {
+        return null;
+      }
+    });
+
 final metadataHeroOverlayProvider =
     FutureProvider.family<MetadataOverlay?, MetadataHeroRequest>((
       ref,

@@ -903,6 +903,13 @@ final class _OnlineMetadataSummaryState
               );
           if (mounted) {
             ref.invalidate(
+              metadataCachedOverlayProvider((
+                sourceId: sourceId,
+                entryId: entryId,
+                enabled: true,
+              )),
+            );
+            ref.invalidate(
               metadataHeroOverlayProvider((
                 sourceId: sourceId,
                 entryId: entryId,

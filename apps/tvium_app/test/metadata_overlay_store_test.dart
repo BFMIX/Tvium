@@ -8,6 +8,48 @@ import 'package:tvium_app/features/metadata/metadata_overlay_store.dart';
 import 'package:tvium_core/tvium_core.dart';
 
 void main() {
+  test(
+    'grid artwork reads only cached verified metadata with consent',
+    () async {
+      final store = MetadataOverlayStore(MemoryArtworkKeyValueStore());
+      await store.write(
+        sourceId: 'source.test',
+        entryId: 'movie.test',
+        overlay: MetadataOverlay(
+          provider: 'tmdb',
+          providerId: '7',
+          title: 'Example Movie',
+          posterUri: Uri.parse('https://image.tmdb.org/t/p/w500/poster.jpg'),
+          verified: true,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [metadataOverlayStoreProvider.overrideWithValue(store)],
+      );
+      addTearDown(container.dispose);
+      expect(
+        await container.read(
+          metadataCachedOverlayProvider((
+            sourceId: 'source.test',
+            entryId: 'movie.test',
+            enabled: false,
+          )).future,
+        ),
+        isNull,
+      );
+      expect(
+        (await container.read(
+          metadataCachedOverlayProvider((
+            sourceId: 'source.test',
+            entryId: 'movie.test',
+            enabled: true,
+          )).future,
+        ))?.posterUri?.host,
+        'image.tmdb.org',
+      );
+    },
+  );
+
   test('remembers online metadata consent between app launches', () async {
     final backend = MemoryArtworkKeyValueStore();
     await MetadataConsentStore(backend).write(true);

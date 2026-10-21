@@ -3698,15 +3698,33 @@ final class _MediaCard extends StatelessWidget {
   }
 }
 
-final class _CatalogArtwork extends StatelessWidget {
+final class _CatalogArtwork extends ConsumerWidget {
   const _CatalogArtwork({super.key, required this.entry});
 
   final _LibraryEntry entry;
 
   @override
-  Widget build(BuildContext context) {
-    final uri = entry.imageUri;
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: metadataEnabled,
+      builder: (context, enabled, _) => _buildArtwork(context, ref, enabled),
+    );
+  }
+
+  Widget _buildArtwork(BuildContext context, WidgetRef ref, bool enabled) {
     final live = entry.kind == MediaKind.live;
+    final overlay = live || !enabled
+        ? null
+        : ref
+              .watch(
+                metadataCachedOverlayProvider((
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
+                  enabled: true,
+                )),
+              )
+              .value;
+    final uri = overlay?.posterUri ?? entry.imageUri;
     final episodeStillIsNotSeriesPoster =
         entry.kind == MediaKind.episode &&
         entry.seriesEpisodes.isNotEmpty &&
@@ -3729,14 +3747,18 @@ final class _CatalogArtwork extends StatelessWidget {
           colors: <Color>[Color(0xFF163D58), Color(0xFF09141F)],
         ),
       ),
-      child: episodeStillIsNotSeriesPoster
+      child: episodeStillIsNotSeriesPoster && overlay?.posterUri == null
           ? fallback
           : Padding(
               padding: EdgeInsets.all(live ? 4 : 0),
               child: ArtworkImage(
                 sourceId: entry.sourceId,
                 entryId: entry.id,
-                role: live ? 'logo' : 'poster',
+                role: live
+                    ? 'logo'
+                    : overlay?.posterUri != null
+                    ? 'verified-poster'
+                    : 'poster',
                 uri: uri,
                 fit: live ? BoxFit.contain : BoxFit.cover,
                 fallback: fallback,

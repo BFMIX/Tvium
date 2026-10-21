@@ -1439,6 +1439,47 @@ void main() {
     );
   });
 
+  testWidgets('Movies grid uses a cached verified poster after restart', (
+    tester,
+  ) async {
+    metadataEnabled.value = true;
+    addTearDown(() => metadataEnabled.value = false);
+    final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
+    await consent.write(true);
+    final store = MetadataOverlayStore(MemoryArtworkKeyValueStore());
+    await store.write(
+      sourceId: 'session.m3u',
+      entryId: 'entry-2',
+      overlay: MetadataOverlay(
+        provider: 'tmdb',
+        providerId: '7',
+        title: 'Demo Movie',
+        posterUri: Uri.parse('https://image.tmdb.org/t/p/w500/poster.jpg'),
+        verified: true,
+      ),
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        metadataOverlayStore: store,
+        metadataConsentStore: consent,
+      ),
+    );
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const ValueKey('media-card-movie'));
+    final artwork = tester.widget<ArtworkImage>(
+      find.descendant(of: card, matching: find.byType(ArtworkImage)),
+    );
+    expect(artwork.role, 'verified-poster');
+    expect(artwork.uri?.host, 'image.tmdb.org');
+  });
+
   testWidgets('compact Movies and TV Shows open without a feature carousel', (
     tester,
   ) async {
@@ -1500,6 +1541,52 @@ void main() {
       find.byKey(const ValueKey('catalog-series-placeholder')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('TV Shows grid replaces an episode still with verified art', (
+    tester,
+  ) async {
+    metadataEnabled.value = true;
+    addTearDown(() => metadataEnabled.value = false);
+    final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
+    await consent.write(true);
+    final store = MetadataOverlayStore(MemoryArtworkKeyValueStore());
+    await store.write(
+      sourceId: 'session.m3u',
+      entryId: 'local-series:session.m3u:fixture-show',
+      overlay: MetadataOverlay(
+        provider: 'tmdb',
+        providerId: '8',
+        title: 'Fixture Show',
+        posterUri: Uri.parse('https://image.tmdb.org/t/p/w500/show.jpg'),
+        verified: true,
+      ),
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        metadataOverlayStore: store,
+        metadataConsentStore: consent,
+      ),
+    );
+    unawaited(controller.importSource(const _EpisodeStillFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('catalog-series-placeholder')),
+      findsNothing,
+    );
+    final artwork = tester.widget<ArtworkImage>(
+      find.descendant(
+        of: find.byKey(const ValueKey('poster-grid')),
+        matching: find.byType(ArtworkImage),
+      ),
+    );
+    expect(artwork.role, 'verified-poster');
   });
 
   testWidgets('Movies show category chips above the poster grid', (
