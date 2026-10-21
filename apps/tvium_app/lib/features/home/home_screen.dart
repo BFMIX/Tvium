@@ -2953,7 +2953,7 @@ final class _CatalogPage extends ConsumerWidget {
   }
 }
 
-final class _CatalogFeature extends StatelessWidget {
+final class _CatalogFeature extends ConsumerWidget {
   const _CatalogFeature({
     required this.destination,
     required this.entry,
@@ -2969,89 +2969,140 @@ final class _CatalogFeature extends StatelessWidget {
   final VoidCallback? onDetails;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: metadataEnabled,
+      builder: (context, enabled, _) => _buildFeature(context, ref, enabled),
+    );
+  }
+
+  Widget _buildFeature(BuildContext context, WidgetRef ref, bool enabled) {
     final item = entry;
+    final overlay = item == null || !enabled
+        ? null
+        : ref
+              .watch(
+                metadataHeroOverlayProvider((
+                  sourceId: item.sourceId,
+                  entryId: item.id,
+                  title: item.name,
+                  kind: item.kind,
+                  enabled: true,
+                )),
+              )
+              .value;
+    final posterUri = overlay?.posterUri ?? item?.imageUri;
     final hasPoster =
-        item?.imageUri?.hasScheme == true &&
-        (destination == _CatalogDestination.movies ||
+        posterUri?.hasScheme == true &&
+        (overlay?.posterUri != null ||
+            destination == _CatalogDestination.movies ||
             item?.xtreamSeriesId != null);
     return DecoratedBox(
       key: const ValueKey('catalog-feature'),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: <Color>[Color(0xFF102D42), Color(0xFF071A2A)],
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: TviumSpacing.sm),
-        child: Row(
-          children: <Widget>[
-            SizedBox(
-              width: 140,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(TviumRadius.control),
-                child: hasPoster
-                    ? ArtworkImage(
-                        key: const ValueKey('catalog-feature-poster'),
-                        sourceId: item!.sourceId,
-                        entryId: item.id,
-                        role: 'poster',
-                        uri: item.imageUri,
-                        fit: BoxFit.cover,
-                      )
-                    : const ColoredBox(
-                        color: Color(0xFF163044),
-                        child: Center(
-                          child: Icon(Icons.movie_outlined, size: 44),
-                        ),
-                      ),
+      decoration: const BoxDecoration(color: Color(0xFF071A2A)),
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          if (overlay?.backdropUri case final backdrop?)
+            ArtworkImage(
+              key: const ValueKey('catalog-feature-backdrop'),
+              sourceId: item!.sourceId,
+              entryId: item.id,
+              role: 'verified-backdrop',
+              uri: backdrop,
+              fit: BoxFit.cover,
+            ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: overlay?.backdropUri == null
+                    ? const <Color>[Color(0xFF102D42), Color(0xFF071A2A)]
+                    : const <Color>[Color(0xE6102D42), Color(0xF2071A2A)],
               ),
             ),
-            const SizedBox(width: TviumSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Text(
-                    _destinationLabel(destination),
-                    style: Theme.of(context).textTheme.labelLarge
-                        ?.copyWith(color: TviumColors.accentDark),
-                  ),
-                  const SizedBox(height: TviumSpacing.xs),
-                  Text(
-                    item?.displayName ?? 'No titles available',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: TviumSpacing.xs),
-                  Text('$count ${count == 1 ? 'title' : 'titles'}'),
-                  if (item != null) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.sm),
-                    Wrap(
-                      spacing: TviumSpacing.sm,
-                      runSpacing: TviumSpacing.xs,
-                      children: <Widget>[
-                        if (destination == _CatalogDestination.movies &&
-                            item.isPlayable)
-                          FilledButton.icon(
-                            onPressed: () => onPlay(item),
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: const Text('Play'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: TviumSpacing.sm),
+            child: Row(
+              children: <Widget>[
+                SizedBox(
+                  width: 140,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(TviumRadius.control),
+                    child: hasPoster
+                        ? ArtworkImage(
+                            key: const ValueKey('catalog-feature-poster'),
+                            sourceId: item!.sourceId,
+                            entryId: item.id,
+                            role: overlay?.posterUri == null
+                                ? 'poster'
+                                : 'verified-poster',
+                            uri: posterUri,
+                            fit: BoxFit.cover,
+                          )
+                        : const ColoredBox(
+                            color: Color(0xFF163044),
+                            child: Center(
+                              child: Icon(Icons.movie_outlined, size: 44),
+                            ),
                           ),
-                        OutlinedButton(
-                          onPressed: onDetails,
-                          child: const Text('View details'),
+                  ),
+                ),
+                const SizedBox(width: TviumSpacing.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Text(
+                        _destinationLabel(destination),
+                        style: Theme.of(context).textTheme.labelLarge
+                            ?.copyWith(color: TviumColors.accentDark),
+                      ),
+                      const SizedBox(height: TviumSpacing.xs),
+                      Text(
+                        item?.displayName ?? 'No titles available',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: TviumSpacing.xs),
+                      Text('$count ${count == 1 ? 'title' : 'titles'}'),
+                      if (overlay?.overview case final overview?) ...<Widget>[
+                        const SizedBox(height: TviumSpacing.xs),
+                        Text(
+                          overview,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
-                    ),
-                  ],
-                ],
-              ),
+                      if (item != null) ...<Widget>[
+                        const SizedBox(height: TviumSpacing.sm),
+                        Wrap(
+                          spacing: TviumSpacing.sm,
+                          runSpacing: TviumSpacing.xs,
+                          children: <Widget>[
+                            if (destination == _CatalogDestination.movies &&
+                                item.isPlayable)
+                              FilledButton.icon(
+                                onPressed: () => onPlay(item),
+                                icon: const Icon(Icons.play_arrow_rounded),
+                                label: const Text('Play'),
+                              ),
+                            OutlinedButton(
+                              onPressed: onDetails,
+                              child: const Text('View details'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

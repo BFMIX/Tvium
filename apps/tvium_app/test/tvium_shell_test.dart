@@ -1440,6 +1440,58 @@ void main() {
     );
   });
 
+  testWidgets('Movies feature uses verified backdrop and poster', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    metadataEnabled.value = true;
+    addTearDown(() => metadataEnabled.value = false);
+    final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
+    await consent.write(true);
+    final store = MetadataOverlayStore(MemoryArtworkKeyValueStore());
+    await store.write(
+      sourceId: 'session.m3u',
+      entryId: 'entry-2',
+      originalTitle: 'Demo Movie (2025)',
+      kind: MediaKind.movie,
+      overlay: MetadataOverlay(
+        provider: 'tmdb',
+        providerId: '7',
+        title: 'Demo Movie',
+        overview: 'A synthetic film synopsis.',
+        posterUri: Uri.parse('https://image.tmdb.org/t/p/w500/poster.jpg'),
+        backdropUri: Uri.parse('https://image.tmdb.org/t/p/w1280/backdrop.jpg'),
+        verified: true,
+      ),
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        metadataOverlayStore: store,
+        metadataConsentStore: consent,
+      ),
+    );
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('catalog-feature-backdrop')),
+      findsOneWidget,
+    );
+    final poster = tester.widget<ArtworkImage>(
+      find.byKey(const ValueKey('catalog-feature-poster')),
+    );
+    expect(poster.uri?.host, 'image.tmdb.org');
+    expect(find.text('A synthetic film synopsis.'), findsOneWidget);
+  });
+
   testWidgets('Movies grid uses a cached verified poster after restart', (
     tester,
   ) async {
@@ -1523,6 +1575,55 @@ void main() {
 
     expect(find.byKey(const ValueKey('catalog-feature')), findsOneWidget);
     expect(find.byKey(const ValueKey('catalog-feature-poster')), findsNothing);
+  });
+
+  testWidgets('TV Shows feature uses a confirmed series poster', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    metadataEnabled.value = true;
+    addTearDown(() => metadataEnabled.value = false);
+    final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
+    await consent.write(true);
+    final store = MetadataOverlayStore(MemoryArtworkKeyValueStore());
+    await store.write(
+      sourceId: 'session.m3u',
+      entryId: 'local-series:session.m3u:fixture-show',
+      originalTitle: 'Fixture Show',
+      kind: MediaKind.episode,
+      overlay: MetadataOverlay(
+        provider: 'tmdb',
+        providerId: '8',
+        title: 'Fixture Show',
+        posterUri: Uri.parse('https://image.tmdb.org/t/p/w500/show.jpg'),
+        verified: true,
+      ),
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        metadataOverlayStore: store,
+        metadataConsentStore: consent,
+      ),
+    );
+    unawaited(controller.importSource(const _EpisodeStillFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
+    await tester.pumpAndSettle();
+
+    final feature = find.byKey(const ValueKey('catalog-feature'));
+    expect(
+      find.descendant(
+        of: feature,
+        matching: find.byKey(const ValueKey('catalog-feature-poster')),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('TV Shows grid does not promote an episode still to series art', (
