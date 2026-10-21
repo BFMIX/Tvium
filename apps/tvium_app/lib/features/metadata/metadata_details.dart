@@ -837,6 +837,7 @@ final class _OnlineMetadataSummaryState
               backdropUri: cached.backdropUri,
             );
           });
+          return;
         }
       } on Object {
         // Optional cached data must not prevent an online lookup.
@@ -879,49 +880,8 @@ final class _OnlineMetadataSummaryState
             : null;
       });
       final result = _result;
-      final sourceId = widget.sourceId;
-      final entryId = widget.entryId;
-      if (match.status == MetadataMatchStatus.matched &&
-          result != null &&
-          sourceId != null &&
-          entryId != null) {
-        try {
-          await ref
-              .read(metadataOverlayStoreProvider)
-              .write(
-                sourceId: sourceId,
-                entryId: entryId,
-                overlay: MetadataOverlay(
-                  provider: result.candidate.provider,
-                  providerId: result.candidate.id,
-                  title: result.candidate.title,
-                  overview: result.overview,
-                  posterUri: result.posterUri,
-                  backdropUri: result.backdropUri,
-                  verified: true,
-                ),
-              );
-          if (mounted) {
-            ref.invalidate(
-              metadataCachedOverlayProvider((
-                sourceId: sourceId,
-                entryId: entryId,
-                enabled: true,
-              )),
-            );
-            ref.invalidate(
-              metadataHeroOverlayProvider((
-                sourceId: sourceId,
-                entryId: entryId,
-                title: widget.originalTitle,
-                kind: widget.kind,
-                enabled: true,
-              )),
-            );
-          }
-        } on Object {
-          // Metadata remains visible if the optional cache is unavailable.
-        }
+      if (match.status == MetadataMatchStatus.matched && result != null) {
+        await _persistMatch(result);
       }
     } on Object {
       if (mounted && _result == null) {
@@ -930,6 +890,58 @@ final class _OnlineMetadataSummaryState
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<bool> _persistMatch(EnrichedMetadata result) async {
+    final sourceId = widget.sourceId;
+    final entryId = widget.entryId;
+    if (sourceId == null || entryId == null) return false;
+    try {
+      final store = ref.read(metadataOverlayStoreProvider);
+      await store.write(
+        sourceId: sourceId,
+        entryId: entryId,
+        overlay: MetadataOverlay(
+          provider: result.candidate.provider,
+          providerId: result.candidate.id,
+          title: result.candidate.title,
+          overview: result.overview,
+          posterUri: result.posterUri,
+          backdropUri: result.backdropUri,
+          verified: true,
+        ),
+      );
+      final saved = await store.read(sourceId: sourceId, entryId: entryId);
+      if (saved?.providerId != result.candidate.id) return false;
+      if (mounted) {
+        ref.invalidate(
+          metadataCachedOverlayProvider((
+            sourceId: sourceId,
+            entryId: entryId,
+            enabled: true,
+          )),
+        );
+        ref.invalidate(
+          metadataHeroOverlayProvider((
+            sourceId: sourceId,
+            entryId: entryId,
+            title: widget.originalTitle,
+            kind: widget.kind,
+            enabled: true,
+          )),
+        );
+      }
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<void> _confirmMatch() async {
+    final result = _result;
+    if (result == null || !_uncertain) return;
+    final saved = await _persistMatch(result);
+    if (saved && mounted) setState(() => _uncertain = false);
   }
 
   @override
@@ -950,6 +962,15 @@ final class _OnlineMetadataSummaryState
         if (_uncertain)
           const Text(
             'Possible match — verify the title before relying on these details.',
+          ),
+        if (_uncertain &&
+            result.candidate.provider == 'tmdb' &&
+            widget.sourceId != null &&
+            widget.entryId != null)
+          TextButton(
+            key: const ValueKey('metadata-confirm-match'),
+            onPressed: _confirmMatch,
+            child: const Text('This is the correct title'),
           ),
         if (result.backdropUri case final backdrop?)
           Padding(

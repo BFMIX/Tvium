@@ -336,6 +336,89 @@ void main() {
     expect(find.textContaining('Possible match'), findsOneWidget);
   });
 
+  testWidgets('a user can confirm one tentative series poster', (tester) async {
+    metadataEnabled.value = true;
+    final overlays = MetadataOverlayStore(MemoryArtworkKeyValueStore());
+    final client = MetadataGatewayClient(
+      endpoint: Uri.parse('https://metadata.example.test'),
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'id': 'series-1',
+                'provider': 'tmdb',
+                'title': 'Example Series',
+                'kind': 'series',
+                'year': 2020,
+                'posterUrl': 'https://image.tmdb.org/t/p/w500/series.jpg',
+                'license': 'TMDB terms',
+              },
+            ],
+          }),
+          200,
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          metadataGatewayProvider.overrideWithValue(client),
+          metadataOverlayStoreProvider.overrideWithValue(overlays),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: OnlineMetadataSummary(
+              originalTitle: 'Example Series',
+              kind: MediaKind.episode,
+              sourceId: 'source.test',
+              entryId: 'series.test',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Possible match'), findsOneWidget);
+    expect(
+      await overlays.read(sourceId: 'source.test', entryId: 'series.test'),
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('metadata-confirm-match')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Possible match'), findsNothing);
+    expect(
+      (await overlays.read(
+        sourceId: 'source.test',
+        entryId: 'series.test',
+      ))?.posterUri?.host,
+      'image.tmdb.org',
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          metadataGatewayProvider.overrideWithValue(client),
+          metadataOverlayStoreProvider.overrideWithValue(overlays),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: OnlineMetadataSummary(
+              originalTitle: 'Example Series',
+              kind: MediaKind.episode,
+              sourceId: 'source.test',
+              entryId: 'series.test',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Possible match'), findsNothing);
+  });
+
   testWidgets('verified metadata stays visible when the gateway is offline', (
     tester,
   ) async {
