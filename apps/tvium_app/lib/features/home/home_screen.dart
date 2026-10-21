@@ -2545,7 +2545,7 @@ final class _CatalogPage extends ConsumerWidget {
             )
           else
             SizedBox(
-              height: 220,
+              height: MediaQuery.sizeOf(context).width < 720 ? 300 : 220,
               child: _CatalogFeature(
                 destination: destination,
                 entry: featureEntry,
@@ -3539,43 +3539,147 @@ Future<void> _showTitleDetails(
   }
   return showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      key: const ValueKey('title-details'),
-      title: Text(entry.displayName),
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              entry.group ??
-                  (entry.kind == MediaKind.movie ? 'Movie' : 'TV show'),
-            ),
+    builder: (dialogContext) {
+      final wide = MediaQuery.sizeOf(dialogContext).width >= 720;
+      final details = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Text(
+            entry.kind == MediaKind.movie ? 'MOVIE' : 'TV SHOW',
+            style: Theme.of(dialogContext).textTheme.labelLarge
+                ?.copyWith(color: TviumColors.accentDark),
+          ),
+          const SizedBox(height: TviumSpacing.sm),
+          Text(
+            entry.displayName,
+            key: const ValueKey('title-details-heading'),
+            style: Theme.of(dialogContext).textTheme.headlineMedium,
+          ),
+          if (entry.group != null) ...<Widget>[
             const SizedBox(height: TviumSpacing.sm),
-            const Text(
-              'Online descriptions and ratings are optional and do not affect playback.',
-            ),
+            Text(entry.group!),
           ],
+          const SizedBox(height: TviumSpacing.md),
+          const Text(
+            'Online descriptions and ratings are optional and do not affect playback.',
+          ),
+        ],
+      );
+      return AlertDialog(
+        key: const ValueKey('title-details'),
+        content: SizedBox(
+          width: wide ? 680 : 320,
+          height: wide ? 320 : 410,
+          child: wide
+              ? Row(
+                  children: <Widget>[
+                    SizedBox(
+                      width: 190,
+                      child: _TitleDetailsPoster(entry: entry),
+                    ),
+                    const SizedBox(width: TviumSpacing.lg),
+                    Expanded(child: details),
+                  ],
+                )
+              : Column(
+                  children: <Widget>[
+                    SizedBox(
+                      width: 120,
+                      height: 180,
+                      child: _TitleDetailsPoster(entry: entry),
+                    ),
+                    const SizedBox(height: TviumSpacing.md),
+                    Expanded(child: SingleChildScrollView(child: details)),
+                  ],
+                ),
         ),
-      ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Close'),
-        ),
-        FilledButton(
-          onPressed: entry.isPlayable
-              ? () {
-                  Navigator.of(dialogContext).pop();
-                  onPlay(entry);
-                }
-              : null,
-          child: const Text('Play now'),
-        ),
-      ],
-    ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+          FilledButton(
+            onPressed: entry.isPlayable
+                ? () {
+                    Navigator.of(dialogContext).pop();
+                    onPlay(entry);
+                  }
+                : null,
+            child: const Text('Play now'),
+          ),
+        ],
+      );
+    },
   );
+}
+
+final class _TitleDetailsPoster extends StatelessWidget {
+  const _TitleDetailsPoster({required this.entry});
+
+  final _LibraryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final usePoster =
+        entry.imageUri?.hasScheme == true &&
+        (entry.kind == MediaKind.movie || entry.xtreamSeriesId != null);
+    return ClipRRect(
+      key: const ValueKey('title-details-poster'),
+      borderRadius: BorderRadius.circular(TviumRadius.control),
+      child: ColoredBox(
+        color: const Color(0xFF163044),
+        child: usePoster
+            ? ArtworkImage(
+                sourceId: entry.sourceId,
+                entryId: entry.id,
+                role: 'poster',
+                uri: entry.imageUri,
+                fit: BoxFit.cover,
+              )
+            : Center(child: Icon(_mediaIcon(entry.kind), size: 44)),
+      ),
+    );
+  }
+}
+
+final class _SeriesDetailsBody extends StatelessWidget {
+  const _SeriesDetailsBody({required this.entry, required this.child});
+
+  final _LibraryEntry entry;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= 720;
+    final height = (MediaQuery.sizeOf(context).height * 0.58).clamp(
+      300.0,
+      480.0,
+    );
+    return SizedBox(
+      width: wide ? 700 : 320,
+      height: height,
+      child: wide
+          ? Row(
+              children: <Widget>[
+                SizedBox(width: 180, child: _TitleDetailsPoster(entry: entry)),
+                const SizedBox(width: TviumSpacing.lg),
+                Expanded(child: child),
+              ],
+            )
+          : Column(
+              children: <Widget>[
+                SizedBox(
+                  width: 100,
+                  height: 150,
+                  child: _TitleDetailsPoster(entry: entry),
+                ),
+                const SizedBox(height: TviumSpacing.sm),
+                Expanded(child: child),
+              ],
+            ),
+    );
+  }
 }
 
 Future<void> _showLocalSeriesDetails(
@@ -3609,9 +3713,8 @@ Future<void> _showLocalSeriesDetails(
     builder: (dialogContext) => AlertDialog(
       key: const ValueKey('title-details'),
       title: Text(entry.displayName),
-      content: SizedBox(
-        width: 560,
-        height: 480,
+      content: _SeriesDetailsBody(
+        entry: entry,
         child: ListView(
           children: <Widget>[
             for (final seasonNumber in seasonNumbers)
@@ -3686,9 +3789,8 @@ Future<void> _showSeriesDetails(
     builder: (dialogContext) => AlertDialog(
       key: const ValueKey('title-details'),
       title: Text(entry.displayName),
-      content: SizedBox(
-        width: 560,
-        height: 480,
+      content: _SeriesDetailsBody(
+        entry: entry,
         child: FutureBuilder<XtreamSeriesDetails>(
           future: details,
           builder: (context, snapshot) {

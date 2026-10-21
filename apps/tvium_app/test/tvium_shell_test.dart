@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
+import 'package:tvium_app/features/artwork/artwork_image.dart';
 import 'package:tvium_app/features/import/playlist_import_controller.dart';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
@@ -603,6 +604,99 @@ void main() {
 
     expect(find.byKey(const ValueKey('catalog-player')), findsOneWidget);
     expect(find.byKey(const ValueKey('test-playback-view')), findsOneWidget);
+  });
+
+  testWidgets('movie details place the real poster beside the title', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _HeroArtworkFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('catalog-feature')),
+        matching: find.text('View details'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final poster = find.byKey(const ValueKey('title-details-poster'));
+    final title = find.byKey(const ValueKey('title-details-heading'));
+    expect(poster, findsOneWidget);
+    expect(title, findsOneWidget);
+    expect(tester.getTopLeft(poster).dx, lessThan(tester.getTopLeft(title).dx));
+  });
+
+  testWidgets('local series details use a neutral poster beside seasons', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _EpisodeStillFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('poster-grid')),
+        matching: find.text('Fixture Show'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final poster = find.byKey(const ValueKey('title-details-poster'));
+    final season = find.byKey(const ValueKey('season-1'));
+    expect(poster, findsOneWidget);
+    expect(
+      find.descendant(of: poster, matching: find.byType(ArtworkImage)),
+      findsNothing,
+    );
+    expect(season, findsOneWidget);
+    expect(
+      tester.getTopLeft(poster).dx,
+      lessThan(tester.getTopLeft(season).dx),
+    );
+  });
+
+  testWidgets('compact movie details stack the poster above the title', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _HeroArtworkFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('media-card-entry-2')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-card-entry-2')));
+    await tester.pumpAndSettle();
+
+    final poster = find.byKey(const ValueKey('title-details-poster'));
+    final title = find.byKey(const ValueKey('title-details-heading'));
+    expect(poster, findsOneWidget);
+    expect(title, findsOneWidget);
+    expect(tester.getTopLeft(poster).dy, lessThan(tester.getTopLeft(title).dy));
   });
 
   testWidgets('TV show Play now opens a visible playback surface', (
