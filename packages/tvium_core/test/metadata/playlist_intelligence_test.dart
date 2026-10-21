@@ -85,6 +85,23 @@ void main() {
       expect(match.status, MetadataMatchStatus.matched);
       expect(match.candidate?.id, '1');
     });
+    test('matches a localized title while retaining its original title', () {
+      final match = matcher.match(
+        normalizer.normalize('Titre français (2024)', kind: MediaKind.movie),
+        const [
+          MetadataCandidate(
+            provider: 'synthetic',
+            id: 'localized',
+            title: 'Original Title',
+            alternativeTitles: ['Titre français'],
+            kind: MediaKind.movie,
+            year: 2024,
+          ),
+        ],
+      );
+      expect(match.status, MetadataMatchStatus.matched);
+      expect(match.candidate?.id, 'localized');
+    });
     test(
       'title alone cannot silently associate a remake or regional channel',
       () {

@@ -24,7 +24,7 @@ For a local macOS preview, run `zsh scripts/run_metadata_preview_macos.zsh` from
 {"title":"Example Movie","kind":"movie","year":2020,"language":"en-US"}
 ```
 
-Kinds: `movie`, `series`, `live`. Response: `{"candidates":[]}` or up to 20 candidates with `id`, `provider`, `title`, `kind`, `sourceUrl`, `license`, and optional `year`, `posterUrl`, `overview`. A candidate is evidence for local matching, not permission to overwrite playlist identity. `400` invalid input; `413` oversized body; `415` wrong media type; `429` rate limit; `503` unavailable provider. Errors never include upstream details.
+Kinds: `movie`, `series`, `live`. Response: `{"candidates":[]}` or up to 20 candidates with `id`, `provider`, `title`, `kind`, `sourceUrl`, `license`, and optional `year`, `originalTitle`, `posterUrl`, `backdropUrl`, `overview`. TMDB searches use the requested language, so a localized title can match without replacing the original playlist title. A candidate is evidence for local matching, not permission to overwrite playlist identity. `400` invalid input; `413` oversized body; `415` wrong media type; `429` rate limit; `503` unavailable provider. Errors never include upstream details.
 
 ## Providers and attribution
 

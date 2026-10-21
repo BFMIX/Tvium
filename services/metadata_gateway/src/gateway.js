@@ -54,9 +54,10 @@ export function createSearch({ fetchImpl = fetch, token = '', now = Date.now, tt
     const data = await json(url, { Authorization: `Bearer ${token}` });
     if (!Array.isArray(data.results)) throw new Error('upstream_unavailable');
     return data.results.filter(item => Number.isInteger(item.id) && typeof (item.title ?? item.name) === 'string').slice(0, 20).map(item => ({
-      id: String(item.id), provider: 'tmdb', title: clean(item.title ?? item.name), kind: query.kind,
+      id: String(item.id), provider: 'tmdb', title: clean(item.title ?? item.name), originalTitle: clean(item.original_title ?? item.original_name), kind: query.kind,
       year: yearOf(item.release_date ?? item.first_air_date), overview: clean(item.overview),
       posterUrl: /^\/[a-zA-Z0-9._-]+$/.test(item.poster_path ?? '') ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
+      backdropUrl: /^\/[a-zA-Z0-9._-]+$/.test(item.backdrop_path ?? '') ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : undefined,
       sourceUrl: `https://www.themoviedb.org/${type}/${item.id}`, license: 'TMDB terms; attribution required; non-commercial API use',
     }));
   }

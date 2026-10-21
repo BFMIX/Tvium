@@ -50,6 +50,16 @@ test('TMDB uses fixed upstream and bearer header; results are bounded and cached
   assert.equal(calls, 2);
 });
 
+test('TMDB preserves localized and original titles plus backdrop artwork', async () => {
+  const search = createSearch({ token: 'test-only-token', fetchImpl: async url => {
+    assert.equal(url.searchParams.get('language'), 'fr-FR');
+    return response({ results: [{ id: 7, title: 'Titre français', original_title: 'Original Title', release_date: '2020-01-01', poster_path: '/poster.jpg', backdrop_path: '/backdrop.jpg' }] });
+  } });
+  const result = await search({ title: 'Titre français', kind: 'movie', year: 2020, language: 'fr-FR' });
+  assert.equal(result.candidates[0].originalTitle, 'Original Title');
+  assert.equal(result.candidates[0].backdropUrl, 'https://image.tmdb.org/t/p/w1280/backdrop.jpg');
+});
+
 test('series falls back to TVmaze and strips HTML; unsafe image links omitted', async () => {
   const search = createSearch({ token: 'test-token', fetchImpl: async url => {
     if (url.hostname === 'api.themoviedb.org') throw new Error('private upstream details');

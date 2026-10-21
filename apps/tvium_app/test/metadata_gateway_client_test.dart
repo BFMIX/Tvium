@@ -19,7 +19,7 @@ void main() {
             'title': 'Arrival',
             'kind': 'movie',
             'year': 2016,
-            'language': 'en',
+            'language': 'en-US',
           });
           return http.Response(
             jsonEncode({
@@ -28,9 +28,12 @@ void main() {
                   'id': '1',
                   'provider': 'tmdb',
                   'title': 'Arrival',
+                  'originalTitle': 'Original Arrival',
                   'kind': 'movie',
                   'year': 2016,
                   'overview': 'A visitor arrives.',
+                  'backdropUrl':
+                      'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
                   'sourceUrl': 'https://www.themoviedb.org/movie/1',
                   'license': 'TMDB terms',
                 },
@@ -47,6 +50,8 @@ void main() {
       final first = await client.search(title);
       final second = await client.search(title);
       expect(first.single.candidate.title, 'Arrival');
+      expect(first.single.candidate.alternativeTitles, ['Original Arrival']);
+      expect(first.single.backdropUri?.host, 'image.tmdb.org');
       expect(second.single.overview, 'A visitor arrives.');
       expect(requests, 1);
     },
@@ -90,7 +95,7 @@ void main() {
             'title': 'Mission: Impossible?',
             'kind': 'movie',
             'year': 1996,
-            'language': 'en',
+            'language': 'fr-FR',
           });
           expect(request.body, isNot(contains('playlist.example.test')));
           return http.Response(jsonEncode({'candidates': <Object>[]}), 200);

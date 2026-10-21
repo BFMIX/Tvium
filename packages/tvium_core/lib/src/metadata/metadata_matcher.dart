@@ -24,6 +24,7 @@ final class MetadataCandidate {
     required this.id,
     required this.title,
     required this.kind,
+    this.alternativeTitles = const [],
     this.year,
     this.season,
     this.episode,
@@ -34,6 +35,7 @@ final class MetadataCandidate {
   final String id;
   final String title;
   final MediaKind kind;
+  final List<String> alternativeTitles;
   final int? year;
   final int? season;
   final int? episode;
@@ -75,7 +77,11 @@ final class MetadataMatcher {
       if (candidate.provider.trim().isEmpty || candidate.id.trim().isEmpty) {
         continue;
       }
-      if (candidate.kind != query.kind || _key(candidate.title) != title) {
+      if (candidate.kind != query.kind ||
+          ![
+            candidate.title,
+            ...candidate.alternativeTitles,
+          ].any((candidateTitle) => _key(candidateTitle) == title)) {
         continue;
       }
       if (query.year != null && candidate.year != query.year) continue;

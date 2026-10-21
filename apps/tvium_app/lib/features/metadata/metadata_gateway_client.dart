@@ -8,10 +8,12 @@ final class EnrichedMetadata {
     required this.candidate,
     this.overview,
     this.posterUri,
+    this.backdropUri,
   });
   final MetadataCandidate candidate;
   final String? overview;
   final Uri? posterUri;
+  final Uri? backdropUri;
 }
 
 final class MetadataLookupException implements Exception {
@@ -91,7 +93,11 @@ final class MetadataGatewayClient {
       'title': title.title,
       'kind': kind,
       if (title.year != null) 'year': title.year,
-      'language': title.language ?? 'en',
+      'language': switch (title.language) {
+        null || 'fr' => 'fr-FR',
+        'en' => 'en-US',
+        final language => language,
+      },
     });
     final cached = _cache[body];
     if (cached != null && cached.$1.isAfter(DateTime.now())) {
@@ -154,6 +160,9 @@ final class MetadataGatewayClient {
                 provider: provider,
                 id: id,
                 title: name,
+                alternativeTitles: row['originalTitle'] is String
+                    ? <String>[row['originalTitle'] as String]
+                    : const <String>[],
                 kind: title.kind,
                 year: row['year'] is int ? row['year'] as int : null,
                 provenance: MetadataProvenance(
@@ -171,6 +180,7 @@ final class MetadataGatewayClient {
                     )
                   : null,
               posterUri: _publicUri(row['posterUrl']),
+              backdropUri: _publicUri(row['backdropUrl']),
             ),
           );
         }
