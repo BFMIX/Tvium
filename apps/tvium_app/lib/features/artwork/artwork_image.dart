@@ -14,8 +14,15 @@ final artworkCache = CacheManager(
   ),
 );
 
-String artworkCacheKey(String sourceId, String entryId, String role) => sha256
-    .convert(utf8.encode('$sourceId\u0000$entryId\u0000$role'))
+String artworkCacheKey(
+  String sourceId,
+  String entryId,
+  String role, {
+  Uri? uri,
+}) => sha256
+    .convert(
+      utf8.encode('$sourceId\u0000$entryId\u0000$role\u0000${uri ?? ''}'),
+    )
     .toString();
 
 /// Uses an opaque cache key so artwork can be found after catalog restoration.
@@ -78,7 +85,12 @@ final class _ArtworkImageState extends State<ArtworkImage> {
   }
 
   Future<Uint8List?> _readCachedBytes() async {
-    final key = artworkCacheKey(widget.sourceId, widget.entryId, widget.role);
+    final key = artworkCacheKey(
+      widget.sourceId,
+      widget.entryId,
+      widget.role,
+      uri: widget.uri,
+    );
     final cached = await artworkCache.getFileFromCache(key);
     return cached?.file.readAsBytes();
   }
@@ -89,7 +101,12 @@ final class _ArtworkImageState extends State<ArtworkImage> {
     if (uri != null && uri.hasScheme && !uri.host.endsWith('.test')) {
       return CachedNetworkImage(
         imageUrl: uri.toString(),
-        cacheKey: artworkCacheKey(widget.sourceId, widget.entryId, widget.role),
+        cacheKey: artworkCacheKey(
+          widget.sourceId,
+          widget.entryId,
+          widget.role,
+          uri: uri,
+        ),
         cacheManager: artworkCache,
         fit: widget.fit,
         alignment: widget.alignment,
