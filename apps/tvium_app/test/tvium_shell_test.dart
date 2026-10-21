@@ -163,6 +163,7 @@ void main() {
 
     expect(find.byKey(const ValueKey('live-country-rail')), findsOneWidget);
     expect(find.byKey(const ValueKey('live-country-sidebar')), findsNothing);
+    expect(find.byKey(const ValueKey('country-flag-rail-FR')), findsOneWidget);
   });
 
   testWidgets('wide Live TV can search detected countries in the left pane', (
@@ -240,6 +241,27 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Live channel rows show the scenic backdrop through glass', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    final row = find.byKey(const ValueKey('media-row-entry-1'));
+    final card = find.descendant(of: row, matching: find.byType(Card));
+    expect(tester.widget<Card>(card).color!.a, lessThan(1));
+    expect(find.byKey(const ValueKey('live-channel-glass')), findsOneWidget);
   });
 
   testWidgets('wide Live TV searches channels inside the channel pane', (

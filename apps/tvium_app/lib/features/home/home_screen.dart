@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -2635,10 +2636,26 @@ final class _CatalogPage extends ConsumerWidget {
                       padding: const EdgeInsets.only(right: TviumSpacing.sm),
                       child: ChoiceChip(
                         key: ValueKey('country-${country?.code ?? 'all'}'),
-                        label: Text(
-                          country == null
-                              ? 'All countries'
-                              : '${country.flag}  ${country.name}',
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            if (country == null)
+                              const Icon(Icons.public_rounded, size: 22)
+                            else
+                              ClipOval(
+                                child: Image.asset(
+                                  country.flagAsset,
+                                  key: ValueKey(
+                                    'country-flag-rail-${country.code}',
+                                  ),
+                                  width: 24,
+                                  height: 24,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            const SizedBox(width: TviumSpacing.xs),
+                            Text(country?.name ?? 'All countries'),
+                          ],
                         ),
                         selected: (country?.code ?? 'ALL') == activeCountryCode,
                         onSelected: (_) =>
@@ -2722,7 +2739,24 @@ final class _CatalogPage extends ConsumerWidget {
                               ),
                             ],
                             const SizedBox(height: TviumSpacing.sm),
-                            Expanded(child: media),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(
+                                  TviumRadius.surface,
+                                ),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 8,
+                                    sigmaY: 8,
+                                  ),
+                                  child: ColoredBox(
+                                    key: const ValueKey('live-channel-glass'),
+                                    color: const Color(0x400B2131),
+                                    child: media,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -3068,7 +3102,7 @@ final class _CountrySidebarState extends State<_CountrySidebar> {
                           child: Ink(
                             height: selected ? 150 : 68,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF183044),
+                              color: const Color(0x88183044),
                               borderRadius: BorderRadius.circular(
                                 TviumRadius.control,
                               ),
@@ -3423,7 +3457,7 @@ final class _LiveMediaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: EdgeInsets.zero,
-      color: const Color(0xFF102133),
+      color: const Color(0xA8102133),
       child: ListTile(
         minTileHeight: 72,
         contentPadding: const EdgeInsets.symmetric(

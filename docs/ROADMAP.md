@@ -58,6 +58,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by widget tests: the wide channel pane includes its own search above the channel stack, scoped to the active country and category.
 - Verified by widget tests: preview details remain tied to the playing channel when a different country is selected.
 - Verified by widget tests: Live TV uses the scenic artwork as a page backdrop, local circular flags from the approved design, category icons, and a transparent country/category layout.
+- Verified by widget tests: wide channel rows use a translucent glass surface, and compact country chips use the same local flag assets.
 - Verified by widget tests: channel logos use contain sizing and show a fallback only when artwork is unavailable, avoiding overlapping logos.
 - Verified by widget tests: the preview offers Play, Favorite, and an honest Now/Next guide; the player has a full screen view with play, channel, and volume controls.
 - Verified by synthetic tests: Live TV derives a country rail from explicit group prefixes, starts with France when present, filters categories and channels by country, and keeps regional or ambiguous groups available through All countries.
