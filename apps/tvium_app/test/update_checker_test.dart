@@ -6,6 +6,21 @@ import 'package:http/testing.dart';
 import 'package:tvium_app/features/updates/update_checker.dart';
 
 void main() {
+  test('automatic checks run again after an hour or a clock rollback', () {
+    final schedule = UpdateCheckSchedule();
+    final first = DateTime.utc(2026, 10, 22, 12);
+    expect(schedule.shouldCheck(first), isTrue);
+    expect(
+      schedule.shouldCheck(first.add(const Duration(minutes: 59))),
+      isFalse,
+    );
+    expect(schedule.shouldCheck(first.add(const Duration(hours: 1))), isTrue);
+    expect(
+      schedule.shouldCheck(first.subtract(const Duration(days: 1))),
+      isTrue,
+    );
+  });
+
   test('finds the newest published release after the installed prerelease', () async {
     final checker = UpdateChecker(
       client: MockClient(

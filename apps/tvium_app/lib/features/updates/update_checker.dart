@@ -16,6 +16,26 @@ final updateCheckerProvider = Provider<UpdateChecker>((ref) {
   return checker;
 });
 
+final updateClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
+/// Limits routine release checks while allowing a check after clock rollback.
+final class UpdateCheckSchedule {
+  DateTime? _lastCheck;
+
+  bool shouldCheck(DateTime now) {
+    final lastCheck = _lastCheck;
+    if (lastCheck != null &&
+        !now.isBefore(lastCheck) &&
+        now.difference(lastCheck) < const Duration(hours: 1)) {
+      return false;
+    }
+    _lastCheck = now;
+    return true;
+  }
+}
+
 final class AvailableUpdate {
   const AvailableUpdate(this.tag, this.page);
 

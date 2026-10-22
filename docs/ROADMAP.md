@@ -120,4 +120,5 @@ Performance, accessibility, security review, crash isolation, profiling, native 
 Verified: reproducible macOS DMG, Android TV ARM64 APK, Web archive, Apple Swift Package Manager builds, TV launcher assets, and automated prerelease workflow. Planned: Store metadata using authorized demo content, final legal/privacy review, protected signing, notarization, and production release builds.
 
 - Verified by synthetic tests: tagged builds can compare their version against published GitHub releases, skip drafts, retain stable-channel behavior, and notify the user of a newer release without sending library data.
+- Verified by widget and unit tests: tagged builds check again when the app resumes after an hour, skip duplicate checks within that interval, and handle device clock rollback. A previously announced tag is not announced again in the same app session.
 - In progress: release builds embed the tag and monotonic build number. Automatic installation needs signed packages and platform-specific distribution before it can be enabled safely.

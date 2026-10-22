@@ -58,6 +58,37 @@ void main() {
 
     expect(find.textContaining('v1.0.0-alpha.7 is available'), findsOneWidget);
   });
+  testWidgets('release builds recheck updates on resume after an hour', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 10, 22, 12);
+    var requests = 0;
+    final checker = UpdateChecker(
+      client: MockClient((_) async {
+        requests++;
+        return http.Response('[]', 200);
+      }),
+    );
+    addTearDown(checker.close);
+    await tester.pumpWidget(
+      TviumApp(
+        updateChecker: checker,
+        releaseTag: 'v1.0.0',
+        updateClock: () => now,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(requests, 1);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(requests, 1);
+
+    now = now.add(const Duration(hours: 1));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(requests, 2);
+  });
   testWidgets('home leads with exactly the three catalog destinations', (
     tester,
   ) async {

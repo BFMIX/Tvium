@@ -101,6 +101,8 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
   final _startupRefreshQueued = <String>{};
   Timer? _scheduledRefreshTimer;
   SourceRefreshRunner? _refreshRunner;
+  final UpdateCheckSchedule _updateCheckSchedule = UpdateCheckSchedule();
+  String? _lastAnnouncedUpdateTag;
 
   @override
   void initState() {
@@ -126,10 +128,16 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Future<void> _checkForAppUpdate() async {
     final currentTag = ref.read(installedReleaseTagProvider);
-    if (currentTag.isEmpty) return;
+    if (currentTag.isEmpty ||
+        !_updateCheckSchedule.shouldCheck(ref.read(updateClockProvider)())) {
+      return;
+    }
     try {
       final update = await ref.read(updateCheckerProvider).check(currentTag);
-      if (!mounted || update == null) return;
+      if (!mounted || update == null || update.tag == _lastAnnouncedUpdateTag) {
+        return;
+      }
+      _lastAnnouncedUpdateTag = update.tag;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Tvium ${update.tag} is available'),
@@ -155,7 +163,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_checkDueSources());
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_checkDueSources());
+      unawaited(_checkForAppUpdate());
+    }
   }
 
   @override

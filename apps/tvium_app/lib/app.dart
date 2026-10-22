@@ -37,6 +37,7 @@ final class TviumApp extends StatelessWidget {
     this.playbackEngineFactory,
     this.playbackViewBuilder,
     this.updateChecker,
+    this.updateClock,
     this.releaseTag,
     this.qrPairingStarter,
     super.key,
@@ -53,6 +54,7 @@ final class TviumApp extends StatelessWidget {
   final PlaybackEngineFactory? playbackEngineFactory;
   final PlaybackViewBuilder? playbackViewBuilder;
   final UpdateChecker? updateChecker;
+  final DateTime Function()? updateClock;
   final String? releaseTag;
   final Future<QrPairingSession> Function()? qrPairingStarter;
 
@@ -95,6 +97,8 @@ final class TviumApp extends StatelessWidget {
           playbackViewBuilderProvider.overrideWithValue(playbackViewBuilder!),
         if (updateChecker != null)
           updateCheckerProvider.overrideWithValue(updateChecker!),
+        if (updateClock != null)
+          updateClockProvider.overrideWithValue(updateClock!),
         if (releaseTag != null)
           installedReleaseTagProvider.overrideWithValue(releaseTag!),
         if (qrPairingStarter != null)
