@@ -1571,6 +1571,69 @@ void main() {
     },
   );
 
+  testWidgets('scrolling to a movie enriches its poster automatically', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    metadataEnabled.value = true;
+    addTearDown(() => metadataEnabled.value = false);
+    final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
+    await consent.write(true);
+    final requested = <String>[];
+    final client = MetadataGatewayClient(
+      endpoint: Uri.parse('https://metadata.example.test'),
+      client: MockClient((request) async {
+        final title =
+            (jsonDecode(request.body) as Map<String, dynamic>)['title']
+                as String;
+        requested.add(title);
+        return http.Response(
+          jsonEncode({
+            'candidates': [
+              {
+                'id': title,
+                'provider': 'tmdb',
+                'title': title,
+                'kind': 'movie',
+                'year': 2025,
+                'posterUrl': 'https://image.tmdb.org/t/p/w500/poster.jpg',
+                'license': 'TMDB terms',
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        metadataGatewayClient: client,
+        metadataOverlayStore: MetadataOverlayStore(
+          MemoryArtworkKeyValueStore(),
+        ),
+        metadataConsentStore: consent,
+      ),
+    );
+    unawaited(controller.importSource(const _LongMetadataGridFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Movies').first);
+    await tester.pumpAndSettle();
+    expect(requested, isNot(contains('Eighth Movie')));
+
+    await tester.drag(
+      find.byKey(const ValueKey('poster-grid')),
+      const Offset(0, -680),
+    );
+    await tester.pumpAndSettle();
+    expect(requested, contains('Eighth Movie'));
+  });
+
   testWidgets('Home does not display an episode still as a series poster', (
     tester,
   ) async {
@@ -2255,6 +2318,28 @@ final class _MetadataGridFixtureSource implements M3uSource {
     'https://stream.example.test/vod/first.mp4',
     '#EXTINF:-1 group-title="Movies",Second Movie (2025)',
     'https://stream.example.test/vod/second.mp4',
+  ]);
+}
+
+final class _LongMetadataGridFixtureSource implements M3uSource {
+  const _LongMetadataGridFixtureSource();
+
+  @override
+  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
+    '#EXTM3U',
+    for (final (index, title) in <String>[
+      'First Movie',
+      'Second Movie',
+      'Third Movie',
+      'Fourth Movie',
+      'Fifth Movie',
+      'Sixth Movie',
+      'Seventh Movie',
+      'Eighth Movie',
+    ].indexed) ...<String>[
+      '#EXTINF:-1 group-title="Movies",$title (2025)',
+      'https://stream.example.test/vod/$index.mp4',
+    ],
   ]);
 }
 

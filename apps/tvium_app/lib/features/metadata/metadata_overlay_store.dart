@@ -126,6 +126,31 @@ final metadataHeroOverlayProvider =
       }
     });
 
+/// Enriches a grid card only if it remains mounted after a short scroll pause.
+/// Cached verified artwork is returned immediately for restored libraries.
+final metadataVisibleOverlayProvider = FutureProvider.autoDispose
+    .family<MetadataOverlay?, MetadataHeroRequest>((ref, request) async {
+      if (!request.enabled) return null;
+      try {
+        final cached = await ref
+            .read(metadataOverlayStoreProvider)
+            .read(
+              sourceId: request.sourceId,
+              entryId: request.entryId,
+              originalTitle: request.title,
+              kind: request.kind,
+            );
+        if (cached != null) return cached;
+      } on Object {
+        // A cache read failure may still leave the online lookup available.
+      }
+      var disposed = false;
+      ref.onDispose(() => disposed = true);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      if (disposed) return null;
+      return ref.read(metadataHeroOverlayProvider(request).future);
+    });
+
 final class MetadataOverlay {
   const MetadataOverlay({
     required this.provider,

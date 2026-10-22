@@ -8,6 +8,41 @@ import 'package:tvium_app/features/metadata/metadata_overlay_store.dart';
 import 'package:tvium_core/tvium_core.dart';
 
 void main() {
+  test('scrolled-away metadata cards do not start online lookups', () async {
+    var requests = 0;
+    final client = MetadataGatewayClient(
+      endpoint: Uri.parse('https://metadata.example.test'),
+      client: MockClient((_) async {
+        requests++;
+        return http.Response('{"candidates":[]}', 200);
+      }),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        metadataGatewayProvider.overrideWithValue(client),
+        metadataOverlayStoreProvider.overrideWithValue(
+          MetadataOverlayStore(MemoryArtworkKeyValueStore()),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final subscription = container.listen(
+      metadataVisibleOverlayProvider((
+        sourceId: 'source.test',
+        entryId: 'movie.test',
+        title: 'Example Movie (2020)',
+        kind: MediaKind.movie,
+        enabled: true,
+      )),
+      (_, _) {},
+    );
+    await container.pump();
+    subscription.close();
+    await container.pump();
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    expect(requests, 0);
+  });
+
   test(
     'grid artwork reads only cached verified metadata with consent',
     () async {

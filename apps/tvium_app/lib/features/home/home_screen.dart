@@ -2761,7 +2761,7 @@ final class _CatalogPage extends ConsumerWidget {
                     ? const ValueKey('media-card-movie')
                     : ValueKey('media-card-${entry.id}'),
                 entry: entry,
-                prefetchMetadata: index < 4,
+                prefetchMetadata: true,
                 schedule: epgSchedules[entry.id],
                 destination: destination,
                 favorite: favorites.contains(entry.locator(profileId)),
@@ -4075,7 +4075,7 @@ final class _CatalogArtwork extends ConsumerWidget {
         : prefetchMetadata
         ? ref
               .watch(
-                metadataHeroOverlayProvider((
+                metadataVisibleOverlayProvider((
                   sourceId: entry.sourceId,
                   entryId: entry.id,
                   title: entry.name,
