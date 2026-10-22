@@ -10,6 +10,7 @@ import 'features/home/home_screen.dart';
 import 'features/import/local_playlist_picker.dart';
 import 'features/import/playlist_import_controller.dart';
 import 'features/import/playlist_import_provider.dart';
+import 'features/import/qr_pairing.dart';
 import 'features/library/library_bootstrap_controller.dart';
 import 'features/metadata/metadata_gateway_client.dart';
 import 'features/metadata/metadata_overlay_store.dart';
@@ -37,6 +38,7 @@ final class TviumApp extends StatelessWidget {
     this.playbackViewBuilder,
     this.updateChecker,
     this.releaseTag,
+    this.qrPairingStarter,
     super.key,
   });
 
@@ -52,6 +54,7 @@ final class TviumApp extends StatelessWidget {
   final PlaybackViewBuilder? playbackViewBuilder;
   final UpdateChecker? updateChecker;
   final String? releaseTag;
+  final Future<QrPairingSession> Function()? qrPairingStarter;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +97,8 @@ final class TviumApp extends StatelessWidget {
           updateCheckerProvider.overrideWithValue(updateChecker!),
         if (releaseTag != null)
           installedReleaseTagProvider.overrideWithValue(releaseTag!),
+        if (qrPairingStarter != null)
+          qrPairingStarterProvider.overrideWithValue(qrPairingStarter!),
       ],
       child: MaterialApp.router(
         title: 'Tvium',

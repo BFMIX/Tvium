@@ -32,6 +32,25 @@ class AppLocalizationsFr extends AppLocalizations {
   String get xtreamCodes => 'Xtream Codes';
 
   @override
+  String get pairWithPhone => 'Ajouter avec votre téléphone';
+
+  @override
+  String get pairingInstructions =>
+      'Scannez avec un téléphone sur le même réseau domestique de confiance. Le code expire après 10 minutes. Confirmez la source ici avant l’import.';
+
+  @override
+  String get pairingReceived =>
+      'Source reçue. Confirmez pour l’ajouter à cette TV.';
+
+  @override
+  String get pairingExpired =>
+      'Ce code a expiré. Fermez cette fenêtre et réessayez.';
+
+  @override
+  String get pairingUnavailable =>
+      'Le jumelage local est indisponible. Connectez cet appareil à votre réseau domestique, puis réessayez.';
+
+  @override
   String get comingLater => 'Prochainement';
 
   @override

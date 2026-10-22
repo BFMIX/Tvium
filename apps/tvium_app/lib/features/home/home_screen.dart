@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_design_system/tvium_design_system.dart';
@@ -25,6 +26,10 @@ import '../import/local_playlist_picker.dart';
 import '../import/m3u_import_persistence.dart';
 import '../import/playlist_import_controller.dart';
 import '../import/playlist_import_provider.dart';
+import '../import/qr_pairing.dart';
+import '../import/qr_pairing_web.dart'
+    if (dart.library.io) '../import/qr_pairing_io.dart'
+    as qr_pairing;
 import '../import/xtream_m3u_detector.dart';
 import '../import/xtream_m3u_reconciliation.dart';
 import '../library/library_bootstrap_controller.dart';
@@ -57,6 +62,10 @@ final playbackViewBuilderProvider = Provider<PlaybackViewBuilder>(
     }
     return MediaKitPlaybackView(engine: engine);
   },
+);
+
+final qrPairingStarterProvider = Provider<Future<QrPairingSession> Function()>(
+  (ref) => qr_pairing.startQrPairing,
 );
 
 final class HomeScreen extends ConsumerStatefulWidget {
@@ -469,6 +478,15 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                       },
                     ),
                   ),
+                  if (!kIsWeb) ...<Widget>[
+                    const SizedBox(height: TviumSpacing.md),
+                    OutlinedButton.icon(
+                      key: const ValueKey('qr-pairing-action'),
+                      onPressed: () => unawaited(_showQrPairing(controller)),
+                      icon: const Icon(Icons.qr_code_2_rounded),
+                      label: Text(strings.pairWithPhone),
+                    ),
+                  ],
                   if (_showUrlField) ...<Widget>[
                     const SizedBox(height: TviumSpacing.lg),
                     Row(
@@ -570,6 +588,127 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
         ),
       );
     });
+  }
+
+  Future<void> _showQrPairing(PlaylistImportController controller) async {
+    final QrPairingSession session;
+    try {
+      session = await ref.read(qrPairingStarterProvider)();
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).pairingUnavailable),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) {
+      await session.close();
+      return;
+    }
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          final strings = AppLocalizations.of(dialogContext);
+          return AlertDialog(
+            title: Text(strings.pairWithPhone),
+            content: SizedBox(
+              width: 340,
+              child: FutureBuilder<QrPairingSubmission?>(
+                future: session.submission,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    if (snapshot.connectionState == ConnectionState.done) {
+                      return Text(strings.pairingExpired);
+                    }
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        QrImageView(
+                          key: const ValueKey('qr-pairing-code'),
+                          data: session.pairingUrl,
+                          size: 250,
+                          backgroundColor: Colors.white,
+                        ),
+                        const SizedBox(height: TviumSpacing.md),
+                        Text(strings.pairingInstructions),
+                      ],
+                    );
+                  }
+                  final proposal = snapshot.data!;
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.check_circle_outline_rounded,
+                        size: 52,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(height: TviumSpacing.md),
+                      Text(strings.pairingReceived),
+                      const SizedBox(height: TviumSpacing.md),
+                      FilledButton(
+                        key: const ValueKey('qr-pairing-confirm'),
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          unawaited(_acceptQrSubmission(controller, proposal));
+                        },
+                        child: Text(strings.addPlaylist),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(strings.cancel),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  Future<void> _acceptQrSubmission(
+    PlaylistImportController controller,
+    QrPairingSubmission proposal,
+  ) async {
+    switch (proposal) {
+      case QrM3uSubmission(:final url):
+        await _importM3uUrl(controller, url);
+      case QrXtreamSubmission(:final server, :final username, :final password):
+        try {
+          final profile = await ref
+              .read(xtreamConnectionServiceProvider)
+              .addPlaylist(
+                XtreamConnectionInput(
+                  profileName: server.host,
+                  serverUri: server,
+                  credentials: XtreamCredentials(
+                    username: username,
+                    password: password,
+                  ),
+                ),
+              );
+          if (mounted) await _openXtreamLibrary(profile);
+        } on Object {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(AppLocalizations.of(context).connectionFailed),
+              ),
+            );
+          }
+        }
+    }
   }
 
   void _analyzeUrl(PlaylistImportController controller) {

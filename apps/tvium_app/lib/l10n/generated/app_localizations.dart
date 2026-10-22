@@ -140,6 +140,36 @@ abstract class AppLocalizations {
   /// **'Xtream Codes'**
   String get xtreamCodes;
 
+  /// No description provided for @pairWithPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Add with your phone'**
+  String get pairWithPhone;
+
+  /// No description provided for @pairingInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan with a phone on the same trusted home network. The code expires after 10 minutes. Confirm the source here before importing.'**
+  String get pairingInstructions;
+
+  /// No description provided for @pairingReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Source received. Confirm to add it to this TV.'**
+  String get pairingReceived;
+
+  /// No description provided for @pairingExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'This pairing session has expired. Close this window and try again.'**
+  String get pairingExpired;
+
+  /// No description provided for @pairingUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Local pairing is unavailable. Connect this device to your home network and try again.'**
+  String get pairingUnavailable;
+
   /// No description provided for @comingLater.
   ///
   /// In en, this message translates to:

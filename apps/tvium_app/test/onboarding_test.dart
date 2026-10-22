@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
+import 'package:tvium_app/features/import/qr_pairing.dart';
 
 void main() {
   testWidgets('first launch uses scenic artwork and prominent source choices', (
@@ -32,6 +35,21 @@ void main() {
     expect(url.height, greaterThanOrEqualTo(130));
     expect(url.right, lessThan(file.left));
     expect(file.right, lessThan(xtream.left));
+  });
+
+  testWidgets('QR pairing is visible on a 720p TV without scrolling', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const TviumApp());
+    final rect = tester.getRect(
+      find.byKey(const ValueKey('qr-pairing-action')),
+    );
+    expect(rect.top, greaterThanOrEqualTo(0));
+    expect(rect.bottom, lessThanOrEqualTo(720));
   });
 
   testWidgets('explains source ownership before the first import', (
@@ -110,4 +128,46 @@ void main() {
     expect(passwordField.obscureText, isTrue);
     expect(passwordField.enableSuggestions, isFalse);
   });
+
+  testWidgets('QR handoff waits for TV confirmation before adding a source', (
+    tester,
+  ) async {
+    final session = _FakeQrPairingSession();
+    await tester.pumpWidget(TviumApp(qrPairingStarter: () async => session));
+    await tester.ensureVisible(find.byKey(const ValueKey('qr-pairing-action')));
+    await tester.tap(find.byKey(const ValueKey('qr-pairing-action')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('qr-pairing-code')), findsOneWidget);
+    expect(find.byKey(const ValueKey('qr-pairing-confirm')), findsNothing);
+
+    session.complete(
+      QrM3uSubmission(Uri.parse('https://playlist.example.test/list.m3u')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('qr-pairing-confirm')), findsOneWidget);
+    expect(find.textContaining('playlist.example.test'), findsNothing);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(session.closed, isTrue);
+  });
+}
+
+final class _FakeQrPairingSession implements QrPairingSession {
+  final Completer<QrPairingSubmission?> _received = Completer();
+  bool closed = false;
+
+  @override
+  String get pairingUrl => 'http://192.168.1.2:12345/pair/temporary-code';
+
+  @override
+  Future<QrPairingSubmission?> get submission => _received.future;
+
+  void complete(QrPairingSubmission submission) =>
+      _received.complete(submission);
+
+  @override
+  Future<void> close() async {
+    closed = true;
+    if (!_received.isCompleted) _received.complete(null);
+  }
 }
