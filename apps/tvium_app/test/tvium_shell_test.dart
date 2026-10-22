@@ -1631,6 +1631,9 @@ void main() {
       const Offset(0, -680),
     );
     await tester.pumpAndSettle();
+    for (var index = 0; index < 10; index++) {
+      await tester.pump(const Duration(seconds: 2));
+    }
     expect(requested, contains('Eighth Movie'));
   });
 

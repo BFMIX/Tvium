@@ -8,6 +8,22 @@ import 'package:tvium_app/features/metadata/metadata_overlay_store.dart';
 import 'package:tvium_core/tvium_core.dart';
 
 void main() {
+  test('grid lookup pacing bounds request starts', () async {
+    final pacer = MetadataGridLookupPacer(
+      interval: const Duration(milliseconds: 25),
+    );
+    final starts = <DateTime>[];
+    await Future.wait([
+      pacer.run(() async => starts.add(DateTime.now()), isActive: () => true),
+      pacer.run(() async => starts.add(DateTime.now()), isActive: () => true),
+    ]);
+    expect(starts, hasLength(2));
+    expect(
+      starts.last.difference(starts.first).inMilliseconds,
+      greaterThanOrEqualTo(20),
+    );
+  });
+
   test('scrolled-away metadata cards do not start online lookups', () async {
     var requests = 0;
     final client = MetadataGatewayClient(

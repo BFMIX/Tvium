@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -14,6 +15,39 @@ final metadataOverlayStoreProvider = Provider<MetadataOverlayStore>(
 final metadataConsentStoreProvider = Provider<MetadataConsentStore>(
   (ref) => MetadataConsentStore(),
 );
+
+final metadataGridLookupPacerProvider = Provider<MetadataGridLookupPacer>(
+  (ref) => MetadataGridLookupPacer(),
+);
+
+/// Spaces grid lookups so scrolling cannot exhaust the gateway request limit.
+final class MetadataGridLookupPacer {
+  MetadataGridLookupPacer({this.interval = const Duration(milliseconds: 1100)});
+
+  final Duration interval;
+  Future<void> _tail = Future<void>.value();
+  DateTime _nextStart = DateTime.fromMillisecondsSinceEpoch(0);
+
+  Future<T?> run<T>(
+    Future<T> Function() task, {
+    required bool Function() isActive,
+  }) async {
+    final previous = _tail;
+    final gate = Completer<void>();
+    _tail = gate.future;
+    await previous;
+    try {
+      if (!isActive()) return null;
+      final wait = _nextStart.difference(DateTime.now());
+      if (wait > Duration.zero) await Future<void>.delayed(wait);
+      if (!isActive()) return null;
+      _nextStart = DateTime.now().add(interval);
+    } finally {
+      gate.complete();
+    }
+    return task();
+  }
+}
 
 final class MetadataConsentStore {
   MetadataConsentStore([SecureKeyValueStore? backend])
@@ -131,6 +165,8 @@ final metadataHeroOverlayProvider =
 final metadataVisibleOverlayProvider = FutureProvider.autoDispose
     .family<MetadataOverlay?, MetadataHeroRequest>((ref, request) async {
       if (!request.enabled) return null;
+      var disposed = false;
+      ref.onDispose(() => disposed = true);
       try {
         final cached = await ref
             .read(metadataOverlayStoreProvider)
@@ -144,11 +180,15 @@ final metadataVisibleOverlayProvider = FutureProvider.autoDispose
       } on Object {
         // A cache read failure may still leave the online lookup available.
       }
-      var disposed = false;
-      ref.onDispose(() => disposed = true);
-      await Future<void>.delayed(const Duration(milliseconds: 350));
       if (disposed) return null;
-      return ref.read(metadataHeroOverlayProvider(request).future);
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      if (disposed || ref.read(metadataGatewayProvider) == null) return null;
+      return ref
+          .read(metadataGridLookupPacerProvider)
+          .run<MetadataOverlay?>(
+            () => ref.read(metadataHeroOverlayProvider(request).future),
+            isActive: () => !disposed,
+          );
     });
 
 final class MetadataOverlay {
