@@ -26,14 +26,32 @@ Future<InternetAddress?> _privateLanAddress() async {
     type: InternetAddressType.IPv4,
     includeLoopback: false,
   );
-  for (final interface in interfaces) {
-    for (final address in interface.addresses) {
-      final bytes = address.rawAddress;
-      if (bytes[0] == 10 ||
-          (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
-          (bytes[0] == 192 && bytes[1] == 168)) {
-        return address;
-      }
+  return selectQrPairingAddress([
+    for (final interface in interfaces)
+      for (final address in interface.addresses)
+        (interfaceName: interface.name, address: address),
+  ]);
+}
+
+/// Chooses a private Wi-Fi or Ethernet address reachable by a nearby phone.
+/// VPN and virtual adapter addresses can be private but point to another LAN.
+InternetAddress? selectQrPairingAddress(
+  Iterable<({String interfaceName, InternetAddress address})> candidates,
+) {
+  for (final candidate in candidates) {
+    final name = candidate.interfaceName.toLowerCase();
+    if (!(name.startsWith('en') ||
+        name.startsWith('eth') ||
+        name.startsWith('wl'))) {
+      continue;
+    }
+    final address = candidate.address;
+    if (address.type != InternetAddressType.IPv4) continue;
+    final bytes = address.rawAddress;
+    if (bytes[0] == 10 ||
+        (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+        (bytes[0] == 192 && bytes[1] == 168)) {
+      return address;
     }
   }
   return null;

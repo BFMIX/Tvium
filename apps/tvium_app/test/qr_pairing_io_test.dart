@@ -29,6 +29,23 @@ Future<String> sendToPairing(
 }
 
 void main() {
+  test('pairing prefers a physical LAN over a VPN or virtual adapter', () {
+    final address = selectQrPairingAddress([
+      (interfaceName: 'utun2', address: InternetAddress('10.8.0.2')),
+      (interfaceName: 'bridge100', address: InternetAddress('192.168.64.1')),
+      (interfaceName: 'en0', address: InternetAddress('192.168.1.25')),
+    ]);
+    expect(address?.address, '192.168.1.25');
+  });
+
+  test('pairing rejects a VPN-only or public address', () {
+    final address = selectQrPairingAddress([
+      (interfaceName: 'utun2', address: InternetAddress('10.8.0.2')),
+      (interfaceName: 'en0', address: InternetAddress('203.0.113.10')),
+    ]);
+    expect(address, isNull);
+  });
+
   test('pairing link contains no source and requires one-time token', () async {
     final session = await startQrPairing(
       bindAddress: InternetAddress.loopbackIPv4,
