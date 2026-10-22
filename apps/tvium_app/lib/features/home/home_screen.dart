@@ -40,6 +40,7 @@ import '../metadata/metadata_details.dart';
 import '../metadata/metadata_gateway_client.dart';
 import '../metadata/metadata_overlay_store.dart';
 import '../parental/parental_pin_service.dart';
+import '../parental/parental_unlock_lease.dart';
 import '../profiles/profile_switcher.dart';
 import '../sources/source_identity_service.dart';
 import '../updates/update_checker.dart';
@@ -96,7 +97,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
   Duration _lastCheckpointPosition = Duration.zero;
   Future<void> _checkpointTail = Future<void>.value();
   String? _playbackError;
-  String? _unlockedParentalProfileId;
+  final ParentalUnlockLease _parentalUnlock = ParentalUnlockLease(
+    clock: DateTime.now,
+  );
+  Timer? _parentalUnlockTimer;
   var _profileSessionGeneration = 0;
   final _startupRefreshQueued = <String>{};
   Timer? _scheduledRefreshTimer;
@@ -163,6 +167,11 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _clearParentalUnlock();
+    }
     if (state == AppLifecycleState.resumed) {
       unawaited(_checkDueSources());
       unawaited(_checkForAppUpdate());
@@ -171,6 +180,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void dispose() {
+    _parentalUnlockTimer?.cancel();
     _scheduledRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _urlController.dispose();
@@ -215,7 +225,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
         ?.value;
     final parentalPolicy = overlays?.parentalPolicy;
     final allEntries = _libraryEntries(state, persistedLibrary);
-    final parentalUnlocked = _unlockedParentalProfileId == profileId;
+    final parentalUnlocked = _parentalUnlock.isUnlocked(profileId);
     final entries = parentalPolicy != null && !parentalUnlocked
         ? allEntries
               .where(
@@ -1124,7 +1134,8 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
       _selectedEntry = null;
       _playbackEngine = null;
       _playbackError = null;
-      _unlockedParentalProfileId = null;
+      _parentalUnlock.clear();
+      _parentalUnlockTimer?.cancel();
     });
     if (engine != null) {
       unawaited(engine.dispose());
@@ -1304,7 +1315,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
               blockedContent: blockedContent,
             ),
           );
-      if (mounted) setState(() => _unlockedParentalProfileId = null);
+      if (mounted) _clearParentalUnlock();
       return 'Parental controls enabled.';
     } on ArgumentError {
       return 'Use a PIN containing 4 to 8 digits.';
@@ -1319,9 +1330,19 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     ));
     if (!verified) return 'Incorrect PIN.';
     if (mounted) {
-      setState(() => _unlockedParentalProfileId = policy.profileId);
+      setState(() => _parentalUnlock.unlock(policy.profileId));
+      _parentalUnlockTimer?.cancel();
+      _parentalUnlockTimer = Timer(ParentalUnlockLease.duration, () {
+        if (mounted) _clearParentalUnlock();
+      });
     }
-    return 'Protected content unlocked for this session.';
+    return 'Protected content unlocked for 15 minutes.';
+  }
+
+  void _clearParentalUnlock() {
+    _parentalUnlockTimer?.cancel();
+    _parentalUnlock.clear();
+    if (mounted) setState(() {});
   }
 
   bool _blockedByParentalPolicy(

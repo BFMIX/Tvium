@@ -109,7 +109,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 
 ## M7 — Parental controls (in progress)
 
-Verified: durable profile-scoped parental-policy persistence, salted iterative PIN hashing, explicit category controls, protected-category filtering, locked-library search exclusion, and session unlock. Planned: poster blur and configurable timeout UX.
+Verified: durable profile-scoped parental-policy persistence, salted iterative PIN hashing, explicit category controls, protected-category filtering, locked-library search exclusion, and session unlock. Verified by synthetic tests: a successful PIN unlock lasts at most 15 minutes, is limited to one profile, clears when the app leaves the foreground, and cannot be extended by a device clock rollback. Planned: poster blur and configurable timeout UX.
 
 ## M8 — Hardening (planned)
 
