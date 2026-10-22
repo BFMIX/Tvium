@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
 import 'package:tvium_app/features/import/qr_pairing.dart';
@@ -50,6 +51,25 @@ void main() {
     );
     expect(rect.top, greaterThanOrEqualTo(0));
     expect(rect.bottom, lessThanOrEqualTo(720));
+  });
+
+  testWidgets('TV remote can open QR pairing from the first source card', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final session = _FakeQrPairingSession();
+    await tester.pumpWidget(TviumApp(qrPairingStarter: () async => session));
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('qr-pairing-code')), findsOneWidget);
   });
 
   testWidgets('explains source ownership before the first import', (
