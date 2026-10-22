@@ -29,7 +29,7 @@ void main() {
   ) async {
     await tester.pumpWidget(const TviumApp());
     await tester.tap(find.byKey(const ValueKey<String>('m3u-url-action')));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(
       tester.widget<TextField>(find.byType(TextField)).obscureText,

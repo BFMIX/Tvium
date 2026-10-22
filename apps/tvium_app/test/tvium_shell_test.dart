@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -538,6 +539,8 @@ void main() {
       tester.getCenter(volume).dy,
       greaterThan(tester.getBottomLeft(fullScreen).dy - 120),
     );
+    await tester.tap(find.byKey(const ValueKey('live-fullscreen-exit')));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Live TV F shortcut uses the same full screen player', (
@@ -587,6 +590,54 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('live-fullscreen-player')), findsNothing);
+  });
+
+  testWidgets('Live TV full screen controls hide until pointer activity', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+        playbackEngineFactory: _FakePlaybackEngine.new,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+    unawaited(controller.importSource(const _ZappingFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-row-entry-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('live-player-fullscreen')));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('live-fullscreen-controls')),
+      findsOneWidget,
+    );
+
+    await tester.pump(const Duration(seconds: 4));
+    expect(
+      find.byKey(const ValueKey('live-fullscreen-controls')),
+      findsNothing,
+    );
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.addPointer(location: const Offset(300, 300));
+    await gesture.moveTo(const Offset(320, 320));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('live-fullscreen-controls')),
+      findsOneWidget,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Live TV player zaps through visible playable channels', (

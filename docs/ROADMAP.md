@@ -30,6 +30,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 
 - Verified: approved Tvium logo family, application icons, visual reference screens, and brand color tokens are organized and integrated into the prototype.
 - Verified: production color and typography foundations, adaptive four-destination navigation shell, onboarding, Home, compact touch navigation, and wide-screen focus states.
+- Verified by widget tests: first launch uses the approved scenic artwork, a readable cinematic surface, and three prominent source choices; compact screens keep all three actions within the viewport width.
 - Verified: the production Home screen includes a cinematic, five-second controllable feature carousel with adjacent Play and View details actions.
 - Verified by widget tests: Home shows exactly three destination cards before the carousel, with no extra history rail.
 - Verified by widget tests: the three Home cards use fixed approved artwork, the carousel is spaced below them, and its provider poster is shown at a bounded size over a stable scenic backdrop.
@@ -71,6 +72,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by synthetic tests: Live TV derives a country rail from explicit group prefixes, starts with France when present, filters categories and channels by country, and keeps regional or ambiguous groups available through All countries.
 - Verified by widget tests: the player zaps forward and backward through the current visible playable channel list, including wraparound.
 - Verified by widget tests: the F shortcut and the preview full-screen button open the same single-control player view; F also closes it.
+- Verified by widget tests: full-screen controls clear after three seconds of inactivity and return on pointer or key activity, leaving the video unobstructed during viewing.
 - Verified by widget tests: focused Live TV playback responds to up/down remote keys for channel changes.
 - Verified by widget tests: the Live TV player opens a searchable quick switcher scoped to visible playable channels; submitting a search selects the first match and leaves empty results open.
 - In progress: physical remote validation, variant selection, and targeted health checks remain planned.

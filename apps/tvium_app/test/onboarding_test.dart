@@ -3,6 +3,37 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
 
 void main() {
+  testWidgets('first launch uses scenic artwork and prominent source choices', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const TviumApp());
+
+    final backdrop = tester.widget<Image>(
+      find.byKey(const ValueKey('onboarding-backdrop')),
+    );
+    expect(
+      (backdrop.image as AssetImage).assetName,
+      'assets/destinations/hero-home.png',
+    );
+    final url = tester.getRect(
+      find.byKey(const ValueKey<String>('m3u-url-action')),
+    );
+    final file = tester.getRect(
+      find.byKey(const ValueKey<String>('m3u-file-action')),
+    );
+    final xtream = tester.getRect(
+      find.byKey(const ValueKey<String>('xtream-action')),
+    );
+    expect(url.width, greaterThanOrEqualTo(240));
+    expect(url.height, greaterThanOrEqualTo(130));
+    expect(url.right, lessThan(file.left));
+    expect(file.right, lessThan(xtream.left));
+  });
+
   testWidgets('explains source ownership before the first import', (
     tester,
   ) async {
