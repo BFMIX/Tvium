@@ -65,4 +65,68 @@ void main() {
     addTearDown(session.close);
     expect(await session.submission, isNull);
   });
+
+  test('a second submission cannot replace an in-flight proposal', () async {
+    final session = await startQrPairing(
+      bindAddress: InternetAddress.loopbackIPv4,
+    );
+    addTearDown(session.close);
+    final address = Uri.parse(session.pairingUrl);
+    final firstBody =
+        'type=m3u&url=https%3A%2F%2Ffirst.example.test%2Flist.m3u';
+    final firstSocket = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      address.port,
+    );
+    addTearDown(firstSocket.destroy);
+    firstSocket.write('POST ${address.path} HTTP/1.1\r\n');
+    firstSocket.write('Host: localhost\r\nConnection: close\r\n');
+    firstSocket.write('Content-Type: application/x-www-form-urlencoded\r\n');
+    firstSocket.write(
+      'Content-Length: ${utf8.encode(firstBody).length}\r\n\r\n',
+    );
+    firstSocket.write(firstBody.substring(0, 10));
+    await firstSocket.flush();
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+
+    final second = await sendToPairing(
+      address,
+      'POST',
+      address.path,
+      'type=m3u&url=https%3A%2F%2Fsecond.example.test%2Flist.m3u',
+    );
+    expect(second, startsWith('HTTP/1.1 405'));
+
+    firstSocket.write(firstBody.substring(10));
+    await firstSocket.flush();
+    final received = await session.submission;
+    expect(received, isA<QrM3uSubmission>());
+    expect((received as QrM3uSubmission).url.host, 'first.example.test');
+  });
+
+  test(
+    'invalid form can be corrected within the same pairing session',
+    () async {
+      final session = await startQrPairing(
+        bindAddress: InternetAddress.loopbackIPv4,
+      );
+      addTearDown(session.close);
+      final address = Uri.parse(session.pairingUrl);
+      final invalid = await sendToPairing(
+        address,
+        'POST',
+        address.path,
+        'type=m3u&url=not-a-url',
+      );
+      expect(invalid, startsWith('HTTP/1.1 400'));
+      final corrected = await sendToPairing(
+        address,
+        'POST',
+        address.path,
+        'type=m3u&url=https%3A%2F%2Fplaylist.example.test%2Flist.m3u',
+      );
+      expect(corrected, startsWith('HTTP/1.1 200'));
+      expect(await session.submission, isA<QrM3uSubmission>());
+    },
+  );
 }

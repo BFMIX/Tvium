@@ -51,6 +51,7 @@ final class _LocalQrPairingSession implements QrPairingSession {
   late final Timer _expiry;
   late final StreamSubscription<HttpRequest> _requests;
   bool _closed = false;
+  bool _acceptingPost = false;
 
   @override
   String get pairingUrl =>
@@ -79,7 +80,7 @@ final class _LocalQrPairingSession implements QrPairingSession {
       await response.close();
       return;
     }
-    if (request.method != 'POST' || _received.isCompleted) {
+    if (request.method != 'POST' || _received.isCompleted || _acceptingPost) {
       response.statusCode = HttpStatus.methodNotAllowed;
       await response.close();
       return;
@@ -90,32 +91,42 @@ final class _LocalQrPairingSession implements QrPairingSession {
       await response.close();
       return;
     }
-    final bytes = <int>[];
-    await for (final chunk in request) {
-      bytes.addAll(chunk);
-      if (bytes.length > 4096) {
-        response.statusCode = HttpStatus.requestEntityTooLarge;
+    _acceptingPost = true;
+    try {
+      final bytes = <int>[];
+      await for (final chunk in request) {
+        bytes.addAll(chunk);
+        if (bytes.length > 4096) {
+          response.statusCode = HttpStatus.requestEntityTooLarge;
+          await response.close();
+          return;
+        }
+      }
+      QrPairingSubmission? proposal;
+      try {
+        proposal = parseQrPairingSubmission(utf8.decode(bytes));
+      } on FormatException {
+        proposal = null;
+      }
+      if (_closed || _received.isCompleted) {
+        response.statusCode = HttpStatus.gone;
         await response.close();
         return;
       }
-    }
-    QrPairingSubmission? proposal;
-    try {
-      proposal = parseQrPairingSubmission(utf8.decode(bytes));
-    } on FormatException {
-      proposal = null;
-    }
-    if (proposal == null) {
-      response.statusCode = HttpStatus.badRequest;
-      response.write('Check the source details and try again.');
+      if (proposal == null) {
+        response.statusCode = HttpStatus.badRequest;
+        response.write('Check the source details and try again.');
+        await response.close();
+        return;
+      }
+      response.headers.contentType = ContentType.html;
+      response.write(_phoneSuccess);
       await response.close();
-      return;
+      _received.complete(proposal);
+      unawaited(close());
+    } finally {
+      _acceptingPost = false;
     }
-    response.headers.contentType = ContentType.html;
-    response.write(_phoneSuccess);
-    await response.close();
-    if (!_received.isCompleted) _received.complete(proposal);
-    unawaited(close());
   }
 
   @override
