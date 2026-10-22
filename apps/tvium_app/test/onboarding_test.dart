@@ -145,11 +145,42 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('qr-pairing-confirm')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('qr-pairing-source-type')),
+      findsOneWidget,
+    );
+    expect(find.text('M3U URL'), findsWidgets);
     expect(find.textContaining('playlist.example.test'), findsNothing);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(session.closed, isTrue);
   });
+
+  testWidgets(
+    'QR confirmation identifies an Xtream source without credentials',
+    (tester) async {
+      final session = _FakeQrPairingSession();
+      await tester.pumpWidget(TviumApp(qrPairingStarter: () async => session));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('qr-pairing-action')),
+      );
+      await tester.tap(find.byKey(const ValueKey('qr-pairing-action')));
+      await tester.pumpAndSettle();
+      session.complete(
+        QrXtreamSubmission(
+          Uri.parse('https://provider.example.test'),
+          'synthetic-user',
+          'synthetic-password',
+        ),
+      );
+      await tester.pumpAndSettle();
+      final sourceType = find.byKey(const ValueKey('qr-pairing-source-type'));
+      expect(sourceType, findsOneWidget);
+      expect(tester.widget<Text>(sourceType).data, 'Xtream Codes');
+      expect(find.textContaining('synthetic-password'), findsNothing);
+      expect(find.textContaining('provider.example.test'), findsNothing);
+    },
+  );
 }
 
 final class _FakeQrPairingSession implements QrPairingSession {

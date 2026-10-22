@@ -649,6 +649,14 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                       ),
                       const SizedBox(height: TviumSpacing.md),
                       Text(strings.pairingReceived),
+                      const SizedBox(height: TviumSpacing.sm),
+                      Text(
+                        proposal is QrXtreamSubmission
+                            ? strings.xtreamCodes
+                            : strings.m3uUrl,
+                        key: const ValueKey('qr-pairing-source-type'),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: TviumSpacing.md),
                       FilledButton(
                         key: const ValueKey('qr-pairing-confirm'),
