@@ -10,6 +10,7 @@ Future<String> sendToPairing(
   String method,
   String path, [
   String? body,
+  String? acceptLanguage,
 ]) async {
   final socket = await Socket.connect(
     InternetAddress.loopbackIPv4,
@@ -18,6 +19,9 @@ Future<String> sendToPairing(
   final encoded = body == null ? <int>[] : utf8.encode(body);
   socket.write('$method $path HTTP/1.1\r\n');
   socket.write('Host: localhost\r\nConnection: close\r\n');
+  if (acceptLanguage != null) {
+    socket.write('Accept-Language: $acceptLanguage\r\n');
+  }
   if (body != null) {
     socket.write('Content-Type: application/x-www-form-urlencoded\r\n');
     socket.write('Content-Length: ${encoded.length}\r\n');
@@ -29,6 +33,32 @@ Future<String> sendToPairing(
 }
 
 void main() {
+  test('phone pairing page follows a French browser locale', () async {
+    final session = await startQrPairing(
+      bindAddress: InternetAddress.loopbackIPv4,
+    );
+    addTearDown(session.close);
+    final address = Uri.parse(session.pairingUrl);
+    final form = await sendToPairing(
+      address,
+      'GET',
+      address.path,
+      null,
+      'fr-FR,fr;q=0.9,en;q=0.8',
+    );
+    expect(form, contains('<html lang="fr">'));
+    expect(form, contains('Ajouter une playlist à Tvium'));
+
+    final result = await sendToPairing(
+      address,
+      'POST',
+      address.path,
+      'type=m3u&url=https%3A%2F%2Fplaylist.example.test%2Flist.m3u',
+      'fr-FR,fr;q=0.9',
+    );
+    expect(result, contains('Confirmez la source sur votre TV'));
+  });
+
   test('pairing prefers a physical LAN over a VPN or virtual adapter', () {
     final address = selectQrPairingAddress([
       (interfaceName: 'utun2', address: InternetAddress('10.8.0.2')),

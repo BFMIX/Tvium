@@ -80,7 +80,17 @@ final class _LocalQrPairingSession implements QrPairingSession {
 
   Future<void> _handle(HttpRequest request) async {
     final response = request.response;
+    final french =
+        request.headers
+            .value(HttpHeaders.acceptLanguageHeader)
+            ?.toLowerCase()
+            .startsWith('fr') ??
+        false;
     response.headers.set(HttpHeaders.cacheControlHeader, 'no-store');
+    response.headers.set(
+      HttpHeaders.contentLanguageHeader,
+      french ? 'fr' : 'en',
+    );
     response.headers.set('Referrer-Policy', 'no-referrer');
     response.headers.set('X-Content-Type-Options', 'nosniff');
     response.headers.set(
@@ -94,7 +104,7 @@ final class _LocalQrPairingSession implements QrPairingSession {
     }
     if (request.method == 'GET') {
       response.headers.contentType = ContentType.html;
-      response.write(_phoneForm);
+      response.write(_phonePage(french: french));
       await response.close();
       return;
     }
@@ -133,12 +143,16 @@ final class _LocalQrPairingSession implements QrPairingSession {
       }
       if (proposal == null) {
         response.statusCode = HttpStatus.badRequest;
-        response.write('Check the source details and try again.');
+        response.write(
+          french
+              ? 'Vérifiez les informations de la source et réessayez.'
+              : 'Check the source details and try again.',
+        );
         await response.close();
         return;
       }
       response.headers.contentType = ContentType.html;
-      response.write(_phoneSuccess);
+      response.write(_phonePage(french: french, success: true));
       await response.close();
       _received.complete(proposal);
       unawaited(close());
@@ -158,22 +172,41 @@ final class _LocalQrPairingSession implements QrPairingSession {
   }
 }
 
-const _phoneForm = '''<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Add a source to Tvium</title><style>
-body{font:16px system-ui;background:#071725;color:#eef7ff;max-width:520px;margin:32px auto;padding:20px}
-h1{font-size:28px}section{background:#123047;border:1px solid #436077;border-radius:18px;padding:20px;margin:20px 0}
-label{display:block;margin:14px 0}input{box-sizing:border-box;width:100%;padding:12px;border-radius:10px;border:1px solid #6d8291;background:#071725;color:white}
-button{background:#22c6ef;border:0;border-radius:10px;padding:13px 18px;font-weight:700}
-p{color:#bdd0de}</style></head><body><h1>Add your playlist to Tvium</h1>
-<p>Enter details on this phone, then confirm on your TV. Use a trusted home network; source details travel directly to the TV over that network.</p>
-<section><h2>M3U URL</h2><form method="post"><input type="hidden" name="type" value="m3u">
-<label>Playlist URL<input name="url" type="url" required autocomplete="off"></label><button type="submit">Send to TV</button></form></section>
-<section><h2>Xtream Codes</h2><form method="post"><input type="hidden" name="type" value="xtream">
-<label>Server URL<input name="server" type="url" required autocomplete="off"></label>
-<label>Username<input name="username" required autocomplete="off"></label>
-<label>Password<input name="password" type="password" required autocomplete="off"></label>
-<button type="submit">Send to TV</button></form></section></body></html>''';
+String _phonePage({required bool french, bool success = false}) {
+  final lang = french ? 'fr' : 'en';
+  final title = french ? 'Ajouter une source à Tvium' : 'Add a source to Tvium';
+  final heading = success
+      ? french
+            ? 'Envoyé à Tvium'
+            : 'Sent to Tvium'
+      : french
+      ? 'Ajouter une playlist à Tvium'
+      : 'Add your playlist to Tvium';
+  final intro = success
+      ? french
+            ? 'Confirmez la source sur votre TV pour terminer.'
+            : 'Confirm the source on your TV to finish.'
+      : french
+      ? 'Saisissez votre source sur ce téléphone, puis confirmez-la sur votre TV. Utilisez uniquement un réseau domestique de confiance.'
+      : 'Enter your source on this phone, then confirm it on your TV. Use a trusted home network only.';
+  final send = french ? 'Envoyer à la TV' : 'Send to TV';
+  return '''<!doctype html>
+<html lang="$lang"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>$title</title><style>$_phoneStyles</style></head>
+<body><main><header><span class="mark" aria-hidden="true">▶</span><strong>Tvium</strong><span class="badge">${french ? 'Connexion locale' : 'Local pairing'}</span></header>
+<div class="intro"><p class="eyebrow">${french ? 'VOTRE TV, VOTRE SOURCE' : 'YOUR TV, YOUR SOURCE'}</p><h1>$heading</h1><p>$intro</p></div>
+${success ? '' : '''<section><h2>01 <span>M3U URL</span></h2><form method="post"><input type="hidden" name="type" value="m3u">
+<label>${french ? 'URL de la playlist' : 'Playlist URL'}<input name="url" type="url" required autocomplete="off" inputmode="url"></label><button type="submit">$send</button></form></section>
+<section><h2>02 <span>Xtream Codes</span></h2><form method="post"><input type="hidden" name="type" value="xtream">
+<label>${french ? 'URL du serveur' : 'Server URL'}<input name="server" type="url" required autocomplete="off" inputmode="url"></label>
+<label>${french ? 'Identifiant' : 'Username'}<input name="username" required autocomplete="off"></label>
+<label>${french ? 'Mot de passe' : 'Password'}<input name="password" type="password" required autocomplete="off"></label>
+<button type="submit">$send</button></form></section>'''}
+<footer>${french ? 'Les informations sont envoyées directement à votre TV sur le réseau local. Ce transfert n’est pas chiffré.' : 'Details are sent directly to your TV on the local network. This transfer is not encrypted.'}</footer></main></body></html>''';
+}
 
-const _phoneSuccess = '''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font:18px system-ui;background:#071725;color:#eef7ff;padding:32px"><h1>Sent to Tvium</h1><p>Confirm the source on your TV to finish.</p></body></html>''';
+const _phoneStyles = '''
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 78% 0%,#16466a 0%,transparent 45%),linear-gradient(145deg,#05111d,#0b2437 65%,#07131f);color:#f3f8fd;font:16px system-ui,-apple-system,sans-serif}
+main{width:min(100%,620px);margin:auto;padding:28px 20px 48px}header{display:flex;align-items:center;gap:9px;margin-bottom:48px}header strong{font-size:23px;letter-spacing:-.04em}.mark{color:#29cdf4;font-size:28px}.badge{margin-left:auto;border:1px solid #4e849d;border-radius:99px;padding:7px 11px;color:#bde7f3;font-size:12px}
+.intro{margin-bottom:30px}.eyebrow{font-size:11px;letter-spacing:.26em;color:#48d9f7;font-weight:700}h1{font-size:clamp(32px,7vw,47px);line-height:1.08;letter-spacing:-.04em;margin:10px 0 15px}.intro>p:last-child{color:#c5d5e1;line-height:1.55;max-width:55ch}
+section{background:#133047b8;border:1px solid #6395aa77;border-radius:22px;padding:22px;margin:15px 0;box-shadow:0 18px 50px #0003;backdrop-filter:blur(16px)}h2{font-size:14px;color:#54d8f5;margin:0 0 17px}h2 span{color:#f3f8fd;font-size:21px;margin-left:10px}label{display:block;color:#d7e8f1;font-size:14px;font-weight:600;margin:14px 0 4px}input{display:block;width:100%;min-height:48px;margin-top:8px;padding:12px 14px;border:1px solid #7794a2;border-radius:11px;background:#071927;color:#fff;font:16px system-ui;outline:none}input:focus-visible{border-color:#2bd7f6;box-shadow:0 0 0 3px #2bd7f633}button{min-height:48px;margin-top:18px;padding:12px 20px;background:#23cbed;border:0;border-radius:11px;color:#042033;font:700 15px system-ui;cursor:pointer}button:focus-visible{outline:3px solid #fff;outline-offset:3px}footer{color:#a9c3d2;font-size:13px;line-height:1.5;margin:26px 3px}''';
