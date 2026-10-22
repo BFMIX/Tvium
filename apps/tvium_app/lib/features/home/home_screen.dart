@@ -2800,8 +2800,11 @@ final class _CatalogPage extends ConsumerWidget {
                   width: 240,
                   child: Material(
                     clipBehavior: Clip.antiAlias,
-                    borderRadius: BorderRadius.circular(14),
-                    color: const Color(0xFF102638),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: const BorderSide(color: Color(0x44B8E8FF)),
+                    ),
+                    color: const Color(0xB8102638),
                     child: InkWell(
                       onTap: () => onPlay(item.entry),
                       child: Stack(
@@ -3948,7 +3951,13 @@ final class _MediaCard extends StatelessWidget {
     final live = destination == _CatalogDestination.live;
     return Card(
       clipBehavior: Clip.antiAlias,
-      color: const Color(0xFF102133),
+      color: const Color(0xB8102638),
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(TviumRadius.surface),
+        side: const BorderSide(color: Color(0x44B8E8FF)),
+      ),
       child: InkWell(
         onTap: onTap,
         child: Column(

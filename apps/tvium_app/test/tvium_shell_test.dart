@@ -1228,6 +1228,15 @@ void main() {
       find.byKey(const ValueKey('movies-continue-watching')),
       findsOneWidget,
     );
+    final continueSurface = tester.widget<Material>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('movies-continue-watching')),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    expect(continueSurface.color?.a, lessThan(1));
     expect(
       find.byKey(const ValueKey('continue-artwork-entry-2')),
       findsOneWidget,
@@ -1709,6 +1718,26 @@ void main() {
     );
     expect(artwork.role, 'verified-poster');
     expect(artwork.uri?.host, 'image.tmdb.org');
+  });
+
+  testWidgets('poster cards use a translucent surface in the library', (
+    tester,
+  ) async {
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+
+    final card = tester.widget<Card>(
+      find.descendant(
+        of: find.byKey(const ValueKey('media-card-movie')),
+        matching: find.byType(Card),
+      ),
+    );
+    expect(card.color?.a, lessThan(1));
   });
 
   testWidgets('compact Movies and TV Shows open without a feature carousel', (
