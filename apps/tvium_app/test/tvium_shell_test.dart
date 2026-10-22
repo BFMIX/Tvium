@@ -492,6 +492,15 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('media-row-entry-1')));
     await tester.pumpAndSettle();
 
+    final previewControls = find.byKey(const ValueKey('live-preview-controls'));
+    final previewPrevious = find.byKey(const ValueKey('live-previous-channel'));
+    final previewNext = find.byKey(const ValueKey('live-next-channel'));
+    expect(
+      (tester.getCenter(previewPrevious).dx +
+              tester.getCenter(previewNext).dx) /
+          2,
+      closeTo(tester.getCenter(previewControls).dx, 1),
+    );
     expect(
       find.byKey(const ValueKey('live-player-fullscreen')),
       findsOneWidget,
@@ -512,6 +521,18 @@ void main() {
     final fullScreen = find.byKey(const ValueKey('live-fullscreen-player'));
     final controls = find.byKey(const ValueKey('live-fullscreen-controls'));
     final volume = find.byKey(const ValueKey('live-fullscreen-volume'));
+    expect(
+      (tester
+                  .getCenter(
+                    find.byKey(const ValueKey('live-previous-channel')),
+                  )
+                  .dx +
+              tester
+                  .getCenter(find.byKey(const ValueKey('live-next-channel')))
+                  .dx) /
+          2,
+      closeTo(tester.getCenter(controls).dx, 1),
+    );
     expect(tester.getSize(controls).height, 56);
     expect(
       tester.getCenter(volume).dy,

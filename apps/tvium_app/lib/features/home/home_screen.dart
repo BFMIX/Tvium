@@ -4448,7 +4448,8 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
           initialData: engine.currentState,
           builder: (context, snapshot) {
             final playing = snapshot.data?.phase == PlaybackPhase.playing;
-            return Row(
+            final leading = Row(
+              mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 IconButton(
                   key: ValueKey(
@@ -4477,7 +4478,11 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
                     onPressed: widget.onOpenChannelSwitcher,
                     icon: const Icon(Icons.search_rounded),
                   ),
-                const Spacer(),
+              ],
+            );
+            final channelControls = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
                 if (widget.onPreviousChannel != null) ...<Widget>[
                   IconButton(
                     key: const ValueKey('live-previous-channel'),
@@ -4492,22 +4497,53 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
                     icon: const Icon(Icons.skip_next_rounded),
                   ),
                 ],
-                const Spacer(),
-                if (!fullScreen)
-                  IconButton(
+              ],
+            );
+            final fullScreenButton = !fullScreen
+                ? IconButton(
                     key: const ValueKey('live-player-fullscreen'),
                     tooltip: 'Full screen',
                     onPressed: _openFullScreen,
                     icon: const Icon(Icons.fullscreen_rounded),
                   )
-                else
-                  IconButton(
+                : IconButton(
                     key: const ValueKey('live-fullscreen-exit'),
                     tooltip: 'Exit full screen',
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.fullscreen_exit_rounded),
-                  ),
-              ],
+                  );
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                // Equal side slots keep the channel buttons at the actual
+                // center, regardless of the wider volume controls on the left.
+                if (constraints.maxWidth < (fullScreen ? 450 : 300)) {
+                  return Row(
+                    children: <Widget>[
+                      leading,
+                      const Spacer(),
+                      channelControls,
+                      fullScreenButton,
+                    ],
+                  );
+                }
+                return Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: leading,
+                      ),
+                    ),
+                    channelControls,
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: fullScreenButton,
+                      ),
+                    ),
+                  ],
+                );
+              },
             );
           },
         ),
