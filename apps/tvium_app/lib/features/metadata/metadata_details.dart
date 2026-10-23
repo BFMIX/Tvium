@@ -14,19 +14,21 @@ import 'metadata_overlay_store.dart';
 
 final metadataEnabled = ValueNotifier<bool>(false);
 
-Future<void> _persistMetadataConsent(
+Future<bool> _persistMetadataConsent(
   BuildContext context,
   MetadataConsentStore store,
   bool enabled,
 ) async {
   try {
     await store.write(enabled);
+    return true;
   } on Object {
     if (context.mounted) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(content: Text('Could not save metadata preference.')),
       );
     }
+    return false;
   }
 }
 
@@ -209,6 +211,7 @@ Future<void> showLibrarySettings(
   AvailableUpdate? availableUpdate;
   var checkingUpdates = false;
   var importingEpg = false;
+  var savingMetadata = false;
   String? refreshingSourceId;
   var dialogParentalConfigured = parentalConfigured;
   var dialogParentalUnlocked = parentalUnlocked;
@@ -451,17 +454,22 @@ Future<void> showLibrarySettings(
                           : 'Online metadata is not configured in this build.',
                     ),
                     value: enabled,
-                    onChanged: configured
-                        ? (value) {
-                            metadataEnabled.value = value;
-                            if (metadataConsentStore != null) {
-                              unawaited(
-                                _persistMetadataConsent(
-                                  context,
-                                  metadataConsentStore,
-                                  value,
-                                ),
-                              );
+                    onChanged: configured && !savingMetadata
+                        ? (value) async {
+                            final store = metadataConsentStore;
+                            if (store == null) {
+                              metadataEnabled.value = value;
+                              return;
+                            }
+                            setDialogState(() => savingMetadata = true);
+                            final saved = await _persistMetadataConsent(
+                              context,
+                              store,
+                              value,
+                            );
+                            if (saved) metadataEnabled.value = value;
+                            if (context.mounted) {
+                              setDialogState(() => savingMetadata = false);
                             }
                           }
                         : null,

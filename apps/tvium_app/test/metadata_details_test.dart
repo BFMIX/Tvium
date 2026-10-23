@@ -11,6 +11,7 @@ import 'package:tvium_app/features/artwork/artwork_reference_store.dart';
 import 'package:tvium_app/features/metadata/metadata_details.dart';
 import 'package:tvium_app/features/metadata/metadata_gateway_client.dart';
 import 'package:tvium_app/features/metadata/metadata_overlay_store.dart';
+import 'package:tvium_app/features/xtream/secure_xtream_profile_store.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 
@@ -658,6 +659,36 @@ void main() {
     expect(await consent.read(), isTrue);
   });
 
+  testWidgets('failed consent save does not leave metadata enabled', (
+    tester,
+  ) async {
+    final consent = MetadataConsentStore(_FailingConsentStore());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showLibrarySettings(
+                context,
+                configured: true,
+                section: SettingsSection.metadata,
+                metadataConsentStore: consent,
+              ),
+              child: const Text('Open settings'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('online-metadata-toggle')));
+    await tester.pumpAndSettle();
+
+    expect(metadataEnabled.value, isFalse);
+    expect(find.text('Could not save metadata preference.'), findsOneWidget);
+  });
+
   testWidgets('desktop local gateway keeps metadata opt-in available', (
     tester,
   ) async {
@@ -913,4 +944,15 @@ void main() {
 
     expect(savedCategories, {'adult', 'kids'});
   });
+}
+
+final class _FailingConsentStore implements SecureKeyValueStore {
+  @override
+  Future<String?> read(String key) async => null;
+
+  @override
+  Future<void> write(String key, String value) async => throw StateError('No');
+
+  @override
+  Future<void> delete(String key) async {}
 }
