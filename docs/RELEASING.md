@@ -35,6 +35,26 @@ debug signing configuration. Store distribution requires protected signing
 credentials, Apple notarization, and an Android upload key. Never commit those
 credentials to the repository.
 
+The ad-hoc macOS build can repeatedly ask for access to the login Keychain,
+including after **Always Allow**. Do not treat that dialog as a playlist or
+password validation error, and do not ask testers to keep approving it. The
+release workflow must not describe this artifact as a normal public Mac build.
+Before promoting it beyond test use:
+
+1. Obtain a **Developer ID Application** signing identity from the Apple
+   Developer account holder and keep its private key outside the repository.
+2. Sign all executable code with the same identity, hardened runtime, required
+   entitlements, and a secure timestamp; verify the bundle signature.
+3. Submit the distributable DMG with `notarytool`, wait for acceptance, staple
+   the ticket, and check Gatekeeper assessment.
+4. On a clean Mac user account, test first launch and Keychain access. Then
+   install an update and verify that saved sources remain usable without
+   repeated permission dialogs.
+
+An **Apple Development** certificate is insufficient for Developer ID
+distribution. Apple documents the [Developer ID and notarization requirements](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)
+and [common notarization failures](https://developer.apple.com/documentation/security/resolving-common-notarization-issues).
+
 Automatic installation stays disabled until a signed macOS appcast and
 platform-specific distribution paths are configured. iOS and Store-distributed
 apps use their Store's update mechanism; Google Play in-app updates do not
