@@ -24,3 +24,9 @@ if ! grep -q 'Android release signing credentials are required' "$output"; then
   tail -n 15 "$output" >&2
   exit 1
 fi
+
+# A release build must start a fresh daemon with the signing environment.
+if [[ -f "$root/apps/tvium_app/android/gradlew" ]]; then
+  bash "$root/apps/tvium_app/android/gradlew" \
+    -p "$root/apps/tvium_app/android" --stop >/dev/null 2>&1 || true
+fi

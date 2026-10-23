@@ -143,6 +143,8 @@ jobs:
             | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
           if [[ -z "$expected" || "$actual" != "$expected" ]]; then
             echo 'APK signing identity does not match the release key.' >&2
+            echo "Expected public certificate digest: $expected" >&2
+            echo "Actual public certificate digest: $actual" >&2
             exit 1
           fi
       - name: Stage APK
