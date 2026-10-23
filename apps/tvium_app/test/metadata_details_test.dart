@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -162,9 +163,9 @@ void main() {
   ) async {
     metadataEnabled.value = true;
     await tester.pumpWidget(
-      const ProviderScope(
-        overrides: [],
-        child: MaterialApp(
+      ProviderScope(
+        overrides: [metadataGatewayProvider.overrideWithValue(null)],
+        child: const MaterialApp(
           home: Scaffold(
             body: MetadataDetails(
               originalTitle: 'Example Movie (2020)',
@@ -655,6 +656,38 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('online-metadata-toggle')));
     await tester.pumpAndSettle();
     expect(await consent.read(), isTrue);
+  });
+
+  testWidgets('desktop local gateway keeps metadata opt-in available', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: Consumer(
+              builder: (context, ref, _) => TextButton(
+                onPressed: () => showLibrarySettings(
+                  context,
+                  configured: ref.read(metadataGatewayProvider) != null,
+                  section: SettingsSection.metadata,
+                ),
+                child: const Text('Open metadata settings'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open metadata settings'));
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+
+    final toggle = tester.widget<SwitchListTile>(
+      find.byKey(const ValueKey('online-metadata-toggle')),
+    );
+    expect(toggle.onChanged, isNotNull);
   });
 
   testWidgets('settings refresh connected sources and show a safe summary', (

@@ -1,17 +1,45 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:tvium_core/tvium_core.dart';
 
 final metadataGatewayProvider = Provider<MetadataGatewayClient?>((ref) {
   const address = String.fromEnvironment('TVIUM_METADATA_GATEWAY');
-  final uri = Uri.tryParse(address);
-  if (uri == null || !uri.hasAuthority) return null;
+  final uri = resolveMetadataGatewayEndpoint(
+    configuredAddress: address,
+    platform: defaultTargetPlatform,
+    isWeb: kIsWeb,
+  );
+  if (uri == null) return null;
   final client = MetadataGatewayClient(endpoint: uri);
   ref.onDispose(client.close);
   return client;
 });
+
+Uri? resolveMetadataGatewayEndpoint({
+  required String configuredAddress,
+  required TargetPlatform platform,
+  required bool isWeb,
+}) {
+  final address = configuredAddress.isNotEmpty
+      ? configuredAddress
+      : !isWeb &&
+            (platform == TargetPlatform.macOS ||
+                platform == TargetPlatform.windows ||
+                platform == TargetPlatform.linux)
+      ? 'http://127.0.0.1:8787'
+      : '';
+  final uri = Uri.tryParse(address);
+  if (uri == null || !uri.hasAuthority || uri.userInfo.isNotEmpty) return null;
+  if (uri.scheme == 'https') return uri;
+  if (uri.scheme == 'http' &&
+      const <String>['localhost', '127.0.0.1', '::1'].contains(uri.host)) {
+    return uri;
+  }
+  return null;
+}
 
 final class EnrichedMetadata {
   const EnrichedMetadata({

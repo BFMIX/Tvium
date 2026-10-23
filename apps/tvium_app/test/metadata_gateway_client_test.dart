@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -7,6 +8,33 @@ import 'package:tvium_app/features/metadata/metadata_gateway_client.dart';
 import 'package:tvium_core/tvium_core.dart';
 
 void main() {
+  test('desktop builds find the local gateway without a launch flag', () {
+    expect(
+      resolveMetadataGatewayEndpoint(
+        configuredAddress: '',
+        platform: TargetPlatform.macOS,
+        isWeb: false,
+      )?.toString(),
+      'http://127.0.0.1:8787',
+    );
+    expect(
+      resolveMetadataGatewayEndpoint(
+        configuredAddress: '',
+        platform: TargetPlatform.iOS,
+        isWeb: false,
+      ),
+      isNull,
+    );
+    expect(
+      resolveMetadataGatewayEndpoint(
+        configuredAddress: '',
+        platform: TargetPlatform.macOS,
+        isWeb: true,
+      ),
+      isNull,
+    );
+  });
+
   test(
     'sends only cleaned identity fields and caches successful results',
     () async {
