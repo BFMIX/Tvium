@@ -26,6 +26,8 @@ Configure the app with a public HTTPS endpoint at build time:
 flutter run --dart-define=TVIUM_METADATA_GATEWAY=https://metadata.example.com
 ```
 
+Desktop builds use `http://127.0.0.1:8787` when no endpoint is supplied. Start the local metadata gateway separately or use `scripts/run_metadata_preview_macos.zsh` on macOS. Mobile and Web builds still require an explicit reachable HTTPS endpoint.
+
 Configure `TMDB_READ_ACCESS_TOKEN` only in the gateway environment. It must never be embedded in the app, committed to Git, or included in logs.
 
 ## Providers and Fallbacks
