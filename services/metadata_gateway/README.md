@@ -16,6 +16,8 @@ For a local macOS preview, run `zsh scripts/run_metadata_preview_macos.zsh` from
 
 `PORT`, `HOST` and comma-separated `ALLOWED_ORIGINS` are optional. Browser requests require an exact configured origin. No wildcard origins are accepted. Native requests without Origin are supported. No service is deployed by these instructions. Public hosting requires TLS, authentication/abuse controls and shared rate limiting at the ingress; CORS is not authentication. The in-memory rate limiter uses the direct socket address and deliberately ignores forwarded headers.
 
+The Web release can be pointed at a hosted gateway by setting the repository variable `TVIUM_METADATA_GATEWAY` to its public HTTPS origin before running the Release workflow. The build rejects credentials, paths, and insecure addresses. This variable is a public endpoint address, never the TMDB token. Leave it unset until the gateway has TLS and ingress protections; setting the variable does not deploy a gateway. Configure `ALLOWED_ORIGINS` on the gateway to permit the deployed Pages origin.
+
 ## Contract
 
 `POST /v1/search`, `Content-Type: application/json`:

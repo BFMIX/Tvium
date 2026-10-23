@@ -137,14 +137,13 @@ jobs:
         id: pages
         continue-on-error: true
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Test Web release configuration
+        run: bash scripts/release/test_build_web_release.sh
       - name: Build Web release for GitHub Pages
         working-directory: ${{ env.APP_DIRECTORY }}
-        run: >-
-          flutter build web
-          --release
-          --no-wasm-dry-run
-          --base-href /Tvium/
-          --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG"
+        env:
+          TVIUM_METADATA_GATEWAY: ${{ vars.TVIUM_METADATA_GATEWAY }}
+        run: bash ../../scripts/release/build_web_release.sh
       - name: Package Web download
         run: >-
           scripts/release/package_web.sh
