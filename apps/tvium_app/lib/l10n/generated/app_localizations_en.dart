@@ -140,6 +140,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get importing => 'Organizing your playlist…';
 
   @override
+  String get savingPlaylist => 'Saving your library…';
+
+  @override
   String get cancel => 'Cancel';
 
   @override

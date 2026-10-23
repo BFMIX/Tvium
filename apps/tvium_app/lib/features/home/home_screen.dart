@@ -353,7 +353,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     PlaylistImportState state,
   ) {
     final strings = AppLocalizations.of(context);
-    final importing = state.phase == PlaylistImportPhase.importing;
+    final importing =
+        state.phase == PlaylistImportPhase.importing ||
+        state.phase == PlaylistImportPhase.saving;
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
@@ -617,7 +619,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                         children: <Widget>[
                           Expanded(
                             child: Text(
-                              '${strings.importing} ${state.parsedCount}',
+                              state.phase == PlaylistImportPhase.saving
+                                  ? strings.savingPlaylist
+                                  : '${strings.importing} ${state.parsedCount}',
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                           ),

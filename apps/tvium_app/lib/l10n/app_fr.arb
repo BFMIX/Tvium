@@ -41,6 +41,7 @@
   "filePickerFailed": "Le fichier de playlist n’a pas pu être ouvert",
   "analyzePlaylist": "Analyser la playlist",
   "importing": "Organisation de votre playlist…",
+  "savingPlaylist": "Enregistrement de votre bibliothèque…",
   "cancel": "Annuler",
   "itemsReady": "{count} éléments prêts",
   "@itemsReady": {"placeholders": {"count": {"type": "int"}}},

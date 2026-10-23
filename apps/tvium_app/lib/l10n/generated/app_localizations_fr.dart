@@ -141,6 +141,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get importing => 'Organisation de votre playlist…';
 
   @override
+  String get savingPlaylist => 'Enregistrement de votre bibliothèque…';
+
+  @override
   String get cancel => 'Annuler';
 
   @override

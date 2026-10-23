@@ -338,6 +338,12 @@ abstract class AppLocalizations {
   /// **'Organizing your playlist…'**
   String get importing;
 
+  /// No description provided for @savingPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving your library…'**
+  String get savingPlaylist;
+
   /// No description provided for @cancel.
   ///
   /// In en, this message translates to:

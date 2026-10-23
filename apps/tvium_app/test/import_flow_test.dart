@@ -3,10 +3,36 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
+import 'package:tvium_app/features/import/m3u_import_persistence.dart';
 import 'package:tvium_app/features/import/playlist_import_controller.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
 
 void main() {
+  testWidgets('shows a distinct saving stage after playlist parsing', (
+    tester,
+  ) async {
+    final persistence = _DelayedPersistence();
+    final controller = PlaylistImportController(persistence: persistence);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+
+    final import = controller.importSource(
+      const _MemorySource(),
+      descriptor: const M3uSourceDescriptor.url(
+        displayName: 'Fixture',
+        location: 'https://playlist.example.test/list.m3u',
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(controller.state.phase, PlaylistImportPhase.saving);
+    expect(find.textContaining('Saving your library'), findsOneWidget);
+    persistence.complete();
+    await import;
+    await tester.pump();
+    expect(controller.state.phase, PlaylistImportPhase.ready);
+  });
+
   testWidgets('renders imported groups in their catalog destinations', (
     tester,
   ) async {
@@ -104,6 +130,18 @@ void main() {
     expect(find.byKey(const ValueKey('add-m3u-url')), findsOneWidget);
     expect(find.byKey(const ValueKey('add-xtream')), findsOneWidget);
   });
+}
+
+final class _DelayedPersistence implements M3uImportPersistence {
+  final _saved = Completer<String>();
+
+  @override
+  Future<String> persist(
+    M3uSourceDescriptor descriptor,
+    List<M3uEntry> entries,
+  ) => _saved.future;
+
+  void complete() => _saved.complete('fixture-source');
 }
 
 final class _MemorySource implements M3uSource {

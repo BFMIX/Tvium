@@ -11,6 +11,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 ## M1 — Technical prototype (in progress)
 
 - Verified: progressive M3U file/URL import, grouping, lazy lists, and logo fallbacks.
+- Verified by synthetic tests: an M3U URL that stops sending body data fails after the configured idle timeout; a trickling response also stops at the overall download deadline instead of leaving the parsed-entry counter spinning indefinitely.
 - Verified: playback abstraction, state contract, and provisional `media_kit` integration builds.
 - Verified: deterministic synthetic playlists plus timing and RSS observations through 100,000 entries.
 - Verified: macOS and Web builds plus real HLS playback using an authorized public stream.
@@ -99,6 +100,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: on-demand Xtream episode catalog and playback integration plus profile-scoped overlay UX.
 - Verified: per-source rename, refresh, and profile-aware removal controls.
 - Verified by automated tests: cached library startup remains usable while each source follows its own configurable refresh interval; failed refreshes retain cached entries.
+- Verified by widget tests: after M3U parsing completes, first launch shows a separate library-saving stage until persistence finishes, so network transfer and local storage delays are distinguishable.
 - Verified by unit tests: due refresh checks are serialized per source; the application now checks once a minute while open and again on resume. Long-running device behavior still needs runtime validation.
 - Verified by unit tests: a device clock rollback restarts the interval, and one source failure does not prevent other due sources from refreshing.
 - Verified by widget tests: playlist settings show each source's last recorded refresh check time without exposing source connection details.
