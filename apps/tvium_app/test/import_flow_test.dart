@@ -41,7 +41,10 @@ void main() {
     expect(movieCard, findsOneWidget);
     await tester.tap(movieCard);
     await tester.pumpAndSettle();
-    expect(find.text('Online details are off in Settings.'), findsOneWidget);
+    expect(
+      find.textContaining('metadata service is not configured'),
+      findsOneWidget,
+    );
     expect(find.widgetWithText(FilledButton, 'Play now'), findsOneWidget);
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();

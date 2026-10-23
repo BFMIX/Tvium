@@ -126,7 +126,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
       final enabled = await ref.read(metadataConsentStoreProvider).read();
       if (mounted) metadataEnabled.value = enabled;
     } on Object {
-      // A missing secure store leaves online metadata off for this session.
+      // A missing secure store leaves the default preference unchanged.
     }
   }
 

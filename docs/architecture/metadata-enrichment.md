@@ -12,7 +12,7 @@ This local stage requires no account, network request, or API key.
 
 ## Optional Metadata Gateway
 
-Remote enrichment is disabled by default and requires explicit user consent. When enabled, the app sends only:
+The online metadata preference is enabled by default and can be turned off in Settings. Searches require a configured gateway. When enabled and a gateway is available, the app sends only:
 
 - the cleaned title;
 - the content kind (`movie`, `series`, or `live`);

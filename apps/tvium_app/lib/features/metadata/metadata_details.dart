@@ -12,7 +12,7 @@ import '../updates/update_checker.dart';
 import 'metadata_gateway_client.dart';
 import 'metadata_overlay_store.dart';
 
-final metadataEnabled = ValueNotifier<bool>(false);
+final metadataEnabled = ValueNotifier<bool>(true);
 
 Future<bool> _persistMetadataConsent(
   BuildContext context,
@@ -451,10 +451,10 @@ Future<void> showLibrarySettings(
                     subtitle: Text(
                       configured
                           ? 'Send cleaned titles, content type, year and language when viewing details or featured artwork. Saved on this device.'
-                          : 'Online metadata is not configured in this build.',
+                          : 'A metadata service is unavailable in this build. This preference takes effect when one is connected.',
                     ),
                     value: enabled,
-                    onChanged: configured && !savingMetadata
+                    onChanged: !savingMetadata
                         ? (value) async {
                             final store = metadataConsentStore;
                             if (store == null) {

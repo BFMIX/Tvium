@@ -56,7 +56,7 @@ final class MetadataConsentStore {
   static const _key = 'tvium.metadata.opt_in.v1';
   final SecureKeyValueStore _backend;
 
-  Future<bool> read() async => await _backend.read(_key) == 'true';
+  Future<bool> read() async => await _backend.read(_key) != 'false';
 
   Future<void> write(bool enabled) =>
       _backend.write(_key, enabled ? 'true' : 'false');

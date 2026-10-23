@@ -8,6 +8,13 @@ import 'package:tvium_app/features/metadata/metadata_overlay_store.dart';
 import 'package:tvium_core/tvium_core.dart';
 
 void main() {
+  test('online metadata starts enabled and respects a saved opt-out', () async {
+    final store = MetadataConsentStore(MemoryArtworkKeyValueStore());
+    expect(await store.read(), isTrue);
+    await store.write(false);
+    expect(await store.read(), isFalse);
+  });
+
   test('grid lookup pacing bounds request starts', () async {
     final pacer = MetadataGridLookupPacer(
       interval: const Duration(milliseconds: 25),

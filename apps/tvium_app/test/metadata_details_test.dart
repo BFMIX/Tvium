@@ -605,9 +605,10 @@ void main() {
     expect(find.text('Saved public description.'), findsOneWidget);
   });
 
-  testWidgets('unconfigured settings show disabled opt-in switch', (
+  testWidgets('unconfigured settings keep the preference editable', (
     tester,
   ) async {
+    metadataEnabled.value = true;
     await tester.pumpWidget(
       MaterialApp(
         home: Builder(
@@ -623,10 +624,10 @@ void main() {
     final toggle = tester.widget<SwitchListTile>(
       find.byKey(const ValueKey('online-metadata-toggle')),
     );
-    expect(toggle.value, isFalse);
-    expect(toggle.onChanged, isNull);
+    expect(toggle.value, isTrue);
+    expect(toggle.onChanged, isNotNull);
     expect(
-      find.text('Online metadata is not configured in this build.'),
+      find.textContaining('A metadata service is unavailable'),
       findsOneWidget,
     );
   });
