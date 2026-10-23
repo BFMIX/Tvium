@@ -45,6 +45,7 @@ final class SourceActionCard extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: Container(
             width: width,
+            height: compact ? null : 224,
             constraints: BoxConstraints(minHeight: compact ? 86 : 152),
             padding: const EdgeInsets.all(TviumSpacing.md),
             decoration: BoxDecoration(

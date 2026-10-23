@@ -8,6 +8,7 @@
   "importLocalM3u": "Import local M3U",
   "xtreamCodes": "Xtream Codes",
   "pairWithPhone": "Add with your phone",
+  "orAddWithPhone": "Or use your phone",
   "pairingInstructions": "Scan with a phone on the same trusted home network. The code expires after 10 minutes. Confirm the source here before importing.",
   "pairingReceived": "Source received. Confirm to add it to this TV.",
   "pairingExpired": "This pairing session has expired. Close this window and try again.",

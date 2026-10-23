@@ -146,6 +146,12 @@ abstract class AppLocalizations {
   /// **'Add with your phone'**
   String get pairWithPhone;
 
+  /// No description provided for @orAddWithPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Or use your phone'**
+  String get orAddWithPhone;
+
   /// No description provided for @pairingInstructions.
   ///
   /// In en, this message translates to:

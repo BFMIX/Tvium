@@ -34,8 +34,20 @@ void main() {
     );
     expect(url.width, greaterThanOrEqualTo(240));
     expect(url.height, greaterThanOrEqualTo(130));
+    expect(url.size, file.size);
+    expect(file.size, xtream.size);
     expect(url.right, lessThan(file.left));
     expect(file.right, lessThan(xtream.left));
+    final panel = tester.getRect(
+      find.byKey(const ValueKey('onboarding-panel')),
+    );
+    expect((panel.center.dx - 800).abs(), lessThan(8));
+    expect((panel.center.dy - 450).abs(), lessThan(40));
+    expect(
+      find.byKey(const ValueKey('onboarding-backdrop-blur')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('qr-pairing-separator')), findsOneWidget);
   });
 
   testWidgets('QR pairing is visible on a 720p TV without scrolling', (
@@ -51,6 +63,16 @@ void main() {
     );
     expect(rect.top, greaterThanOrEqualTo(0));
     expect(rect.bottom, lessThanOrEqualTo(720));
+  });
+
+  testWidgets('welcome surface settles into view with a short entrance', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const TviumApp());
+    final entrance = find.byKey(const ValueKey('onboarding-entrance'));
+    expect(entrance, findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(tester.widget<Opacity>(entrance).opacity, 1);
   });
 
   testWidgets('TV remote can open QR pairing from the first source card', (

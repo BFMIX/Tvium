@@ -31,6 +31,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: approved Tvium logo family, application icons, visual reference screens, and brand color tokens are organized and integrated into the prototype.
 - Verified: production color and typography foundations, adaptive four-destination navigation shell, onboarding, Home, compact touch navigation, and wide-screen focus states.
 - Verified by widget tests: first launch uses the approved scenic artwork, a readable cinematic surface, and three prominent source choices; compact screens keep all three actions within the viewport width.
+- Verified by widget tests: first launch centers its welcome surface, keeps all three source cards equal in size, softens the backdrop, separates the centered phone pairing option, and uses a short entrance that preserves accessibility semantics.
 - Verified: the production Home screen includes a cinematic, five-second controllable feature carousel with adjacent Play and View details actions.
 - Verified by widget tests: Home shows exactly three destination cards before the carousel, with no extra history rail.
 - Verified by widget tests: the three Home cards use fixed approved artwork, the carousel is spaced below them, and its provider poster is shown at a bounded size over a stable scenic backdrop.
@@ -122,4 +123,5 @@ Verified: reproducible macOS DMG, Android TV ARM64 APK, Web archive, Apple Swift
 - Verified by synthetic tests: tagged builds can compare their version against published GitHub releases, skip drafts, retain stable-channel behavior, and notify the user of a newer release without sending library data.
 - Verified by widget and unit tests: tagged builds check again when the app resumes after an hour, skip duplicate checks within that interval, and handle device clock rollback. A previously announced tag is not announced again in the same app session.
 - In progress: release builds embed the tag and monotonic build number. Automatic installation needs signed packages and platform-specific distribution before it can be enabled safely.
+- Blocked for a clean macOS Keychain experience: the current public DMG is signed ad hoc. A stable Developer ID Application identity and notarized distribution are required before Keychain access can be validated across installs and updates; no signing credential is stored in this repository.
 - Verified by a synthetic release-script test: Web builds may include a repository-configured public HTTPS metadata gateway origin while rejecting insecure addresses and embedded credentials. A hosted, protected gateway and TMDB licensing review remain required before public metadata can work for all users.

@@ -357,12 +357,16 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
-        Image.asset(
-          'assets/destinations/hero-home.png',
-          key: const ValueKey('onboarding-backdrop'),
-          fit: BoxFit.cover,
-          alignment: Alignment.centerRight,
-          excludeFromSemantics: true,
+        ImageFiltered(
+          key: const ValueKey('onboarding-backdrop-blur'),
+          imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Image.asset(
+            'assets/destinations/hero-home.png',
+            key: const ValueKey('onboarding-backdrop'),
+            fit: BoxFit.cover,
+            alignment: Alignment.centerRight,
+            excludeFromSemantics: true,
+          ),
         ),
         const DecoratedBox(
           decoration: BoxDecoration(
@@ -377,217 +381,261 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
         ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(TviumSpacing.lg),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 900),
-              padding: const EdgeInsets.all(TviumSpacing.xl),
-              decoration: BoxDecoration(
-                color: const Color(0xB8081A2B),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                borderRadius: BorderRadius.circular(TviumRadius.surface),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      TviumBrandLogo(
-                        key: const ValueKey<String>('tvium-brand-logo'),
-                        semanticLabel: strings.appTitle,
-                        height: 36,
-                      ),
-                      const Spacer(),
-                      ProfileSwitcher(
-                        onProfileChanged: _resetProfileSession,
-                        onSourcesRemoved: _removeOrphanedSources,
-                      ),
-                    ],
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: 1),
+          duration: MediaQuery.of(context).disableAnimations
+              ? Duration.zero
+              : const Duration(milliseconds: 700),
+          curve: Curves.easeOutCubic,
+          builder: (context, progress, child) => Opacity(
+            key: const ValueKey('onboarding-entrance'),
+            opacity: progress,
+            alwaysIncludeSemantics: true,
+            child: child,
+          ),
+          child: Align(
+            alignment: Alignment.center,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(TviumSpacing.lg),
+              child: Container(
+                key: const ValueKey('onboarding-panel'),
+                constraints: const BoxConstraints(maxWidth: 900),
+                padding: const EdgeInsets.all(TviumSpacing.xl),
+                decoration: BoxDecoration(
+                  color: const Color(0xB8081A2B),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
                   ),
-                  const SizedBox(height: TviumSpacing.xl),
-                  Container(
-                    width: 48,
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(height: TviumSpacing.md),
-                  Text(
-                    strings.welcomeTitle,
-                    style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: TviumSpacing.sm),
-                  Text(
-                    strings.welcomeBody,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: TviumSpacing.xs),
-                  Text(
-                    strings.disclaimer,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: TviumSpacing.xl),
-                  FocusTraversalGroup(
-                    policy: OrderedTraversalPolicy(),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final compact = constraints.maxWidth < 600;
-                        final cardWidth = compact ? double.infinity : 250.0;
-                        final cards = <Widget>[
-                          SourceActionCard(
-                            key: const ValueKey<String>('m3u-url-action'),
-                            title: strings.m3uUrl,
-                            description: strings.analyzePlaylist,
-                            icon: Icons.link_rounded,
-                            focusNode: _urlActionFocus,
-                            autofocus: !compact,
-                            width: cardWidth,
-                            compact: compact,
-                            onActivate: () {
-                              setState(() {
-                                _showUrlField = true;
-                                _showXtreamForm = false;
-                              });
-                              _revealOnboardingForm(_urlFieldKey);
-                            },
-                          ),
-                          SourceActionCard(
-                            key: const ValueKey<String>('m3u-file-action'),
-                            title: strings.importLocalM3u,
-                            description: '.m3u · .m3u8',
-                            icon: Icons.folder_open_rounded,
-                            focusNode: _fileActionFocus,
-                            width: cardWidth,
-                            compact: compact,
-                            onActivate: () =>
-                                unawaited(_pickLocalFile(controller)),
-                          ),
-                          SourceActionCard(
-                            key: const ValueKey<String>('xtream-action'),
-                            title: strings.xtreamCodes,
-                            description: strings.connectProvider,
-                            icon: Icons.dns_outlined,
-                            focusNode: _xtreamActionFocus,
-                            width: cardWidth,
-                            compact: compact,
-                            onActivate: () {
-                              setState(() {
-                                _showUrlField = false;
-                                _showXtreamForm = true;
-                              });
-                              _revealOnboardingForm(_xtreamFormKey);
-                            },
-                          ),
-                        ];
-                        if (compact) {
-                          return Column(
-                            spacing: TviumSpacing.sm,
-                            children: cards,
-                          );
-                        }
-                        return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(spacing: TviumSpacing.sm, children: cards),
-                        );
-                      },
-                    ),
-                  ),
-                  if (!kIsWeb) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.md),
-                    OutlinedButton.icon(
-                      key: const ValueKey('qr-pairing-action'),
-                      onPressed: () => unawaited(_showQrPairing(controller)),
-                      icon: const Icon(Icons.qr_code_2_rounded),
-                      label: Text(strings.pairWithPhone),
-                    ),
-                  ],
-                  if (_showUrlField) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.lg),
+                  borderRadius: BorderRadius.circular(TviumRadius.surface),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
                     Row(
-                      key: _urlFieldKey,
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Expanded(
-                          child: TextField(
-                            controller: _urlController,
-                            enabled: !importing,
-                            keyboardType: TextInputType.url,
-                            obscureText: _obscureUrl,
-                            enableSuggestions: false,
-                            autocorrect: false,
-                            decoration: InputDecoration(
-                              hintText: strings.urlHint,
-                              prefixIcon: const Icon(Icons.language_rounded),
-                              suffixIcon: IconButton(
-                                key: const ValueKey<String>(
-                                  'url-visibility-toggle',
-                                ),
-                                tooltip: _obscureUrl
-                                    ? strings.showPlaylistUrl
-                                    : strings.hidePlaylistUrl,
-                                onPressed: () =>
-                                    setState(() => _obscureUrl = !_obscureUrl),
-                                icon: Icon(
-                                  _obscureUrl
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
-                                ),
+                        TviumBrandLogo(
+                          key: const ValueKey<String>('tvium-brand-logo'),
+                          semanticLabel: strings.appTitle,
+                          height: 36,
+                        ),
+                        const Spacer(),
+                        ProfileSwitcher(
+                          onProfileChanged: _resetProfileSession,
+                          onSourcesRemoved: _removeOrphanedSources,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: TviumSpacing.xl),
+                    Container(
+                      width: 48,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: TviumSpacing.md),
+                    Text(
+                      strings.welcomeTitle,
+                      style: Theme.of(context).textTheme.displayMedium
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: TviumSpacing.sm),
+                    Text(
+                      strings.welcomeBody,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: TviumSpacing.xs),
+                    Text(
+                      strings.disclaimer,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: TviumSpacing.xl),
+                    FocusTraversalGroup(
+                      policy: OrderedTraversalPolicy(),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compact = constraints.maxWidth < 600;
+                          final cardWidth = compact ? double.infinity : 250.0;
+                          final cards = <Widget>[
+                            SourceActionCard(
+                              key: const ValueKey<String>('m3u-url-action'),
+                              title: strings.m3uUrl,
+                              description: strings.analyzePlaylist,
+                              icon: Icons.link_rounded,
+                              focusNode: _urlActionFocus,
+                              autofocus: !compact,
+                              width: cardWidth,
+                              compact: compact,
+                              onActivate: () {
+                                setState(() {
+                                  _showUrlField = true;
+                                  _showXtreamForm = false;
+                                });
+                                _revealOnboardingForm(_urlFieldKey);
+                              },
+                            ),
+                            SourceActionCard(
+                              key: const ValueKey<String>('m3u-file-action'),
+                              title: strings.importLocalM3u,
+                              description: '.m3u · .m3u8',
+                              icon: Icons.folder_open_rounded,
+                              focusNode: _fileActionFocus,
+                              width: cardWidth,
+                              compact: compact,
+                              onActivate: () =>
+                                  unawaited(_pickLocalFile(controller)),
+                            ),
+                            SourceActionCard(
+                              key: const ValueKey<String>('xtream-action'),
+                              title: strings.xtreamCodes,
+                              description: strings.connectProvider,
+                              icon: Icons.dns_outlined,
+                              focusNode: _xtreamActionFocus,
+                              width: cardWidth,
+                              compact: compact,
+                              onActivate: () {
+                                setState(() {
+                                  _showUrlField = false;
+                                  _showXtreamForm = true;
+                                });
+                                _revealOnboardingForm(_xtreamFormKey);
+                              },
+                            ),
+                          ];
+                          if (compact) {
+                            return Column(
+                              spacing: TviumSpacing.sm,
+                              children: cards,
+                            );
+                          }
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              spacing: TviumSpacing.sm,
+                              children: cards,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    if (!kIsWeb) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.lg),
+                      Row(
+                        key: const ValueKey('qr-pairing-separator'),
+                        children: <Widget>[
+                          const Expanded(child: Divider()),
+                          Flexible(
+                            flex: 4,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: TviumSpacing.sm,
+                              ),
+                              child: Text(
+                                strings.orAddWithPhone,
+                                textAlign: TextAlign.center,
                               ),
                             ),
-                            onSubmitted: (_) => _analyzeUrl(controller),
                           ),
+                          const Expanded(child: Divider()),
+                        ],
+                      ),
+                      const SizedBox(height: TviumSpacing.sm),
+                      Center(
+                        child: OutlinedButton.icon(
+                          key: const ValueKey('qr-pairing-action'),
+                          onPressed: () =>
+                              unawaited(_showQrPairing(controller)),
+                          icon: const Icon(Icons.qr_code_2_rounded),
+                          label: Text(strings.pairWithPhone),
                         ),
-                        const SizedBox(width: TviumSpacing.sm),
-                        FilledButton(
-                          onPressed: importing
-                              ? null
-                              : () => _analyzeUrl(controller),
-                          child: Text(strings.analyzePlaylist),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (_showXtreamForm) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.lg),
-                    XtreamConnectionForm(
-                      key: _xtreamFormKey,
-                      onPlaylistAdded: (profile) =>
-                          unawaited(_openXtreamLibrary(profile)),
-                    ),
-                  ],
-                  if (importing) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.lg),
-                    const LinearProgressIndicator(),
-                    const SizedBox(height: TviumSpacing.sm),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            '${strings.importing} ${state.parsedCount}',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                    if (_showUrlField) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.lg),
+                      Row(
+                        key: _urlFieldKey,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(
+                            child: TextField(
+                              controller: _urlController,
+                              enabled: !importing,
+                              keyboardType: TextInputType.url,
+                              obscureText: _obscureUrl,
+                              enableSuggestions: false,
+                              autocorrect: false,
+                              decoration: InputDecoration(
+                                hintText: strings.urlHint,
+                                prefixIcon: const Icon(Icons.language_rounded),
+                                suffixIcon: IconButton(
+                                  key: const ValueKey<String>(
+                                    'url-visibility-toggle',
+                                  ),
+                                  tooltip: _obscureUrl
+                                      ? strings.showPlaylistUrl
+                                      : strings.hidePlaylistUrl,
+                                  onPressed: () => setState(
+                                    () => _obscureUrl = !_obscureUrl,
+                                  ),
+                                  icon: Icon(
+                                    _obscureUrl
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                  ),
+                                ),
+                              ),
+                              onSubmitted: (_) => _analyzeUrl(controller),
+                            ),
                           ),
-                        ),
-                        TextButton(
-                          onPressed: controller.cancel,
-                          child: Text(strings.cancel),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: TviumSpacing.sm),
+                          FilledButton(
+                            onPressed: importing
+                                ? null
+                                : () => _analyzeUrl(controller),
+                            child: Text(strings.analyzePlaylist),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (_showXtreamForm) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.lg),
+                      XtreamConnectionForm(
+                        key: _xtreamFormKey,
+                        onPlaylistAdded: (profile) =>
+                            unawaited(_openXtreamLibrary(profile)),
+                      ),
+                    ],
+                    if (importing) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.lg),
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: TviumSpacing.sm),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              '${strings.importing} ${state.parsedCount}',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: controller.cancel,
+                            child: Text(strings.cancel),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (state.phase == PlaylistImportPhase.failed) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.lg),
+                      _InlineError(
+                        message: state.message ?? strings.importFailed,
+                      ),
+                    ],
                   ],
-                  if (state.phase == PlaylistImportPhase.failed) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.lg),
-                    _InlineError(
-                      message: state.message ?? strings.importFailed,
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
           ),

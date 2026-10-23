@@ -35,6 +35,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get pairWithPhone => 'Ajouter avec votre téléphone';
 
   @override
+  String get orAddWithPhone => 'Ou utilisez votre téléphone';
+
+  @override
   String get pairingInstructions =>
       'Scannez avec un téléphone sur le même réseau domestique de confiance. Le code expire après 10 minutes. Confirmez la source ici avant l’import.';
 

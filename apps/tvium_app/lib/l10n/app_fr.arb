@@ -8,6 +8,7 @@
   "importLocalM3u": "Importer un fichier M3U",
   "xtreamCodes": "Xtream Codes",
   "pairWithPhone": "Ajouter avec votre téléphone",
+  "orAddWithPhone": "Ou utilisez votre téléphone",
   "pairingInstructions": "Scannez avec un téléphone sur le même réseau domestique de confiance. Le code expire après 10 minutes. Confirmez la source ici avant l’import.",
   "pairingReceived": "Source reçue. Confirmez pour l’ajouter à cette TV.",
   "pairingExpired": "Ce code a expiré. Fermez cette fenêtre et réessayez.",
