@@ -30,10 +30,19 @@ skips only the deployment job.
 ## Signing Status
 
 Current artifacts are suitable for private testing only. The macOS app is
-ad-hoc signed and is not notarized. The Android APK uses the project's temporary
-debug signing configuration. Store distribution requires protected signing
-credentials, Apple notarization, and an Android upload key. Never commit those
-credentials to the repository.
+ad-hoc signed and is not notarized. Starting with the first release after
+`v1.0.0-alpha.7`, the Android APK uses a persistent release key held outside
+the repository and provided to CI through four protected secrets. Older
+GitHub APKs used an ephemeral debug key and cannot be updated in place with
+the new key; uninstalling them erases their local app data. Keep the release
+keystore and password backed up securely: losing them prevents future direct
+APK updates. Never commit signing credentials to the repository.
+
+The Android release job requires `TVIUM_ANDROID_KEYSTORE_BASE64`,
+`TVIUM_ANDROID_STORE_PASSWORD`, `TVIUM_ANDROID_KEY_ALIAS`, and
+`TVIUM_ANDROID_KEY_PASSWORD`. It fails rather than publishing an APK signed
+with a runner's debug key when any credential is missing. The signing gate is
+covered by `bash scripts/release/test_android_signing_gate.sh`.
 
 The ad-hoc macOS build can repeatedly ask for access to the login Keychain,
 including after **Always Allow**. Do not treat that dialog as a playlist or

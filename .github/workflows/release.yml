@@ -96,12 +96,55 @@ jobs:
           flutter --disable-analytics
           dart pub get
           dart run melos bootstrap
+      - name: Prepare Android release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.TVIUM_ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.TVIUM_ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.TVIUM_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.TVIUM_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in "$KEYSTORE_BASE64" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD"; do
+            if [[ -z "$value" ]]; then
+              echo 'Android release signing secrets are required.' >&2
+              exit 1
+            fi
+          done
+          keystore="$RUNNER_TEMP/tvium-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          chmod 600 "$keystore"
+          echo "TVIUM_ANDROID_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
+          echo "TVIUM_REQUIRE_ANDROID_RELEASE_SIGNING=true" >> "$GITHUB_ENV"
+          echo "TVIUM_ANDROID_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "TVIUM_ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "TVIUM_ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+      - name: Verify Android release signing gate
+        run: bash scripts/release/test_android_signing_gate.sh
       - name: Build Android ARM64 release APK
         working-directory: ${{ env.APP_DIRECTORY }}
-        run: >-
-          flutter build apk --release --target-platform android-arm64
-          --build-number="$GITHUB_RUN_NUMBER"
-          --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG"
+        run: |
+          flutter build apk --release --target-platform android-arm64 \
+            --build-name="${TVIUM_RELEASE_TAG#v}" \
+            --build-number="$GITHUB_RUN_NUMBER" \
+            --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG"
+      - name: Verify APK signing identity
+        run: |
+          set -euo pipefail
+          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          apk="apps/tvium_app/build/app/outputs/flutter-apk/app-release.apk"
+          "$apksigner" verify "$apk"
+          expected="$(keytool -list -v \
+            -keystore "$TVIUM_ANDROID_KEYSTORE_PATH" \
+            -storepass "$TVIUM_ANDROID_STORE_PASSWORD" \
+            -alias "$TVIUM_ANDROID_KEY_ALIAS" \
+            | sed -n 's/^[[:space:]]*SHA256: //p' | head -n 1 \
+            | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          actual="$("$apksigner" verify --print-certs "$apk" \
+            | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
+          if [[ -z "$expected" || "$actual" != "$expected" ]]; then
+            echo 'APK signing identity does not match the release key.' >&2
+            exit 1
+          fi
       - name: Stage APK
         run: |
           mkdir -p dist
