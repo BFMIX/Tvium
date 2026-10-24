@@ -27,6 +27,8 @@ docs/design/tvium-branding-kit.pdf
 .packages
 build/
 dist/
+.netlify/
+node_modules/
 coverage/
 *.log
 

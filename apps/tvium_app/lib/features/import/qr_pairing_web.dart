@@ -53,7 +53,7 @@ Future<QrPairingSession> startQrPairing({
     final key = List<int>.generate(32, (_) => random.nextInt(256));
     final encodedKey = base64UrlEncode(key).replaceAll('=', '');
     final url = endpoint
-        .resolve('/pair')
+        .resolve('/pair/')
         .replace(fragment: 'id=$id&submit=$submitToken&key=$encodedKey');
     return _WebQrPairingSession(
       httpClient,

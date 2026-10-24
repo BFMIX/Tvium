@@ -12,4 +12,4 @@
 
 Run `40073065845` passed macOS, Android, Web, Pages, and publication. It published [alpha.8](https://github.com/BFMIX/Tvium/releases/tag/v1.0.0-alpha.8). The downloaded Android APK matched the release asset digest and expected public signing certificate. The macOS DMG is still ad-hoc signed and should be treated as a test build pending Developer ID signing and notarization.
 
-Web QR pairing remains unavailable. The native implementation accepts submissions through a local HTTP server, which a GitHub Pages browser cannot host. A secure HTTPS relay and its deployment are separate release requirements before the Web button can be shown.
+Web QR pairing remains unavailable in the published alpha.8 release. The native implementation accepts submissions through a local HTTP server, which a GitHub Pages browser cannot host. Commit `8272cf2` prepared a separately hosted HTTPS relay, encrypted phone submission, and Web client. The Netlify relay is now deployed and passed synthetic end-to-end and cross-deploy checks. A new GitHub Web release configured with `https://tvium.netlify.app` remains required before testing on Tesla.

@@ -87,7 +87,7 @@ void main() {
         pollInterval: const Duration(milliseconds: 20),
       );
       final qr = Uri.parse(session.pairingUrl);
-      expect(qr.path, '/pair');
+      expect(qr.path, '/pair/');
       expect(session.pairingUrl, isNot(contains('playlist.example.test')));
       final fragment = Uri.splitQueryString(qr.fragment);
       expect(fragment['id'], id);

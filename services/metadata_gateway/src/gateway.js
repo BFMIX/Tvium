@@ -155,12 +155,12 @@ export function createGateway({ search = createSearch(), origins = [], now = Dat
       res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
       res.setHeader('Vary', 'Origin');
     }
-    if (req.method === 'GET' && (req.url === '/pair' || req.url === '/pairing-phone.js')) {
+    if (req.method === 'GET' && (req.url === '/pair' || req.url === '/pair/' || req.url === '/pairing-phone.js')) {
       res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'");
       res.setHeader('Referrer-Policy', 'no-referrer');
-      res.setHeader('Content-Type', req.url === '/pair' ? 'text/html; charset=utf-8' : 'text/javascript; charset=utf-8');
+      res.setHeader('Content-Type', req.url === '/pair' || req.url === '/pair/' ? 'text/html; charset=utf-8' : 'text/javascript; charset=utf-8');
       res.writeHead(200);
-      res.end(req.url === '/pair' ? phonePage : phoneScript);
+      res.end(req.url === '/pair' || req.url === '/pair/' ? phonePage : phoneScript);
       return;
     }
     if (req.method === 'OPTIONS' && (req.url === '/v1/search' || req.url?.startsWith('/v1/pairing'))) {
