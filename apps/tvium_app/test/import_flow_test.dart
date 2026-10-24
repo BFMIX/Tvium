@@ -3,10 +3,36 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
+import 'package:tvium_app/features/import/m3u_import_persistence.dart';
 import 'package:tvium_app/features/import/playlist_import_controller.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
 
 void main() {
+  testWidgets('shows a distinct saving stage after playlist parsing', (
+    tester,
+  ) async {
+    final persistence = _DelayedPersistence();
+    final controller = PlaylistImportController(persistence: persistence);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+
+    final import = controller.importSource(
+      const _MemorySource(),
+      descriptor: const M3uSourceDescriptor.url(
+        displayName: 'Fixture',
+        location: 'https://playlist.example.test/list.m3u',
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(controller.state.phase, PlaylistImportPhase.saving);
+    expect(find.textContaining('Saving your library'), findsOneWidget);
+    persistence.complete();
+    await import;
+    await tester.pump();
+    expect(controller.state.phase, PlaylistImportPhase.ready);
+  });
+
   testWidgets('renders imported groups in their catalog destinations', (
     tester,
   ) async {
@@ -34,13 +60,15 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Movies'));
     await tester.pumpAndSettle();
     expect(find.text('Cinema'), findsWidgets);
-    expect(find.text('Demo Movie'), findsOneWidget);
-    await tester.tap(find.text('Demo Movie'));
+    final movieCard = find.descendant(
+      of: find.byKey(const ValueKey('poster-grid')),
+      matching: find.text('Demo Movie'),
+    );
+    expect(movieCard, findsOneWidget);
+    await tester.tap(movieCard);
     await tester.pumpAndSettle();
     expect(
-      find.text(
-        'Online descriptions and ratings are optional and do not affect playback.',
-      ),
+      find.textContaining('metadata service is not configured'),
       findsOneWidget,
     );
     expect(find.widgetWithText(FilledButton, 'Play now'), findsOneWidget);
@@ -50,7 +78,13 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'TV Shows'));
     await tester.pumpAndSettle();
     expect(find.text('Series'), findsWidgets);
-    expect(find.text('Demo Show'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('poster-grid')),
+        matching: find.text('Demo Show'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('keeps live TV reachable in compact layouts', (tester) async {
@@ -87,6 +121,8 @@ void main() {
 
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-page-playlists')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('add-playlist')));
     await tester.pumpAndSettle();
 
@@ -94,6 +130,18 @@ void main() {
     expect(find.byKey(const ValueKey('add-m3u-url')), findsOneWidget);
     expect(find.byKey(const ValueKey('add-xtream')), findsOneWidget);
   });
+}
+
+final class _DelayedPersistence implements M3uImportPersistence {
+  final _saved = Completer<String>();
+
+  @override
+  Future<String> persist(
+    M3uSourceDescriptor descriptor,
+    List<M3uEntry> entries,
+  ) => _saved.future;
+
+  void complete() => _saved.complete('fixture-source');
 }
 
 final class _MemorySource implements M3uSource {

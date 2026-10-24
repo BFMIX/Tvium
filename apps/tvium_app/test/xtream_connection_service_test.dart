@@ -38,6 +38,10 @@ void main() {
         random: Random(1),
       );
 
+      final preview = await service.previewCatalog(_input);
+      expect(preview.liveStreams, isEmpty);
+      expect(backend.values, isEmpty);
+
       final result = await service.addPlaylist(_input);
 
       expect(result.catalog.liveStreams, isEmpty);

@@ -21,5 +21,8 @@ final class M3uEntry {
   final MediaKind kind;
 
   String? get groupTitle => attributes['group-title'];
-  Uri? get logoUri => Uri.tryParse(attributes['tvg-logo'] ?? '');
+  Uri? get logoUri {
+    final value = attributes['tvg-logo']?.trim();
+    return value == null || value.isEmpty ? null : Uri.tryParse(value);
+  }
 }

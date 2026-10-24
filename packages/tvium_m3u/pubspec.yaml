@@ -3,17 +3,14 @@ description: Progressive and resilient M3U ingestion for Tvium.
 publish_to: none
 version: 1.0.0
 resolution: workspace
-# repository: https://github.com/my_org/my_repo
 
 environment:
   sdk: ^3.13.0
 
-# Add regular dependencies here.
 dependencies:
   http: ^1.6.0
   tvium_core:
     path: ../tvium_core
-  # path: ^1.9.0
 
 dev_dependencies:
   lints: ^6.0.0

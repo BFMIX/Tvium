@@ -12,7 +12,7 @@ This local stage requires no account, network request, or API key.
 
 ## Optional Metadata Gateway
 
-Remote enrichment is disabled by default and requires explicit user consent. When enabled, the app sends only:
+The online metadata preference is enabled by default and can be turned off in Settings. Searches require a configured gateway. When enabled and a gateway is available, the app sends only:
 
 - the cleaned title;
 - the content kind (`movie`, `series`, or `live`);
@@ -25,6 +25,8 @@ Configure the app with a public HTTPS endpoint at build time:
 ```sh
 flutter run --dart-define=TVIUM_METADATA_GATEWAY=https://metadata.example.com
 ```
+
+Desktop builds use `http://127.0.0.1:8787` when no endpoint is supplied. Start the local metadata gateway separately or use `scripts/run_metadata_preview_macos.zsh` on macOS. Mobile and Web builds still require an explicit reachable HTTPS endpoint.
 
 Configure `TMDB_READ_ACCESS_TOKEN` only in the gateway environment. It must never be embedded in the app, committed to Git, or included in logs.
 

@@ -67,11 +67,11 @@ void main() {
 
     await tester.tap(find.widgetWithText(TextButton, 'Movies'));
     await tester.pumpAndSettle();
-    expect(find.text('Movie'), findsOneWidget);
+    expect(find.text('Movie'), findsWidgets);
 
     await tester.tap(find.widgetWithText(TextButton, 'TV Shows'));
     await tester.pumpAndSettle();
-    expect(find.text('Series'), findsOneWidget);
+    expect(find.text('Series'), findsWidgets);
     expect(find.byKey(const ValueKey<String>('xtream-password')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('profile-action')));

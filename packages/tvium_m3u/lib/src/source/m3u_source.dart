@@ -53,11 +53,13 @@ final class M3uUrlSource implements M3uSource {
     this.uri, {
     this.client,
     this.timeout = const Duration(seconds: 20),
+    this.maxDuration = const Duration(minutes: 5),
     this.maxBytes = 50 * 1024 * 1024,
   });
 
   final Uri uri;
   final Duration timeout;
+  final Duration maxDuration;
   final int maxBytes;
   final http.Client? client;
 
@@ -80,7 +82,7 @@ final class M3uUrlSource implements M3uSource {
       }
 
       var receivedBytes = 0;
-      final bytes = response.stream.map((chunk) {
+      final bytes = _boundedBody(response.stream).map((chunk) {
         receivedBytes += chunk.length;
         if (receivedBytes > maxBytes) {
           throw const M3uSourceException('Playlist exceeds the allowed size');
@@ -100,6 +102,27 @@ final class M3uUrlSource implements M3uSource {
       if (ownsClient) {
         requestClient.close();
       }
+    }
+  }
+
+  Stream<List<int>> _boundedBody(Stream<List<int>> body) async* {
+    final elapsed = Stopwatch()..start();
+    final chunks = StreamIterator<List<int>>(body);
+    try {
+      while (true) {
+        final remaining = maxDuration - elapsed.elapsed;
+        if (remaining <= Duration.zero) {
+          throw const M3uSourceException('Playlist request timed out');
+        }
+        final wait = remaining < timeout ? remaining : timeout;
+        final hasChunk = await chunks.moveNext().timeout(wait);
+        if (!hasChunk) return;
+        yield chunks.current;
+      }
+    } on TimeoutException {
+      throw const M3uSourceException('Playlist request timed out');
+    } finally {
+      await chunks.cancel();
     }
   }
 }

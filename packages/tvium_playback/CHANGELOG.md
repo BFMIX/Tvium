@@ -1,3 +1,3 @@
 ## 0.0.1
 
-* TODO: Describe initial release.
+- Added playback contracts and the provisional `media_kit` adapter.

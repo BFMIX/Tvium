@@ -1,5 +1,7 @@
 # Scope
 
+This document records the original Phase 0 boundary and the continuing V1 exclusions. For current implementation status, use the [Roadmap](ROADMAP.md); for delivery order, use the [Requirements Plan](plans/REQUIREMENTS.md).
+
 ## Phase 0
 
 Phase 0 delivers:
@@ -15,9 +17,9 @@ Phase 0 delivers:
 - an engine-neutral playback contract and provisional HLS adapter;
 - keyboard and D-pad focus foundations.
 
-## Deferred
+## Deferred at Phase 0
 
-Xtream endpoints, full XMLTV/EPG, durable SQLite indexing, incremental playlist synchronization, canonical-channel variants, complete VOD/series reconstruction, favorites, history, parental controls, Picture in Picture, and production platform adapters remain later milestones. Their boundaries are documented now where they affect Phase 0 choices.
+At the end of Phase 0, Xtream endpoints, full XMLTV/EPG, durable SQLite indexing, incremental playlist synchronization, canonical-channel variants, complete VOD/series reconstruction, favorites, history, parental controls, Picture in Picture, and production platform adapters remained later milestones. Several have since advanced; consult the [Roadmap](ROADMAP.md) for their current status.
 
 ## Explicit V1 exclusions
 

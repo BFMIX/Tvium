@@ -57,6 +57,27 @@ void main() {
     expect(entries.single.epgChannelId, 'fixture.news.test');
   });
 
+  test('stores and reloads a 5,021-item synthetic catalog', () async {
+    final repository = SqlitePlaylistRepository.open(databasePath);
+    addTearDown(repository.close);
+    final entries = List<PersistedMediaEntry>.generate(
+      5021,
+      (index) => _entry(
+        id: 'fixture-$index',
+        playlistId: 'primary',
+        group: 'Synthetic',
+      ),
+      growable: false,
+    );
+
+    await repository.replaceEntries('primary', entries);
+    final restored = await repository.entriesForPlaylist('primary');
+
+    expect(restored, hasLength(5021));
+    expect(restored.first.id, 'fixture-0');
+    expect(restored.last.id, 'fixture-5020');
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
   test('migrates a version one database without losing entries', () async {
     _createVersionOneDatabase(databasePath);
 

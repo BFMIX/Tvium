@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:tvium_design_system/tvium_design_system.dart';
 
@@ -10,7 +12,8 @@ final class SourceActionCard extends StatelessWidget {
     required this.focusNode,
     this.autofocus = false,
     this.enabled = true,
-    this.width = 210,
+    this.width = 250,
+    this.compact = false,
     super.key,
   });
 
@@ -22,6 +25,7 @@ final class SourceActionCard extends StatelessWidget {
   final bool autofocus;
   final bool enabled;
   final double width;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -35,41 +39,105 @@ final class SourceActionCard extends StatelessWidget {
         focusNode.requestFocus();
         onActivate();
       },
-      child: Container(
-        width: width,
-        padding: const EdgeInsets.all(TviumSpacing.md),
-        decoration: BoxDecoration(
-          color: enabled
-              ? TviumColors.surfaceDark
-              : TviumColors.surfaceDark.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(TviumRadius.card),
-        ),
-        child: Row(
-          children: <Widget>[
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(TviumRadius.control),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(TviumRadius.card),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            width: width,
+            height: compact ? null : 224,
+            constraints: BoxConstraints(minHeight: compact ? 86 : 152),
+            padding: const EdgeInsets.all(TviumSpacing.md),
+            decoration: BoxDecoration(
+              color: enabled
+                  ? const Color(0xAE163149)
+                  : TviumColors.surfaceDark.withValues(alpha: 0.5),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: enabled ? 0.18 : 0.08),
               ),
-              child: Icon(icon, color: theme.colorScheme.primary),
+              borderRadius: BorderRadius.circular(TviumRadius.card),
             ),
-            const SizedBox(width: TviumSpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(title, style: theme.textTheme.titleLarge),
-                  const SizedBox(height: TviumSpacing.xxs),
-                  Text(description, style: theme.textTheme.bodyMedium),
-                ],
-              ),
-            ),
-          ],
+            child: compact
+                ? Row(
+                    children: <Widget>[
+                      _SourceIcon(icon: icon, color: theme.colorScheme.primary),
+                      const SizedBox(width: TviumSpacing.md),
+                      Expanded(child: _SourceCopy(title, description)),
+                      const Icon(Icons.arrow_forward_rounded, size: 20),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          _SourceIcon(
+                            icon: icon,
+                            color: theme.colorScheme.primary,
+                          ),
+                          Icon(
+                            Icons.arrow_outward_rounded,
+                            color: theme.colorScheme.primary,
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: TviumSpacing.md),
+                      _SourceCopy(title, description),
+                    ],
+                  ),
+          ),
         ),
       ),
     );
   }
+}
+
+final class _SourceIcon extends StatelessWidget {
+  const _SourceIcon({required this.icon, required this.color});
+
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 48,
+    height: 48,
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(TviumRadius.control),
+    ),
+    child: Icon(icon, color: color, size: 26),
+  );
+}
+
+final class _SourceCopy extends StatelessWidget {
+  const _SourceCopy(this.title, this.description);
+
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      Text(
+        title,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.titleMedium
+            ?.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: TviumSpacing.xxs),
+      Text(
+        description,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: const Color(0xFFBED0DF)),
+      ),
+    ],
+  );
 }

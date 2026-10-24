@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
+import 'package:tvium_app/features/artwork/artwork_image.dart';
+import 'package:tvium_app/features/artwork/artwork_reference_store.dart';
 import 'package:tvium_app/features/xtream/secure_xtream_profile_store.dart';
 import 'package:tvium_app/features/xtream/xtream_connection_service.dart';
 import 'package:tvium_core/tvium_core.dart';
@@ -35,13 +37,28 @@ void main() {
       ],
     );
 
-    await tester.pumpWidget(TviumApp(profileSourceRepository: repository));
+    final artwork = ArtworkReferenceStore(MemoryArtworkKeyValueStore());
+    await artwork.write('source-1', {
+      'live:news': Uri.parse('https://images.example.test/logo.png'),
+    });
+    await tester.pumpWidget(
+      TviumApp(
+        profileSourceRepository: repository,
+        artworkReferenceStore: artwork,
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('destination-live')));
     await tester.pumpAndSettle();
 
     expect(find.text('Fixture News'), findsOneWidget);
+    expect(
+      tester
+          .widgetList<ArtworkImage>(find.byType(ArtworkImage))
+          .any((image) => image.uri?.path == '/logo.png'),
+      isTrue,
+    );
     expect(find.text('Welcome to Tvium'), findsNothing);
   });
 

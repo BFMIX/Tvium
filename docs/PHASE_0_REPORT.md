@@ -1,5 +1,7 @@
 # Phase 0 Report
 
+This is a historical report. Later features and platform evidence are tracked in the [Roadmap](ROADMAP.md) and [Requirements Plan](plans/REQUIREMENTS.md).
+
 **Completed:** 23 August 2026  
 **Branch:** `feat/phase-0`
 

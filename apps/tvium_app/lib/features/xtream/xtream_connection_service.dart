@@ -7,6 +7,7 @@ import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_xtream/tvium_xtream.dart';
 
+import '../artwork/artwork_reference_store.dart';
 import '../library/library_bootstrap_controller.dart';
 import '../sources/source_identity_service.dart';
 import 'secure_xtream_profile_store.dart';
@@ -76,6 +77,10 @@ abstract interface class XtreamSourceRefreshService {
   Future<XtreamRefreshResult> refreshSource(String sourceId);
 }
 
+abstract interface class XtreamCatalogPreviewService {
+  Future<XtreamCatalog> previewCatalog(XtreamConnectionInput input);
+}
+
 abstract interface class XtreamSeriesService {
   Future<XtreamSeriesDetails> loadSeriesDetails(
     String profileId,
@@ -107,6 +112,7 @@ final class XtreamRefreshResult {
 final class DefaultXtreamConnectionService
     implements
         XtreamConnectionService,
+        XtreamCatalogPreviewService,
         XtreamSourceRefreshService,
         XtreamSeriesService {
   DefaultXtreamConnectionService({
@@ -136,6 +142,14 @@ final class DefaultXtreamConnectionService
   Future<XtreamAccountInfo> testConnection(XtreamConnectionInput input) {
     return XtreamClient(_httpClient)
         .authenticate(_profile(input, 'connection-test'), input.credentials);
+  }
+
+  @override
+  Future<XtreamCatalog> previewCatalog(XtreamConnectionInput input) async {
+    final profile = _profile(input, 'catalog-preview');
+    final client = XtreamClient(_httpClient);
+    await client.authenticate(profile, input.credentials);
+    return client.loadCatalog(profile, input.credentials);
   }
 
   Future<T> _serialized<T>(Future<T> Function() operation) async {
@@ -182,6 +196,7 @@ final class DefaultXtreamConnectionService
     final previous = await repository.entriesForPlaylist(source.id);
     final diff = PlaylistDiff.calculate(previous: previous, incoming: incoming);
     await repository.registerSource(source, active.id, incoming);
+    await _saveArtwork(source.id, catalog);
     return XtreamRefreshResult(
       addedCount: diff.added.length,
       changedCount: diff.changed.length,
@@ -230,6 +245,7 @@ final class DefaultXtreamConnectionService
           active.id,
           _project(reference, catalog),
         );
+        await _saveArtwork(reference, catalog);
       }
     } catch (_) {
       if (previousSecret == null) {
@@ -284,6 +300,20 @@ final class DefaultXtreamConnectionService
           externalId: item.id,
         ),
     ];
+  }
+
+  Future<void> _saveArtwork(String sourceId, XtreamCatalog catalog) async {
+    try {
+      await ArtworkReferenceStore().write(sourceId, {
+        for (final item in [...catalog.liveStreams, ...catalog.movies])
+          if (item.imageUri case final Uri uri)
+            '${item.kind.name}:${item.id}': uri,
+        for (final item in catalog.series)
+          if (item.coverUri case final Uri uri) 'series:${item.id}': uri,
+      });
+    } on Object {
+      // Artwork storage must not discard a successfully imported catalog.
+    }
   }
 
   @override

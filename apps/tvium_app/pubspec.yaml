@@ -43,9 +43,12 @@ dependencies:
   file_picker: ^12.0.0
   flutter_secure_storage: ^11.0.0
   http: ^1.6.0
+  pub_semver: ^2.2.0
   crypto: ^3.0.6
+  cryptography: ^2.9.0
   path_provider: ^2.1.5
   cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.2
   intl: ^0.20.3
   tvium_core:
     path: ../../packages/tvium_core
@@ -61,6 +64,7 @@ dependencies:
     path: ../../packages/tvium_playback
   tvium_xtream:
     path: ../../packages/tvium_xtream
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
@@ -103,6 +107,9 @@ flutter:
   generate: true
   assets:
     - assets/branding/
+    - assets/destinations/
+    - assets/countries/
+    - assets/flags/
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

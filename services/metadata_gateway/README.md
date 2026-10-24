@@ -12,7 +12,15 @@ npm start
 
 The service binds to `127.0.0.1:8787`. Configure `TMDB_READ_ACCESS_TOKEN` in the server environment using a secret manager or local shell. Never embed it in the app, commit it or paste it into logs. Without this token, series use TVmaze and channels use IPTV-org; movie searches return a generic unavailable response.
 
+For a local macOS preview, run `zsh scripts/run_metadata_preview_macos.zsh` from the repository root. The launcher reads a token from `~/.config/tvium/tmdb-read-token` when that file exists with owner-only permissions (`chmod 600`); otherwise, it asks for the token in an interactive Terminal without echoing it. The token is never passed to Flutter or logged. The launcher starts the gateway on loopback and launches Flutter. Desktop builds also discover the loopback gateway without a special build flag, but the gateway must be running for searches to work. Enable online metadata in Settings; movie and series details then look up metadata automatically, and the displayed Home feature can load verified artwork. Consent and verified public metadata are saved locally; playlist source data remains unchanged. Closing Flutter also stops the gateway started by this launcher. Use only a token you are authorized to use, and do not paste it into a chat or commit it.
+
 `PORT`, `HOST` and comma-separated `ALLOWED_ORIGINS` are optional. Browser requests require an exact configured origin. No wildcard origins are accepted. Native requests without Origin are supported. No service is deployed by these instructions. Public hosting requires TLS, authentication/abuse controls and shared rate limiting at the ingress; CORS is not authentication. The in-memory rate limiter uses the direct socket address and deliberately ignores forwarded headers.
+
+The Web release can be pointed at a hosted gateway by setting the repository variable `TVIUM_METADATA_GATEWAY` to its public HTTPS origin before running the Release workflow. The build rejects credentials, paths, and insecure addresses. This variable is a public endpoint address, never the TMDB token. Leave it unset until the gateway has TLS and ingress protections; setting the variable does not deploy a gateway. Configure `ALLOWED_ORIGINS` on the gateway to permit the deployed Pages origin.
+
+The standalone Node server can also relay encrypted Web QR pairing. Once hosted over HTTPS, set repository variable `TVIUM_PAIRING_RELAY` to its public origin and configure `ALLOWED_ORIGINS` to include `https://bfmix.github.io`. The release build then displays **Add with your phone** on Web/Tesla. The relay receives only an opaque AES-GCM payload and expires sessions after ten minutes. Do not use a placeholder address: the option must lead to a working phone page. See [QR pairing](../../docs/QR_PAIRING.md).
+
+For Netlify, use this directory as the site's base directory and `netlify.toml` as its build configuration. The build publishes a Tvium presentation page at `/`, a phone pairing page at `/pair/`, and three Netlify Functions for sessions, encrypted proposals, and cleanup. Set the secret `TVIUM_PAIRING_SECRET` to a random 32-byte base64url value in the production and deploy-preview contexts. On Netlify Free, use the default all-scopes setting; granular Functions scope requires Pro. Do not put the value in Git or `netlify.toml`. After a preview succeeds, deploy the site, then set the GitHub repository variable `TVIUM_PAIRING_RELAY` to the site's HTTPS origin and run the Tvium Release workflow. The default Pages origin is `https://bfmix.github.io`; changing that origin requires updating the function configuration.
 
 ## Contract
 
@@ -22,7 +30,7 @@ The service binds to `127.0.0.1:8787`. Configure `TMDB_READ_ACCESS_TOKEN` in the
 {"title":"Example Movie","kind":"movie","year":2020,"language":"en-US"}
 ```
 
-Kinds: `movie`, `series`, `live`. Response: `{"candidates":[]}` or up to 20 candidates with `id`, `provider`, `title`, `kind`, `sourceUrl`, `license`, and optional `year`, `posterUrl`, `overview`. A candidate is evidence for local matching, not permission to overwrite playlist identity. `400` invalid input; `413` oversized body; `415` wrong media type; `429` rate limit; `503` unavailable provider. Errors never include upstream details.
+Kinds: `movie`, `series`, `live`. Response: `{"candidates":[]}` or up to 20 candidates with `id`, `provider`, `title`, `kind`, `sourceUrl`, `license`, and optional `year`, `originalTitle`, `posterUrl`, `backdropUrl`, `overview`. TMDB searches use the requested language, so a localized title can match without replacing the original playlist title. A candidate is evidence for local matching, not permission to overwrite playlist identity. `400` invalid input; `413` oversized body; `415` wrong media type; `429` rate limit; `503` unavailable provider. Errors never include upstream details.
 
 ## Providers and attribution
 
