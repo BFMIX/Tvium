@@ -134,10 +134,16 @@ jobs:
           path: apps/tvium_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 1
+      - name: Install verified APK verifier
+        run: |
+          if [[ ! -x "$ANDROID_HOME/build-tools/34.0.0/apksigner" ]]; then
+            sdkmanager --install 'build-tools;34.0.0'
+          fi
+          bash scripts/release/select_apksigner.sh >/dev/null
       - name: Verify APK signing identity
         run: |
           set -euo pipefail
-          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          apksigner="$(bash scripts/release/select_apksigner.sh)"
           apk="apps/tvium_app/build/app/outputs/flutter-apk/app-release.apk"
           "$apksigner" verify "$apk"
           expected="$(keytool -list -v \
