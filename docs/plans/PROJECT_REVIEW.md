@@ -19,7 +19,7 @@
 
 | Area | Evidence in this checkout | Next safe action |
 |---|---|---|
-| Release trust | The last published release is alpha.7. The last alpha.8 workflow failed Android certificate verification at `730de74`; the follow-up fix at `a989874` has not been verified by a new release run. The macOS DMG is ad-hoc signed. | Re-run and inspect the release workflow; publish only matching, verified artifacts. Obtain Developer ID and notarize macOS before calling it a normal installer. |
+| Release trust | The last published release is alpha.7. The alpha.8 workflow at `cf7429d` (run `40072008404`) built the macOS DMG and deployed Web, but Android certificate verification failed: the CI `apksigner` command returned no certificate lines. No alpha.8 release was published. The macOS DMG is ad-hoc signed. | Capture the CI APK and signer output in a private diagnostic artifact, confirm which APK and SDK tool are inspected, then rerun the release gate. Obtain Developer ID and notarize macOS before calling it a normal installer. |
 | Public metadata | The desktop preview can use a local gateway. Public Web/mobile builds still need a hosted HTTPS gateway and server-side token. | Host and protect the gateway, verify provider terms, then test from a clean install. |
 | Main UI maintainability | `home_screen.dart` is over 5,000 lines and `tvium_shell_test.dart` over 2,000. | Extract one screen or behavior at a time behind existing tests; avoid a wholesale rewrite. |
 | Device evidence | TV remote, QR pairing, image-cache eviction, Android playback, and Windows/tvOS behavior lack complete physical or platform-specific evidence. | Use a device matrix with synthetic or public test content; record build, runtime, and limitations separately. |
