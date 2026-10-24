@@ -7,6 +7,7 @@ Start with [Product Definition](PRODUCT.md) for the product promise, [Scope](SCO
 - [Repository review](plans/PROJECT_REVIEW.md): cleanup decisions, current risks, and maintainability work.
 - [Requirements plan](plans/REQUIREMENTS.md): approved product work grouped by delivery priority.
 - [Recommendations](plans/RECOMMENDATIONS.md): proposed additions for review, separate from approved scope.
+- [Release run audit](plans/RELEASE_RUN_AUDIT.md): causes of recent CI failures and current distribution limits.
 
 ## Design and experience
 
