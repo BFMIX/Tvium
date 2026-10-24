@@ -206,6 +206,7 @@ jobs:
         working-directory: ${{ env.APP_DIRECTORY }}
         env:
           TVIUM_METADATA_GATEWAY: ${{ vars.TVIUM_METADATA_GATEWAY }}
+          TVIUM_PAIRING_RELAY: ${{ vars.TVIUM_PAIRING_RELAY }}
         run: bash ../../scripts/release/build_web_release.sh
       - name: Package Web download
         run: >-

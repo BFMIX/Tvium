@@ -22,4 +22,12 @@ if [[ -n "${TVIUM_METADATA_GATEWAY:-}" ]]; then
   arguments+=("--dart-define=TVIUM_METADATA_GATEWAY=$TVIUM_METADATA_GATEWAY")
 fi
 
+if [[ -n "${TVIUM_PAIRING_RELAY:-}" ]]; then
+  if [[ ! "$TVIUM_PAIRING_RELAY" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/?$ ]]; then
+    echo 'Pairing relay must be a public HTTPS origin without credentials or a path.' >&2
+    exit 64
+  fi
+  arguments+=("--dart-define=TVIUM_PAIRING_RELAY=$TVIUM_PAIRING_RELAY")
+fi
+
 flutter "${arguments[@]}"

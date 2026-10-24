@@ -18,6 +18,8 @@ For a local macOS preview, run `zsh scripts/run_metadata_preview_macos.zsh` from
 
 The Web release can be pointed at a hosted gateway by setting the repository variable `TVIUM_METADATA_GATEWAY` to its public HTTPS origin before running the Release workflow. The build rejects credentials, paths, and insecure addresses. This variable is a public endpoint address, never the TMDB token. Leave it unset until the gateway has TLS and ingress protections; setting the variable does not deploy a gateway. Configure `ALLOWED_ORIGINS` on the gateway to permit the deployed Pages origin.
 
+The same server can relay encrypted Web QR pairing. Once hosted over HTTPS, set repository variable `TVIUM_PAIRING_RELAY` to its public origin and configure `ALLOWED_ORIGINS` to include `https://bfmix.github.io`. The release build then displays **Add with your phone** on Web/Tesla. The relay receives only an opaque AES-GCM payload and expires sessions after ten minutes. Do not use a placeholder address: the option must lead to a working phone page. See [QR pairing](../../docs/QR_PAIRING.md).
+
 ## Contract
 
 `POST /v1/search`, `Content-Type: application/json`:

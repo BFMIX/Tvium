@@ -45,6 +45,7 @@ dependencies:
   http: ^1.6.0
   pub_semver: ^2.2.0
   crypto: ^3.0.6
+  cryptography: ^2.9.0
   path_provider: ^2.1.5
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.2

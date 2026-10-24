@@ -69,6 +69,18 @@ final qrPairingStarterProvider = Provider<Future<QrPairingSession> Function()>(
   (ref) => qr_pairing.startQrPairing,
 );
 
+bool shouldShowQrPairing({required bool isWeb, required String relay}) {
+  if (!isWeb) return true;
+  final uri = Uri.tryParse(relay.trim());
+  return uri != null &&
+      uri.scheme == 'https' &&
+      uri.hasAuthority &&
+      uri.userInfo.isEmpty &&
+      (uri.path.isEmpty || uri.path == '/') &&
+      !uri.hasQuery &&
+      !uri.hasFragment;
+}
+
 final class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -524,7 +536,12 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                         },
                       ),
                     ),
-                    if (!kIsWeb) ...<Widget>[
+                    if (shouldShowQrPairing(
+                      isWeb: kIsWeb,
+                      relay: const String.fromEnvironment(
+                        'TVIUM_PAIRING_RELAY',
+                      ),
+                    )) ...<Widget>[
                       const SizedBox(height: TviumSpacing.lg),
                       Row(
                         key: const ValueKey('qr-pairing-separator'),

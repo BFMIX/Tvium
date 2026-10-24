@@ -1,4 +1,9 @@
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
+import { createPairingRelay } from './pairing_relay.js';
+
+const phonePage = readFileSync(new URL('./pairing_phone.html', import.meta.url));
+const phoneScript = readFileSync(new URL('./pairing-phone.js', import.meta.url));
 
 const hosts = new Set(['api.themoviedb.org', 'api.tvmaze.com', 'iptv-org.github.io']);
 const unsafe = /(?:[a-z][a-z0-9+.-]*:\/|\/\/|www\.|[\w.-]+\.[a-z]{2,}(?:\/|:\d)|[\w.+-]+@[\w.-]+|(?:password|passwd|username|token|api[_ -]?key)\s*[:=]|[?&][\w]+=[^\s]+|%[0-9a-f]{2}|#EXTM3U|#EXTINF)/i;
@@ -128,6 +133,7 @@ export function createSearch({ fetchImpl = fetch, token = '', now = Date.now, tt
 
 export function createGateway({ search = createSearch(), origins = [], now = Date.now, rateLimit = 60, maxBodyBytes = 2048 } = {}) {
   const clients = new Map();
+  const pairing = createPairingRelay({ now });
   const allowedOrigins = new Set((Array.isArray(origins) ? origins : []).filter(value => {
     if (typeof value !== 'string' || value === 'null' || value === '*') return false;
     try {
@@ -143,15 +149,26 @@ export function createGateway({ search = createSearch(), origins = [], now = Dat
     res.setHeader('X-Content-Type-Options', 'nosniff');
     const send = (status, body) => { res.writeHead(status); res.end(JSON.stringify(body)); };
     if (req.headers.origin) {
-      if (!allowedOrigins.has(req.headers.origin)) return send(403, { error: 'origin_not_allowed' });
+      const ownHost = req.headers.host;
+      const sameOrigin = ownHost && (req.headers.origin === `https://${ownHost}` || req.headers.origin === `http://${ownHost}`);
+      if (!allowedOrigins.has(req.headers.origin) && !sameOrigin) return send(403, { error: 'origin_not_allowed' });
       res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
       res.setHeader('Vary', 'Origin');
     }
-    if (req.method === 'OPTIONS' && req.url === '/v1/search') {
-      res.setHeader('Access-Control-Allow-Methods', 'POST');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'GET' && (req.url === '/pair' || req.url === '/pairing-phone.js')) {
+      res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'");
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.setHeader('Content-Type', req.url === '/pair' ? 'text/html; charset=utf-8' : 'text/javascript; charset=utf-8');
+      res.writeHead(200);
+      res.end(req.url === '/pair' ? phonePage : phoneScript);
+      return;
+    }
+    if (req.method === 'OPTIONS' && (req.url === '/v1/search' || req.url?.startsWith('/v1/pairing'))) {
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       return send(204, undefined);
     }
+    if (await pairing(req, send)) return;
     if (req.method !== 'POST' || req.url !== '/v1/search') return send(404, { error: 'not_found' });
     const address = req.socket.remoteAddress;
     for (const [key, record] of clients) if (record.expires <= now()) clients.delete(key);
