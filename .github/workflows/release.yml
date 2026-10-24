@@ -139,8 +139,13 @@ jobs:
             -alias "$TVIUM_ANDROID_KEY_ALIAS" \
             | sed -n 's/^[[:space:]]*SHA256: //p' | head -n 1 \
             | tr -d ':' | tr '[:upper:]' '[:lower:]')"
-          actual="$("$apksigner" verify --print-certs "$apk" \
-            | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
+          certificate_output="$("$apksigner" verify --print-certs "$apk")"
+          if ! actual="$(printf '%s\n' "$certificate_output" \
+            | bash scripts/release/apk_certificate_digest.sh)"; then
+            printf '%s\n' "$certificate_output" \
+              | sed -nE 's/^(Signer #[0-9]+ certificate [^:]+):.*/\1/p'
+            exit 1
+          fi
           if [[ -z "$expected" || "$actual" != "$expected" ]]; then
             echo 'APK signing identity does not match the release key.' >&2
             echo "Expected public certificate digest: $expected" >&2
