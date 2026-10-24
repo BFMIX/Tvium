@@ -42,6 +42,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Scan with a phone on the same trusted home network. The code expires after 10 minutes. Confirm the source here before importing.';
 
   @override
+  String get pairingInstructionsWeb =>
+      'Scan the code with your phone. It expires after 10 minutes. Confirm the source here before importing.';
+
+  @override
   String get pairingReceived =>
       'Source received. Confirm to add it to this TV.';
 
@@ -52,6 +56,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get pairingUnavailable =>
       'Local pairing is unavailable. Connect this device to your home network and try again.';
+
+  @override
+  String get pairingUnavailableWeb =>
+      'Phone pairing is unavailable right now. Check your internet connection and try again.';
 
   @override
   String get comingLater => 'Coming later';

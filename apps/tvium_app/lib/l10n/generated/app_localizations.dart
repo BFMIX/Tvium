@@ -158,6 +158,12 @@ abstract class AppLocalizations {
   /// **'Scan with a phone on the same trusted home network. The code expires after 10 minutes. Confirm the source here before importing.'**
   String get pairingInstructions;
 
+  /// No description provided for @pairingInstructionsWeb.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan the code with your phone. It expires after 10 minutes. Confirm the source here before importing.'**
+  String get pairingInstructionsWeb;
+
   /// No description provided for @pairingReceived.
   ///
   /// In en, this message translates to:
@@ -175,6 +181,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Local pairing is unavailable. Connect this device to your home network and try again.'**
   String get pairingUnavailable;
+
+  /// No description provided for @pairingUnavailableWeb.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone pairing is unavailable right now. Check your internet connection and try again.'**
+  String get pairingUnavailableWeb;
 
   /// No description provided for @comingLater.
   ///

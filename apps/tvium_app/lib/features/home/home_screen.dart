@@ -81,6 +81,16 @@ bool shouldShowQrPairing({required bool isWeb, required String relay}) {
       !uri.hasFragment;
 }
 
+String pairingInstructionsForPlatform(
+  AppLocalizations strings, {
+  required bool isWeb,
+}) => isWeb ? strings.pairingInstructionsWeb : strings.pairingInstructions;
+
+String pairingUnavailableForPlatform(
+  AppLocalizations strings, {
+  required bool isWeb,
+}) => isWeb ? strings.pairingUnavailableWeb : strings.pairingUnavailable;
+
 final class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -688,7 +698,12 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppLocalizations.of(context).pairingUnavailable),
+            content: Text(
+              pairingUnavailableForPlatform(
+                AppLocalizations.of(context),
+                isWeb: kIsWeb,
+              ),
+            ),
           ),
         );
       }
@@ -724,7 +739,12 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                           backgroundColor: Colors.white,
                         ),
                         const SizedBox(height: TviumSpacing.md),
-                        Text(strings.pairingInstructions),
+                        Text(
+                          pairingInstructionsForPlatform(
+                            strings,
+                            isWeb: kIsWeb,
+                          ),
+                        ),
                       ],
                     );
                   }

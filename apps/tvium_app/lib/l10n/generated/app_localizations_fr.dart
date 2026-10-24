@@ -42,6 +42,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Scannez avec un téléphone sur le même réseau domestique de confiance. Le code expire après 10 minutes. Confirmez la source ici avant l’import.';
 
   @override
+  String get pairingInstructionsWeb =>
+      'Scannez le code avec votre téléphone. Il expire après 10 minutes. Confirmez la source ici avant l’import.';
+
+  @override
   String get pairingReceived =>
       'Source reçue. Confirmez pour l’ajouter à cette TV.';
 
@@ -52,6 +56,10 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get pairingUnavailable =>
       'Le jumelage local est indisponible. Connectez cet appareil à votre réseau domestique, puis réessayez.';
+
+  @override
+  String get pairingUnavailableWeb =>
+      'L’ajout par téléphone est indisponible pour le moment. Vérifiez votre connexion Internet et réessayez.';
 
   @override
   String get comingLater => 'Prochainement';

@@ -7,8 +7,33 @@ import 'package:http/testing.dart';
 import 'package:tvium_app/features/home/home_screen.dart';
 import 'package:tvium_app/features/import/qr_pairing.dart';
 import 'package:tvium_app/features/import/qr_pairing_web.dart';
+import 'package:tvium_app/l10n/generated/app_localizations_en.dart';
 
 void main() {
+  test('Web pairing instructions do not require a shared home network', () {
+    final strings = AppLocalizationsEn();
+    expect(
+      pairingInstructionsForPlatform(strings, isWeb: true),
+      contains('Scan the code with your phone'),
+    );
+    expect(
+      pairingInstructionsForPlatform(strings, isWeb: true),
+      isNot(contains('same trusted home network')),
+    );
+    expect(
+      pairingInstructionsForPlatform(strings, isWeb: false),
+      contains('same trusted home network'),
+    );
+    expect(
+      pairingUnavailableForPlatform(strings, isWeb: true),
+      contains('try again'),
+    );
+    expect(
+      pairingUnavailableForPlatform(strings, isWeb: true),
+      isNot(contains('home network')),
+    );
+  });
+
   test('Web shows pairing only when a secure relay is configured', () {
     expect(shouldShowQrPairing(isWeb: false, relay: ''), isTrue);
     expect(shouldShowQrPairing(isWeb: true, relay: ''), isFalse);
