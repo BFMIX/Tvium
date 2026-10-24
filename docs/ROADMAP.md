@@ -90,7 +90,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by automated coverage: M3U episode titles using common provider conventions are grouped locally into series, seasons, and episodes; native Xtream series structure remains authoritative when available.
 - In progress: physical-device playback validation. Enriched VOD details and durable episode catalogs remain planned.
 
-## M6 — Playlist management (planned)
+## M6 — Playlist management (in progress)
 
 - Verified: credential-safe Xtream authentication, tolerant Live TV/VOD/Series catalog mapping, direct library transition after sign-in, and secure on-demand stream URL resolution for playable Live TV and VOD items.
 - Verified: deterministic added/changed/removed/unchanged diffing rejects ambiguous duplicate identities before replacing a stored playlist.
