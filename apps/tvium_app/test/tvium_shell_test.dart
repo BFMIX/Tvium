@@ -104,6 +104,91 @@ void main() {
     expect(find.byKey(const ValueKey('destination-shows')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-media-rail')), findsNothing);
     expect(find.text('Demo News'), findsNothing);
+    expect(find.byKey(const ValueKey('home-hero')), findsNothing);
+  });
+
+  testWidgets('TV header keeps search clear of the destination menu', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    final shows = tester.getRect(find.byKey(const ValueKey('header-shows')));
+    final search = tester.getRect(find.byKey(const ValueKey('header-search')));
+    expect(search.left, greaterThan(shows.right));
+    expect(find.byKey(const ValueKey('header-clock')), findsOneWidget);
+  });
+
+  testWidgets('TV menu highlights pointer hover and remote focus', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    final button = tester.widget<TextButton>(
+      find.byKey(const ValueKey('header-live')),
+    );
+    final idle = button.style!.side!.resolve(<WidgetState>{});
+    final hovered = button.style!.side!.resolve(<WidgetState>{
+      WidgetState.hovered,
+    });
+    final focused = button.style!.side!.resolve(<WidgetState>{
+      WidgetState.focused,
+    });
+    expect(hovered?.color, isNot(idle?.color));
+    expect(focused?.color, isNot(idle?.color));
+  });
+
+  testWidgets('landscape TV width keeps all four Live TV zones', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(960, 540);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    final country = find.byKey(const ValueKey('live-country-sidebar'));
+    final categories = find.byKey(const ValueKey('catalog-group-sidebar'));
+    final channels = find.byKey(const ValueKey('live-channel-list'));
+    final player = find.byKey(const ValueKey('catalog-player'));
+    expect(country, findsOneWidget);
+    expect(categories, findsOneWidget);
+    expect(channels, findsOneWidget);
+    expect(player, findsOneWidget);
+    expect(
+      tester.getTopLeft(country).dx,
+      lessThan(tester.getTopLeft(categories).dx),
+    );
+    expect(
+      tester.getTopLeft(categories).dx,
+      lessThan(tester.getTopLeft(channels).dx),
+    );
+    expect(
+      tester.getTopLeft(channels).dx,
+      lessThan(tester.getTopLeft(player).dx),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Home TV Shows count matches grouped series titles', (
@@ -422,6 +507,31 @@ void main() {
     );
   });
 
+  testWidgets('Live channel list avoids costly backdrop blur during playback', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _CountryFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('live-channel-glass')), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('live-channel-glass')),
+        matching: find.byType(BackdropFilter),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('Live TV uses a page backdrop and preview guide actions', (
     tester,
   ) async {
@@ -499,6 +609,44 @@ void main() {
       ),
     );
   });
+
+  testWidgets(
+    'TV preview offers a labeled remote focusable full screen action',
+    (tester) async {
+      tester.view.physicalSize = const Size(960, 540);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final controller = PlaylistImportController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        TviumApp(
+          importController: controller,
+          profileSourceRepository: InMemoryProfileSourceRepository(),
+          playbackEngineFactory: _FakePlaybackEngine.new,
+          playbackViewBuilder: (_) => const SizedBox(),
+        ),
+      );
+      unawaited(controller.importSource(const _CountryFixtureSource()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('destination-live')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('media-row-entry-1')));
+      await tester.pumpAndSettle();
+
+      final action = find.byKey(const ValueKey('live-preview-fullscreen'));
+      expect(action, findsOneWidget);
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('live-fullscreen-player')),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.pumpAndSettle();
+    },
+  );
 
   testWidgets('Live TV player opens a full screen view with channel controls', (
     tester,
@@ -777,6 +925,14 @@ void main() {
       ),
       findsOneWidget,
     );
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('live-fullscreen-player')),
+      findsOneWidget,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Live TV quick switcher searches visible channels', (
@@ -1214,9 +1370,7 @@ void main() {
     expect(history.single.duration, const Duration(minutes: 2));
   });
 
-  testWidgets('Home shows only destinations followed by the carousel', (
-    tester,
-  ) async {
+  testWidgets('Home centers only the three destinations', (tester) async {
     final repository = InMemoryProfileSourceRepository();
     final profile = await repository.ensureDefaultProfile();
     await repository.recordPlayback(
@@ -1246,13 +1400,16 @@ void main() {
     expect(find.byKey(const ValueKey('destination-live')), findsOneWidget);
     expect(find.byKey(const ValueKey('destination-movies')), findsOneWidget);
     expect(find.byKey(const ValueKey('destination-shows')), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-hero')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-hero')), findsNothing);
     expect(find.text('Continue watching'), findsNothing);
     expect(find.byKey(const ValueKey('recently-played')), findsNothing);
-    expect(
-      tester.getTopLeft(find.byKey(const ValueKey('destination-live'))).dy,
-      lessThan(tester.getTopLeft(find.byKey(const ValueKey('home-hero'))).dy),
+    final homeCenter = tester.getCenter(
+      find.byKey(const ValueKey('page-home')),
     );
+    final cardsCenter = tester.getCenter(
+      find.byKey(const ValueKey('destination-movies')),
+    );
+    expect((cardsCenter.dy - homeCenter.dy).abs(), lessThan(60));
     await tester.tap(find.byKey(const ValueKey('destination-movies')));
     await tester.pumpAndSettle();
     expect(
@@ -1320,107 +1477,7 @@ void main() {
     expect(progress.value, closeTo(0.25, 0.001));
   });
 
-  testWidgets('Home presents a cinematic hero with timed controls', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-
-    unawaited(controller.importSource(const _DesignFixtureSource()));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const ValueKey('home-hero')), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-hero-play')), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-hero-details')), findsOneWidget);
-    final initialTitle = tester.widget<Text>(
-      find.byKey(const ValueKey('home-hero-title')).last,
-    );
-
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pump(const Duration(milliseconds: 350));
-
-    final nextTitle = tester.widget<Text>(
-      find.byKey(const ValueKey('home-hero-title')),
-    );
-    expect(nextTitle.data, isNot(initialTitle.data));
-  });
-
-  testWidgets('Home carousel pauses while title details are open', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-    unawaited(controller.importSource(const _HeroArtworkFixtureSource()));
-    await tester.pumpAndSettle();
-    final heroTitle = find.byKey(
-      const ValueKey('home-hero-title'),
-      skipOffstage: false,
-    );
-    final before = tester.widget<Text>(heroTitle).data;
-
-    await tester.tap(find.byKey(const ValueKey('home-hero-details')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('title-details')), findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pump(const Duration(milliseconds: 350));
-    expect(tester.widget<Text>(heroTitle).data, before);
-  });
-
-  testWidgets('Home carousel keeps long multilingual titles inside its hero', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-    unawaited(controller.importSource(const _LongTitleFixtureSource()));
-    await tester.pumpAndSettle();
-
-    final hero = find.byKey(const ValueKey('home-hero'));
-    final details = find.byKey(const ValueKey('home-hero-details'));
-    expect(hero, findsOneWidget);
-    expect(details, findsOneWidget);
-    expect(
-      tester.getBottomRight(details).dy,
-      lessThan(tester.getBottomRight(hero).dy),
-    );
-  });
-
-  testWidgets('Home carousel supports larger accessibility text', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    tester.binding.platformDispatcher.textScaleFactorTestValue = 1.6;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(
-      tester.binding.platformDispatcher.clearTextScaleFactorTestValue,
-    );
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-    unawaited(controller.importSource(const _LongTitleFixtureSource()));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const ValueKey('home-hero')), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-hero-details')), findsOneWidget);
-  });
-
-  testWidgets('Home uses fixed destination art and a spacious hero gap', (
+  testWidgets('Home keeps fixed destination art without a carousel', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -1451,74 +1508,16 @@ void main() {
         isTrue,
       );
     }
-    final cardsBottom = tester
-        .getBottomLeft(find.byKey(const ValueKey('destination-live')))
-        .dy;
-    final heroTop = tester
-        .getTopLeft(find.byKey(const ValueKey('home-hero')))
-        .dy;
-    expect(heroTop - cardsBottom, greaterThanOrEqualTo(40));
-  });
-
-  testWidgets('Home features titles with artwork before titles without it', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-    unawaited(controller.importSource(const _HeroArtworkFixtureSource()));
-    await tester.pumpAndSettle();
-
-    final title = tester.widget<Text>(
-      find.byKey(const ValueKey('home-hero-title')).last,
-    );
-    expect(title.data, 'Illustrated Movie');
-    expect(find.byKey(const ValueKey('home-hero-poster')), findsOneWidget);
-  });
-
-  testWidgets('opted-in Home uses a verified backdrop from metadata', (
-    tester,
-  ) async {
-    metadataEnabled.value = true;
-    addTearDown(() => metadataEnabled.value = false);
-    final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
-    await consent.write(true);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    final client = MetadataGatewayClient(
-      endpoint: Uri.parse('https://metadata.example.test'),
-      client: MockClient(
-        (_) async => http.Response(
-          '{"candidates":[{"id":"7","provider":"tmdb","title":"Demo Movie","kind":"movie","year":2025,"backdropUrl":"https://image.tmdb.org/t/p/w1280/backdrop.jpg","license":"TMDB terms"}]}',
-          200,
-        ),
-      ),
-    );
-    await tester.pumpWidget(
-      TviumApp(
-        importController: controller,
-        metadataGatewayClient: client,
-        metadataOverlayStore: MetadataOverlayStore(
-          MemoryArtworkKeyValueStore(),
-        ),
-        metadataConsentStore: consent,
-      ),
-    );
-    unawaited(controller.importSource(const _DesignFixtureSource()));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('home-hero-enriched-backdrop')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('home-hero')), findsNothing);
   });
 
   testWidgets(
     'opted-in Movies enriches visible posters without opening details',
     (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       metadataEnabled.value = true;
       addTearDown(() => metadataEnabled.value = false);
       final consent = MetadataConsentStore(MemoryArtworkKeyValueStore());
@@ -1566,6 +1565,8 @@ void main() {
       expect(requested, isNot(contains('Second Movie')));
       await tester.tap(find.byKey(const ValueKey('destination-movies')));
       await tester.pumpAndSettle();
+      expect(find.text('Second Movie'), findsWidgets);
+      await tester.pump(const Duration(seconds: 2));
       expect(requested, contains('Second Movie'));
       expect(find.byKey(const ValueKey('poster-grid')), findsOneWidget);
     },
@@ -1635,63 +1636,6 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     }
     expect(requested, contains('Eighth Movie'));
-  });
-
-  testWidgets('Home does not display an episode still as a series poster', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-    unawaited(controller.importSource(const _EpisodeStillFixtureSource()));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const ValueKey('home-hero')), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-hero-poster')), findsNothing);
-  });
-
-  testWidgets('Home carousel features each local series once', (tester) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-    unawaited(controller.importSource(const _DesignFixtureSource()));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const ValueKey('home-hero-page-0')), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-hero-page-1')), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-hero-page-2')), findsNothing);
-  });
-
-  testWidgets('Home hero uses a clean media label instead of source groups', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-    unawaited(controller.importSource(const _RawGroupFixtureSource()));
-    await tester.pumpAndSettle();
-
-    final hero = find.byKey(const ValueKey('home-hero'));
-    expect(
-      find.descendant(of: hero, matching: find.text('Movies')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: hero, matching: find.text('VOD | FRANCE')),
-      findsNothing,
-    );
   });
 
   testWidgets('Movies feature a real poster without a scenic banner', (
@@ -2035,99 +1979,6 @@ void main() {
     );
   });
 
-  testWidgets('Home hero supports directional controls and defers autoplay', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-
-    unawaited(controller.importSource(const _DesignFixtureSource()));
-    await tester.pumpAndSettle();
-
-    final initialTitle = tester.widget<Text>(
-      find.byKey(const ValueKey('home-hero-title')),
-    );
-    expect(find.byKey(const ValueKey('home-hero-previous')), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-hero-next')), findsOneWidget);
-
-    await tester.pump(const Duration(seconds: 4));
-    await tester.tap(find.byKey(const ValueKey('home-hero-next')));
-    await tester.pump(const Duration(milliseconds: 350));
-    final manuallySelectedTitle = tester.widget<Text>(
-      find.byKey(const ValueKey('home-hero-title')).last,
-    );
-    expect(manuallySelectedTitle.data, isNot(initialTitle.data));
-
-    await tester.pump(const Duration(seconds: 1));
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('home-hero-title')).last)
-          .data,
-      manuallySelectedTitle.data,
-    );
-  });
-
-  testWidgets('Home hero supports horizontal swipe navigation', (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-
-    unawaited(controller.importSource(const _DesignFixtureSource()));
-    await tester.pumpAndSettle();
-
-    final initialTitle = tester.widget<Text>(
-      find.byKey(const ValueKey('home-hero-title')).last,
-    );
-    await tester.fling(
-      find.byKey(const ValueKey('home-hero')),
-      const Offset(-240, 0),
-      900,
-    );
-    await tester.pump(const Duration(milliseconds: 350));
-
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('home-hero-title')).last)
-          .data,
-      isNot(initialTitle.data),
-    );
-  });
-
-  testWidgets('Home hero respects reduced motion', (tester) async {
-    tester.platformDispatcher.accessibilityFeaturesTestValue =
-        const FakeAccessibilityFeatures(disableAnimations: true);
-    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = PlaylistImportController();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(TviumApp(importController: controller));
-
-    unawaited(controller.importSource(const _DesignFixtureSource()));
-    await tester.pumpAndSettle();
-    final initialTitle = tester.widget<Text>(
-      find.byKey(const ValueKey('home-hero-title')),
-    );
-
-    await tester.pump(const Duration(seconds: 6));
-
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('home-hero-title'))).data,
-      initialTitle.data,
-    );
-  });
-
   testWidgets(
     'compact layouts expose all four destinations in bottom navigation',
     (tester) async {
@@ -2233,17 +2084,6 @@ final class _FakePlaybackEngine implements PlaybackEngine {
   Future<void> stop() async {}
 }
 
-final class _RawGroupFixtureSource implements M3uSource {
-  const _RawGroupFixtureSource();
-
-  @override
-  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
-    '#EXTM3U',
-    '#EXTINF:-1 group-title="VOD | FRANCE",Synthetic Movie',
-    'https://stream.example.test/vod/synthetic.mp4',
-  ]);
-}
-
 final class _ZappingFixtureSource implements M3uSource {
   const _ZappingFixtureSource();
 
@@ -2256,17 +2096,6 @@ final class _ZappingFixtureSource implements M3uSource {
     'https://stream.example.test/live/two.m3u8',
     '#EXTINF:-1 group-title="News",Channel Three',
     'https://stream.example.test/live/three.m3u8',
-  ]);
-}
-
-final class _LongTitleFixtureSource implements M3uSource {
-  const _LongTitleFixtureSource();
-
-  @override
-  Stream<String> readLines() => Stream<String>.fromIterable(<String>[
-    '#EXTM3U',
-    '#EXTINF:-1 group-title="Movies",International Film — Chapter Twelve: A Journey Beyond the Last Horizon שלום (2026)',
-    'https://stream.example.test/vod/long-title.mp4',
   ]);
 }
 
