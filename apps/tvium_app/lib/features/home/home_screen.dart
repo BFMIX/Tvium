@@ -1,19 +1,24 @@
 import 'dart:async';
+import 'dart:ui';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_design_system/tvium_design_system.dart';
+import 'package:tvium_epg/tvium_epg.dart';
 import 'package:tvium_m3u/tvium_m3u.dart';
 import 'package:tvium_playback/tvium_playback.dart';
 import 'package:tvium_xtream/tvium_xtream.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import '../../shared/branding/tvium_brand_logo.dart';
+import '../artwork/artwork_image.dart';
+import '../artwork/artwork_reference_store.dart';
 import '../epg/epg_import_controller.dart';
 import '../epg/epg_now_next_provider.dart';
 import '../epg/epg_source.dart';
@@ -21,11 +26,24 @@ import '../import/local_playlist_picker.dart';
 import '../import/m3u_import_persistence.dart';
 import '../import/playlist_import_controller.dart';
 import '../import/playlist_import_provider.dart';
+import '../import/qr_pairing.dart';
+import '../import/qr_pairing_web.dart'
+    if (dart.library.io) '../import/qr_pairing_io.dart'
+    as qr_pairing;
+import '../import/xtream_m3u_detector.dart';
+import '../import/xtream_m3u_reconciliation.dart';
 import '../library/library_bootstrap_controller.dart';
+import '../library/live_country.dart';
+import '../library/source_refresh_schedule.dart';
 import '../library/user_overlays_controller.dart';
 import '../metadata/metadata_details.dart';
+import '../metadata/metadata_gateway_client.dart';
+import '../metadata/metadata_overlay_store.dart';
 import '../parental/parental_pin_service.dart';
+import '../parental/parental_unlock_lease.dart';
 import '../profiles/profile_switcher.dart';
+import '../sources/source_identity_service.dart';
+import '../updates/update_checker.dart';
 import '../xtream/secure_xtream_profile_store.dart';
 import '../xtream/xtream_connection_form.dart';
 import '../xtream/xtream_connection_service.dart';
@@ -47,6 +65,32 @@ final playbackViewBuilderProvider = Provider<PlaybackViewBuilder>(
   },
 );
 
+final qrPairingStarterProvider = Provider<Future<QrPairingSession> Function()>(
+  (ref) => qr_pairing.startQrPairing,
+);
+
+bool shouldShowQrPairing({required bool isWeb, required String relay}) {
+  if (!isWeb) return true;
+  final uri = Uri.tryParse(relay.trim());
+  return uri != null &&
+      uri.scheme == 'https' &&
+      uri.hasAuthority &&
+      uri.userInfo.isEmpty &&
+      (uri.path.isEmpty || uri.path == '/') &&
+      !uri.hasQuery &&
+      !uri.hasFragment;
+}
+
+String pairingInstructionsForPlatform(
+  AppLocalizations strings, {
+  required bool isWeb,
+}) => isWeb ? strings.pairingInstructionsWeb : strings.pairingInstructions;
+
+String pairingUnavailableForPlatform(
+  AppLocalizations strings, {
+  required bool isWeb,
+}) => isWeb ? strings.pairingUnavailableWeb : strings.pairingUnavailable;
+
 final class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -54,8 +98,11 @@ final class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-final class _HomeScreenState extends ConsumerState<HomeScreen> {
+final class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _urlController = TextEditingController();
+  final GlobalKey _urlFieldKey = GlobalKey();
+  final GlobalKey _xtreamFormKey = GlobalKey();
   final FocusNode _urlActionFocus = FocusNode(debugLabel: 'M3U URL action');
   final FocusNode _fileActionFocus = FocusNode(debugLabel: 'M3U file action');
   final FocusNode _xtreamActionFocus = FocusNode(debugLabel: 'Xtream action');
@@ -72,11 +119,92 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   Duration _lastCheckpointPosition = Duration.zero;
   Future<void> _checkpointTail = Future<void>.value();
   String? _playbackError;
-  String? _unlockedParentalProfileId;
+  final ParentalUnlockLease _parentalUnlock = ParentalUnlockLease(
+    clock: DateTime.now,
+  );
+  Timer? _parentalUnlockTimer;
   var _profileSessionGeneration = 0;
+  final _startupRefreshQueued = <String>{};
+  Timer? _scheduledRefreshTimer;
+  SourceRefreshRunner? _refreshRunner;
+  final UpdateCheckSchedule _updateCheckSchedule = UpdateCheckSchedule();
+  String? _lastAnnouncedUpdateTag;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_restoreMetadataConsent());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_checkForAppUpdate());
+    });
+    WidgetsBinding.instance.addObserver(this);
+    _scheduledRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      unawaited(_checkDueSources());
+    });
+  }
+
+  Future<void> _restoreMetadataConsent() async {
+    try {
+      final enabled = await ref.read(metadataConsentStoreProvider).read();
+      if (mounted) metadataEnabled.value = enabled;
+    } on Object {
+      // A missing secure store leaves the default preference unchanged.
+    }
+  }
+
+  Future<void> _checkForAppUpdate() async {
+    final currentTag = ref.read(installedReleaseTagProvider);
+    if (currentTag.isEmpty ||
+        !_updateCheckSchedule.shouldCheck(ref.read(updateClockProvider)())) {
+      return;
+    }
+    try {
+      final update = await ref.read(updateCheckerProvider).check(currentTag);
+      if (!mounted || update == null || update.tag == _lastAnnouncedUpdateTag) {
+        return;
+      }
+      _lastAnnouncedUpdateTag = update.tag;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Tvium ${update.tag} is available'),
+          duration: const Duration(seconds: 10),
+          action: SnackBarAction(
+            label: 'Updates',
+            onPressed: () => showSettingsPages(
+              context,
+              openSection: (section) => showLibrarySettings(
+                context,
+                configured: ref.read(metadataGatewayProvider) != null,
+                metadataConsentStore: ref.read(metadataConsentStoreProvider),
+                section: section,
+              ),
+            ),
+          ),
+        ),
+      );
+    } on UpdateCheckException {
+      // Update availability is optional and never blocks the local library.
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _clearParentalUnlock();
+    }
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_checkDueSources());
+      unawaited(_checkForAppUpdate());
+    }
+  }
 
   @override
   void dispose() {
+    _parentalUnlockTimer?.cancel();
+    _scheduledRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _urlController.dispose();
     _urlActionFocus.dispose();
     _fileActionFocus.dispose();
@@ -97,6 +225,18 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     final controller = ref.watch(playlistImportControllerProvider);
     final state = controller.state;
     final persistedLibrary = ref.watch(libraryBootstrapProvider).asData?.value;
+    if (persistedLibrary != null) {
+      final sourceIds = persistedLibrary.sources.map((source) => source.id);
+      final pending = persistedLibrary.sources
+          .where((source) => !_startupRefreshQueued.contains(source.id))
+          .toList(growable: false);
+      _startupRefreshQueued.addAll(sourceIds);
+      if (pending.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_refreshDueSources(pending));
+        });
+      }
+    }
     final profileId =
         persistedLibrary?.activeProfile.id ??
         _xtreamProfile?.targetProfileId ??
@@ -107,10 +247,15 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
         ?.value;
     final parentalPolicy = overlays?.parentalPolicy;
     final allEntries = _libraryEntries(state, persistedLibrary);
-    final parentalUnlocked = _unlockedParentalProfileId == profileId;
+    final parentalUnlocked = _parentalUnlock.isUnlocked(profileId);
     final entries = parentalPolicy != null && !parentalUnlocked
         ? allEntries
-              .where((entry) => !_blockedByParentalPolicy(entry))
+              .where(
+                (entry) => !_blockedByParentalPolicy(
+                  entry,
+                  parentalPolicy.blockedContent,
+                ),
+              )
               .toList(growable: false)
         : allEntries;
     final sessionEpgEntries = _sessionEpgEntries(state);
@@ -199,11 +344,21 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
                           _removeSource(profileId, source),
                       onImportEpgFile: _importEpgFile,
                       onImportEpgUrl: _importEpgUrl,
+                      onRefreshSource: _refreshSource,
                       onRefreshSources: _refreshSources,
+                      refreshIntervalFor: (source) => ref
+                          .read(sourceRefreshScheduleProvider)
+                          .intervalFor(source.id),
+                      lastRefreshAttemptFor: (source) => ref
+                          .read(sourceRefreshScheduleProvider)
+                          .lastAttemptFor(source.id),
+                      onRefreshIntervalChanged: (source, interval) => ref
+                          .read(sourceRefreshScheduleProvider)
+                          .setInterval(source.id, interval),
                       parentalConfigured: parentalPolicy != null,
                       parentalUnlocked: parentalUnlocked,
-                      onSaveParentalPin: (pin) =>
-                          _saveParentalPin(profileId, pin),
+                      onSaveParentalPin: (pin, blockedContent) =>
+                          _saveParentalPin(profileId, pin, blockedContent),
                       onUnlockParental: (pin) =>
                           _unlockParental(parentalPolicy, pin),
                     ),
@@ -220,177 +375,458 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     PlaylistImportState state,
   ) {
     final strings = AppLocalizations.of(context);
-    final importing = state.phase == PlaylistImportPhase.importing;
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(TviumSpacing.lg),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 820),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  TviumBrandLogo(
-                    key: const ValueKey<String>('tvium-brand-logo'),
-                    semanticLabel: strings.appTitle,
-                    height: 36,
-                  ),
-                  const Spacer(),
-                  ProfileSwitcher(
-                    onProfileChanged: _resetProfileSession,
-                    onSourcesRemoved: _removeOrphanedSources,
-                  ),
-                ],
-              ),
-              const SizedBox(height: TviumSpacing.xl),
-              Text(
-                strings.welcomeTitle,
-                style: Theme.of(context).textTheme.displaySmall,
-              ),
-              const SizedBox(height: TviumSpacing.sm),
-              Text(
-                strings.welcomeBody,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: TviumSpacing.xs),
-              Text(
-                strings.disclaimer,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: TviumSpacing.xl),
-              FocusTraversalGroup(
-                policy: OrderedTraversalPolicy(),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 600;
-                    final cardWidth = compact ? double.infinity : 210.0;
-                    final cards = <Widget>[
-                      SourceActionCard(
-                        key: const ValueKey<String>('m3u-url-action'),
-                        title: strings.m3uUrl,
-                        description: strings.analyzePlaylist,
-                        icon: Icons.link_rounded,
-                        focusNode: _urlActionFocus,
-                        autofocus: !compact,
-                        width: cardWidth,
-                        onActivate: () => setState(() {
-                          _showUrlField = true;
-                          _showXtreamForm = false;
-                        }),
-                      ),
-                      SourceActionCard(
-                        key: const ValueKey<String>('m3u-file-action'),
-                        title: strings.importLocalM3u,
-                        description: '.m3u · .m3u8',
-                        icon: Icons.folder_open_rounded,
-                        focusNode: _fileActionFocus,
-                        width: cardWidth,
-                        onActivate: () => unawaited(_pickLocalFile(controller)),
-                      ),
-                      SourceActionCard(
-                        key: const ValueKey<String>('xtream-action'),
-                        title: strings.xtreamCodes,
-                        description: strings.connectProvider,
-                        icon: Icons.dns_outlined,
-                        focusNode: _xtreamActionFocus,
-                        width: cardWidth,
-                        onActivate: () => setState(() {
-                          _showUrlField = false;
-                          _showXtreamForm = true;
-                        }),
-                      ),
-                    ];
-                    if (compact) {
-                      return Column(spacing: TviumSpacing.sm, children: cards);
-                    }
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(spacing: TviumSpacing.sm, children: cards),
-                    );
-                  },
-                ),
-              ),
-              if (_showUrlField) ...<Widget>[
-                const SizedBox(height: TviumSpacing.lg),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(
-                      child: TextField(
-                        controller: _urlController,
-                        enabled: !importing,
-                        keyboardType: TextInputType.url,
-                        obscureText: _obscureUrl,
-                        enableSuggestions: false,
-                        autocorrect: false,
-                        decoration: InputDecoration(
-                          hintText: strings.urlHint,
-                          prefixIcon: const Icon(Icons.language_rounded),
-                          suffixIcon: IconButton(
-                            key: const ValueKey<String>(
-                              'url-visibility-toggle',
-                            ),
-                            tooltip: _obscureUrl
-                                ? strings.showPlaylistUrl
-                                : strings.hidePlaylistUrl,
-                            onPressed: () =>
-                                setState(() => _obscureUrl = !_obscureUrl),
-                            icon: Icon(
-                              _obscureUrl
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                            ),
-                          ),
-                        ),
-                        onSubmitted: (_) => _analyzeUrl(controller),
-                      ),
-                    ),
-                    const SizedBox(width: TviumSpacing.sm),
-                    FilledButton(
-                      onPressed: importing
-                          ? null
-                          : () => _analyzeUrl(controller),
-                      child: Text(strings.analyzePlaylist),
-                    ),
-                  ],
-                ),
-              ],
-              if (_showXtreamForm) ...<Widget>[
-                const SizedBox(height: TviumSpacing.lg),
-                XtreamConnectionForm(
-                  onPlaylistAdded: (profile) =>
-                      unawaited(_openXtreamLibrary(profile)),
-                ),
-              ],
-              if (importing) ...<Widget>[
-                const SizedBox(height: TviumSpacing.lg),
-                const LinearProgressIndicator(),
-                const SizedBox(height: TviumSpacing.sm),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        '${strings.importing} ${state.parsedCount}',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: controller.cancel,
-                      child: Text(strings.cancel),
-                    ),
-                  ],
-                ),
-              ],
-              if (state.phase == PlaylistImportPhase.failed) ...<Widget>[
-                const SizedBox(height: TviumSpacing.lg),
-                _InlineError(message: state.message ?? strings.importFailed),
-              ],
-            ],
+    final importing =
+        state.phase == PlaylistImportPhase.importing ||
+        state.phase == PlaylistImportPhase.saving;
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        ImageFiltered(
+          key: const ValueKey('onboarding-backdrop-blur'),
+          imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Image.asset(
+            'assets/destinations/hero-home.png',
+            key: const ValueKey('onboarding-backdrop'),
+            fit: BoxFit.cover,
+            alignment: Alignment.centerRight,
+            excludeFromSemantics: true,
           ),
         ),
-      ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: <Color>[
+                Color(0xFA061421),
+                Color(0xE0071B2B),
+                Color(0x77051322),
+                Color(0x44051322),
+              ],
+              stops: <double>[0, 0.38, 0.72, 1],
+            ),
+          ),
+        ),
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: 1),
+          duration: MediaQuery.of(context).disableAnimations
+              ? Duration.zero
+              : const Duration(milliseconds: 700),
+          curve: Curves.easeOutCubic,
+          builder: (context, progress, child) => Opacity(
+            key: const ValueKey('onboarding-entrance'),
+            opacity: progress,
+            alwaysIncludeSemantics: true,
+            child: child,
+          ),
+          child: Align(
+            alignment: Alignment.center,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(TviumSpacing.lg),
+              child: Container(
+                key: const ValueKey('onboarding-panel'),
+                constraints: const BoxConstraints(maxWidth: 900),
+                padding: const EdgeInsets.all(TviumSpacing.xl),
+                decoration: BoxDecoration(
+                  color: const Color(0xB8081A2B),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                  borderRadius: BorderRadius.circular(TviumRadius.surface),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        TviumBrandLogo(
+                          key: const ValueKey<String>('tvium-brand-logo'),
+                          semanticLabel: strings.appTitle,
+                          height: 36,
+                        ),
+                        const Spacer(),
+                        ProfileSwitcher(
+                          onProfileChanged: _resetProfileSession,
+                          onSourcesRemoved: _removeOrphanedSources,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: TviumSpacing.xl),
+                    Container(
+                      width: 48,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: TviumSpacing.md),
+                    Text(
+                      strings.welcomeTitle,
+                      style: Theme.of(context).textTheme.displayMedium
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: TviumSpacing.sm),
+                    Text(
+                      strings.welcomeBody,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: TviumSpacing.xs),
+                    Text(
+                      strings.disclaimer,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: TviumSpacing.xl),
+                    FocusTraversalGroup(
+                      policy: OrderedTraversalPolicy(),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compact = constraints.maxWidth < 600;
+                          final cardWidth = compact ? double.infinity : 250.0;
+                          final cards = <Widget>[
+                            SourceActionCard(
+                              key: const ValueKey<String>('m3u-url-action'),
+                              title: strings.m3uUrl,
+                              description: strings.analyzePlaylist,
+                              icon: Icons.link_rounded,
+                              focusNode: _urlActionFocus,
+                              autofocus: !compact,
+                              width: cardWidth,
+                              compact: compact,
+                              onActivate: () {
+                                setState(() {
+                                  _showUrlField = true;
+                                  _showXtreamForm = false;
+                                });
+                                _revealOnboardingForm(_urlFieldKey);
+                              },
+                            ),
+                            SourceActionCard(
+                              key: const ValueKey<String>('m3u-file-action'),
+                              title: strings.importLocalM3u,
+                              description: '.m3u · .m3u8',
+                              icon: Icons.folder_open_rounded,
+                              focusNode: _fileActionFocus,
+                              width: cardWidth,
+                              compact: compact,
+                              onActivate: () =>
+                                  unawaited(_pickLocalFile(controller)),
+                            ),
+                            SourceActionCard(
+                              key: const ValueKey<String>('xtream-action'),
+                              title: strings.xtreamCodes,
+                              description: strings.connectProvider,
+                              icon: Icons.dns_outlined,
+                              focusNode: _xtreamActionFocus,
+                              width: cardWidth,
+                              compact: compact,
+                              onActivate: () {
+                                setState(() {
+                                  _showUrlField = false;
+                                  _showXtreamForm = true;
+                                });
+                                _revealOnboardingForm(_xtreamFormKey);
+                              },
+                            ),
+                          ];
+                          if (compact) {
+                            return Column(
+                              spacing: TviumSpacing.sm,
+                              children: cards,
+                            );
+                          }
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              spacing: TviumSpacing.sm,
+                              children: cards,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    if (shouldShowQrPairing(
+                      isWeb: kIsWeb,
+                      relay: const String.fromEnvironment(
+                        'TVIUM_PAIRING_RELAY',
+                      ),
+                    )) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.lg),
+                      Row(
+                        key: const ValueKey('qr-pairing-separator'),
+                        children: <Widget>[
+                          const Expanded(child: Divider()),
+                          Flexible(
+                            flex: 4,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: TviumSpacing.sm,
+                              ),
+                              child: Text(
+                                strings.orAddWithPhone,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                          const Expanded(child: Divider()),
+                        ],
+                      ),
+                      const SizedBox(height: TviumSpacing.sm),
+                      Center(
+                        child: OutlinedButton.icon(
+                          key: const ValueKey('qr-pairing-action'),
+                          onPressed: () =>
+                              unawaited(_showQrPairing(controller)),
+                          icon: const Icon(Icons.qr_code_2_rounded),
+                          label: Text(strings.pairWithPhone),
+                        ),
+                      ),
+                    ],
+                    if (_showUrlField) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.lg),
+                      Row(
+                        key: _urlFieldKey,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(
+                            child: TextField(
+                              controller: _urlController,
+                              enabled: !importing,
+                              keyboardType: TextInputType.url,
+                              obscureText: _obscureUrl,
+                              enableSuggestions: false,
+                              autocorrect: false,
+                              decoration: InputDecoration(
+                                hintText: strings.urlHint,
+                                prefixIcon: const Icon(Icons.language_rounded),
+                                suffixIcon: IconButton(
+                                  key: const ValueKey<String>(
+                                    'url-visibility-toggle',
+                                  ),
+                                  tooltip: _obscureUrl
+                                      ? strings.showPlaylistUrl
+                                      : strings.hidePlaylistUrl,
+                                  onPressed: () => setState(
+                                    () => _obscureUrl = !_obscureUrl,
+                                  ),
+                                  icon: Icon(
+                                    _obscureUrl
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                  ),
+                                ),
+                              ),
+                              onSubmitted: (_) => _analyzeUrl(controller),
+                            ),
+                          ),
+                          const SizedBox(width: TviumSpacing.sm),
+                          FilledButton(
+                            onPressed: importing
+                                ? null
+                                : () => _analyzeUrl(controller),
+                            child: Text(strings.analyzePlaylist),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (_showXtreamForm) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.lg),
+                      XtreamConnectionForm(
+                        key: _xtreamFormKey,
+                        onPlaylistAdded: (profile) =>
+                            unawaited(_openXtreamLibrary(profile)),
+                      ),
+                    ],
+                    if (importing) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.lg),
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: TviumSpacing.sm),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              state.phase == PlaylistImportPhase.saving
+                                  ? strings.savingPlaylist
+                                  : '${strings.importing} ${state.parsedCount}',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: controller.cancel,
+                            child: Text(strings.cancel),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (state.phase == PlaylistImportPhase.failed) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.lg),
+                      _InlineError(
+                        message: state.message ?? strings.importFailed,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
+  }
+
+  void _revealOnboardingForm(GlobalKey key) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = key.currentContext;
+      if (!mounted || target == null) return;
+      unawaited(
+        Scrollable.ensureVisible(
+          target,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          alignment: 0.85,
+        ),
+      );
+    });
+  }
+
+  Future<void> _showQrPairing(PlaylistImportController controller) async {
+    final QrPairingSession session;
+    try {
+      session = await ref.read(qrPairingStarterProvider)();
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              pairingUnavailableForPlatform(
+                AppLocalizations.of(context),
+                isWeb: kIsWeb,
+              ),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) {
+      await session.close();
+      return;
+    }
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          final strings = AppLocalizations.of(dialogContext);
+          return AlertDialog(
+            title: Text(strings.pairWithPhone),
+            content: SizedBox(
+              width: 340,
+              child: FutureBuilder<QrPairingSubmission?>(
+                future: session.submission,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    if (snapshot.connectionState == ConnectionState.done) {
+                      return Text(strings.pairingExpired);
+                    }
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        QrImageView(
+                          key: const ValueKey('qr-pairing-code'),
+                          data: session.pairingUrl,
+                          size: 250,
+                          backgroundColor: Colors.white,
+                        ),
+                        const SizedBox(height: TviumSpacing.md),
+                        Text(
+                          pairingInstructionsForPlatform(
+                            strings,
+                            isWeb: kIsWeb,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  final proposal = snapshot.data!;
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.check_circle_outline_rounded,
+                        size: 52,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(height: TviumSpacing.md),
+                      Text(strings.pairingReceived),
+                      const SizedBox(height: TviumSpacing.sm),
+                      Text(
+                        proposal is QrXtreamSubmission
+                            ? strings.xtreamCodes
+                            : strings.m3uUrl,
+                        key: const ValueKey('qr-pairing-source-type'),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: TviumSpacing.md),
+                      FilledButton(
+                        key: const ValueKey('qr-pairing-confirm'),
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          unawaited(_acceptQrSubmission(controller, proposal));
+                        },
+                        child: Text(strings.addPlaylist),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(strings.cancel),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  Future<void> _acceptQrSubmission(
+    PlaylistImportController controller,
+    QrPairingSubmission proposal,
+  ) async {
+    switch (proposal) {
+      case QrM3uSubmission(:final url):
+        await _importM3uUrl(controller, url);
+      case QrXtreamSubmission(:final server, :final username, :final password):
+        try {
+          final profile = await ref
+              .read(xtreamConnectionServiceProvider)
+              .addPlaylist(
+                XtreamConnectionInput(
+                  profileName: server.host,
+                  serverUri: server,
+                  credentials: XtreamCredentials(
+                    username: username,
+                    password: password,
+                  ),
+                ),
+              );
+          if (mounted) await _openXtreamLibrary(profile);
+        } on Object {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(AppLocalizations.of(context).connectionFailed),
+              ),
+            );
+          }
+        }
+    }
   }
 
   void _analyzeUrl(PlaylistImportController controller) {
@@ -402,17 +838,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       controller.reportValidationFailure(strings.invalidUrl);
       return;
     }
-    unawaited(
-      controller
-          .importSource(
-            M3uUrlSource(uri),
-            descriptor: M3uSourceDescriptor.url(
-              displayName: uri.host,
-              location: uri.toString(),
-            ),
-          )
-          .then((_) => ref.invalidate(libraryBootstrapProvider)),
-    );
+    unawaited(_importM3uUrl(controller, uri));
   }
 
   Future<void> _pickLocalFile(PlaylistImportController controller) async {
@@ -449,6 +875,24 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     PlaylistImportController controller,
     Uri uri,
   ) async {
+    final candidate = detectXtreamM3u(uri);
+    if (candidate != null) {
+      try {
+        final profile = await ref
+            .read(xtreamConnectionServiceProvider)
+            .addPlaylist(
+              XtreamConnectionInput(
+                profileName: uri.host,
+                serverUri: candidate.serverUri,
+                credentials: candidate.credentials,
+              ),
+            );
+        if (mounted) await _openXtreamLibrary(profile);
+        return;
+      } on Object {
+        // A URL shape is only a hint. Keep the original M3U path on failure.
+      }
+    }
     await controller.importSource(
       M3uUrlSource(uri),
       descriptor: M3uSourceDescriptor.url(
@@ -476,6 +920,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _removeOrphanedSources(List<IptvSource> sources) async {
     final m3uStore = SecureM3uSourceStore();
     final xtreamStore = SecureXtreamProfileStore();
+    final refreshSchedule = ref.read(sourceRefreshScheduleProvider);
     for (final source in sources) {
       final descriptor = await m3uStore.read(source.secretReference);
       if (descriptor != null && descriptor.kind == M3uSourceKind.file) {
@@ -483,6 +928,16 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
       await m3uStore.delete(source.secretReference);
       await xtreamStore.delete(source.secretReference);
+      try {
+        await ArtworkReferenceStore().delete(source.id);
+      } on Object {
+        // Optional artwork cleanup does not block source removal.
+      }
+      try {
+        await refreshSchedule.remove(source.id);
+      } on Object {
+        // Source removal must not depend on deleting optional schedule data.
+      }
     }
   }
 
@@ -567,29 +1022,178 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       var changed = 0;
       var removed = 0;
       var m3uRefreshed = 0;
+      var upgraded = 0;
       final m3uRefresh = ref.read(m3uSourceRefreshProvider);
       for (final source in sources) {
+        if (await _tryUpgradeM3uSource(source)) {
+          upgraded++;
+          continue;
+        }
         final refreshedEntries = await m3uRefresh.refresh(
           source.secretReference,
         );
         if (refreshedEntries != null) {
           m3uRefreshed++;
+          await _recordRefreshAttempt(source.id);
           continue;
         }
         if (refreshService == null) {
           return 'Some connected sources cannot be refreshed in this build.';
         }
         final result = await refreshService.refreshSource(source.id);
+        await _recordRefreshAttempt(source.id);
         added += result.addedCount;
         changed += result.changedCount;
         removed += result.removedCount;
       }
       ref.invalidate(libraryBootstrapProvider);
       ref.invalidate(epgNowNextProvider);
-      return 'Sources refreshed: $m3uRefreshed M3U, $added added, '
+      return 'Sources refreshed: $m3uRefreshed M3U, $upgraded upgraded, $added added, '
           '$changed updated, $removed removed.';
     } on Object {
       return 'Sources could not be refreshed. The existing library was kept.';
+    }
+  }
+
+  Future<String> _refreshSource(IptvSource source) async {
+    try {
+      if (await _tryUpgradeM3uSource(source)) {
+        return 'Playlist upgraded to Xtream. The library is ready.';
+      }
+      final refreshedEntries = await ref
+          .read(m3uSourceRefreshProvider)
+          .refresh(source.secretReference);
+      if (refreshedEntries != null) {
+        await _recordRefreshAttempt(source.id);
+        ref.invalidate(libraryBootstrapProvider);
+        ref.invalidate(epgNowNextProvider);
+        return 'Playlist refreshed: M3U catalog updated.';
+      }
+      final service = ref.read(xtreamConnectionServiceProvider);
+      if (service is! XtreamSourceRefreshService) {
+        return 'This playlist cannot be refreshed in this build.';
+      }
+      final refreshService = service as XtreamSourceRefreshService;
+      final result = await refreshService.refreshSource(source.id);
+      await _recordRefreshAttempt(source.id);
+      ref.invalidate(libraryBootstrapProvider);
+      ref.invalidate(epgNowNextProvider);
+      return 'Playlist refreshed: ${result.addedCount} added, '
+          '${result.changedCount} updated, ${result.removedCount} removed.';
+    } on Object {
+      return 'Playlist refresh failed. The existing library was kept.';
+    }
+  }
+
+  Future<bool> _tryUpgradeM3uSource(IptvSource source) async {
+    final descriptor = await SecureM3uSourceStore().read(
+      source.secretReference,
+    );
+    if (descriptor == null || descriptor.kind != M3uSourceKind.url) {
+      return false;
+    }
+    final uri = Uri.tryParse(descriptor.location);
+    final candidate = uri == null ? null : detectXtreamM3u(uri);
+    if (candidate == null) return false;
+    try {
+      final service = ref.read(xtreamConnectionServiceProvider);
+      if (service is! XtreamCatalogPreviewService) return false;
+      final previewService = service as XtreamCatalogPreviewService;
+      final repository = await ref.read(libraryRepositoryProvider.future);
+      if (repository is! UserOverlayRepository) return false;
+      final overlays = repository as UserOverlayRepository;
+      final digest = await SourceIdentityService(FlutterSecureKeyValueStore())
+          .xtreamDigest(candidate.serverUri, candidate.credentials.username);
+      if (await repository.sourceByIdentity(digest) != null) return false;
+      final saved = await repository.entriesForPlaylist(source.id);
+      if (await _hasSavedSourceOverlays(repository, overlays, source.id)) {
+        return false;
+      }
+      final input = XtreamConnectionInput(
+        profileName: source.displayName,
+        serverUri: candidate.serverUri,
+        credentials: candidate.credentials,
+      );
+      final preview = await previewService.previewCatalog(input);
+      if (!canReplaceSavedM3u(saved, preview)) return false;
+      final profile = await service.addPlaylist(input);
+      if (profile.wasExisting ||
+          !canReplaceSavedM3u(saved, profile.catalog) ||
+          !canReplaceSavedM3u(
+            await repository.entriesForPlaylist(source.id),
+            profile.catalog,
+          ) ||
+          await _hasSavedSourceOverlays(repository, overlays, source.id)) {
+        if (!profile.wasAlreadyLinked) {
+          final active = await repository.activeProfile();
+          final orphan = await repository.unlinkSource(
+            active.id,
+            profile.sourceId,
+          );
+          if (orphan != null) {
+            await _removeOrphanedSources(<IptvSource>[orphan]);
+          }
+        }
+        return false;
+      }
+      final active = await repository.activeProfile();
+      final orphan = await repository.unlinkSource(active.id, source.id);
+      if (orphan != null) await _removeOrphanedSources(<IptvSource>[orphan]);
+      ref.invalidate(libraryBootstrapProvider);
+      ref.invalidate(epgNowNextProvider);
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<bool> _hasSavedSourceOverlays(
+    ProfileSourceRepository repository,
+    UserOverlayRepository overlays,
+    String sourceId,
+  ) async {
+    final profiles = await repository.profiles();
+    for (final profile in profiles) {
+      final favorites = await overlays.favoritesForProfile(profile.id);
+      if (favorites.any((item) => item.sourceId == sourceId)) return true;
+      final history = await overlays.historyForProfile(profile.id, limit: 1001);
+      if (history.length >= 1001 ||
+          history.any((item) => item.media.sourceId == sourceId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _refreshDueSources(List<IptvSource> sources) async {
+    final sourceById = {for (final source in sources) source.id: source};
+    final runner = _refreshRunner ??= SourceRefreshRunner(
+      ref.read(sourceRefreshScheduleProvider),
+    );
+    await runner.check(sourceById.keys, (sourceId) async {
+      if (!mounted) return;
+      final source = sourceById[sourceId];
+      if (source != null) await _refreshSource(source);
+    });
+  }
+
+  Future<void> _checkDueSources() async {
+    if (!mounted) return;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    try {
+      final snapshot = await ref.read(libraryBootstrapProvider.future);
+      if (mounted) await _refreshDueSources(snapshot.sources);
+    } on Object {
+      // The cached catalog remains available when a background check fails.
+    }
+  }
+
+  Future<void> _recordRefreshAttempt(String sourceId) async {
+    try {
+      await ref.read(sourceRefreshScheduleProvider).markAttempt(sourceId);
+    } on Object {
+      // A successful catalog refresh remains successful if settings storage fails.
     }
   }
 
@@ -619,7 +1223,8 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       _selectedEntry = null;
       _playbackEngine = null;
       _playbackError = null;
-      _unlockedParentalProfileId = null;
+      _parentalUnlock.clear();
+      _parentalUnlockTimer?.cancel();
     });
     if (engine != null) {
       unawaited(engine.dispose());
@@ -634,14 +1239,24 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (xtreamProfile == null) {
       if (persistedLibrary?.sources.isNotEmpty ?? false) {
         return persistedLibrary!.entries
-            .map(_LibraryEntry.fromPersisted)
+            .map(
+              (entry) => _LibraryEntry.fromPersisted(
+                entry,
+                persistedLibrary.artwork[entry.playlistId]?[entry.id],
+              ),
+            )
             .toList(growable: false);
       }
       if (state.phase == PlaylistImportPhase.ready) {
         return state.entries.map(_LibraryEntry.fromM3u).toList(growable: false);
       }
       return (persistedLibrary?.entries ?? const <PersistedMediaEntry>[])
-          .map(_LibraryEntry.fromPersisted)
+          .map(
+            (entry) => _LibraryEntry.fromPersisted(
+              entry,
+              persistedLibrary?.artwork[entry.playlistId]?[entry.id],
+            ),
+          )
           .toList(growable: false);
     }
 
@@ -773,7 +1388,11 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
       .read(userOverlaysControllerProvider(profileId).notifier)
       .toggleFavorite(entry.locator(profileId));
 
-  Future<String> _saveParentalPin(String profileId, String pin) async {
+  Future<String> _saveParentalPin(
+    String profileId,
+    String pin,
+    Set<String> blockedContent,
+  ) async {
     try {
       final digest = await compute(_hashParentalPin, pin);
       await ref
@@ -782,10 +1401,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
             ParentalPolicy(
               profileId: profileId,
               pinDigest: digest,
-              blockedContent: const {'adult'},
+              blockedContent: blockedContent,
             ),
           );
-      if (mounted) setState(() => _unlockedParentalProfileId = null);
+      if (mounted) _clearParentalUnlock();
       return 'Parental controls enabled.';
     } on ArgumentError {
       return 'Use a PIN containing 4 to 8 digits.';
@@ -800,14 +1419,32 @@ final class _HomeScreenState extends ConsumerState<HomeScreen> {
     ));
     if (!verified) return 'Incorrect PIN.';
     if (mounted) {
-      setState(() => _unlockedParentalProfileId = policy.profileId);
+      setState(() => _parentalUnlock.unlock(policy.profileId));
+      _parentalUnlockTimer?.cancel();
+      _parentalUnlockTimer = Timer(ParentalUnlockLease.duration, () {
+        if (mounted) _clearParentalUnlock();
+      });
     }
-    return 'Protected content unlocked for this session.';
+    return 'Protected content unlocked for 15 minutes.';
   }
 
-  bool _blockedByParentalPolicy(_LibraryEntry entry) {
+  void _clearParentalUnlock() {
+    _parentalUnlockTimer?.cancel();
+    _parentalUnlock.clear();
+    if (mounted) setState(() {});
+  }
+
+  bool _blockedByParentalPolicy(
+    _LibraryEntry entry,
+    Set<String> blockedContent,
+  ) {
+    final group = entry.group?.trim().toLowerCase();
     final value = '${entry.group ?? ''} ${entry.name}'.toLowerCase();
-    return const <String>['adult', 'xxx', '18+', 'porn'].any(value.contains);
+    if (blockedContent.contains('adult') &&
+        const <String>['adult', 'xxx', '18+', 'porn'].any(value.contains)) {
+      return true;
+    }
+    return group != null && blockedContent.contains(group);
   }
 }
 
@@ -953,7 +1590,11 @@ final class _LibraryView extends ConsumerStatefulWidget {
     required this.onRemoveSource,
     required this.onImportEpgFile,
     required this.onImportEpgUrl,
+    required this.onRefreshSource,
     required this.onRefreshSources,
+    required this.refreshIntervalFor,
+    required this.lastRefreshAttemptFor,
+    required this.onRefreshIntervalChanged,
     required this.parentalConfigured,
     required this.parentalUnlocked,
     required this.onSaveParentalPin,
@@ -979,10 +1620,17 @@ final class _LibraryView extends ConsumerStatefulWidget {
   final Future<void> Function(IptvSource source) onRemoveSource;
   final Future<String> Function() onImportEpgFile;
   final Future<String> Function(Uri uri) onImportEpgUrl;
+  final Future<String> Function(IptvSource source) onRefreshSource;
   final Future<String> Function() onRefreshSources;
+  final Future<SourceRefreshInterval> Function(IptvSource source)
+  refreshIntervalFor;
+  final Future<DateTime?> Function(IptvSource source) lastRefreshAttemptFor;
+  final Future<void> Function(IptvSource source, SourceRefreshInterval interval)
+  onRefreshIntervalChanged;
   final bool parentalConfigured;
   final bool parentalUnlocked;
-  final Future<String> Function(String pin) onSaveParentalPin;
+  final Future<String> Function(String pin, Set<String> blockedContent)
+  onSaveParentalPin;
   final Future<String> Function(String pin) onUnlockParental;
 
   @override
@@ -991,8 +1639,16 @@ final class _LibraryView extends ConsumerStatefulWidget {
 
 final class _LibraryViewState extends ConsumerState<_LibraryView> {
   var _destination = _CatalogDestination.home;
+  String? _selectedCountryCode;
   String _query = '';
   bool _searching = false;
+  final _queryController = TextEditingController();
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1021,22 +1677,54 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                 onDestinationSelected: _selectDestination,
                 onSearch: () => setState(() {
                   _searching = !_searching;
-                  if (!_searching) _query = '';
+                  if (!_searching) {
+                    _query = '';
+                    _queryController.clear();
+                  }
                 }),
-                onSettings: () => showLibrarySettings(
+                onSettings: () => showSettingsPages(
                   context,
-                  configured: ref.read(metadataGatewayProvider) != null,
-                  onImportEpgFile: widget.onImportEpgFile,
-                  onImportEpgUrl: widget.onImportEpgUrl,
-                  onRefreshSources: widget.onRefreshSources,
-                  sources: widget.sources,
-                  onAddPlaylist: widget.onAddPlaylist,
-                  onRenameSource: widget.onRenameSource,
-                  onRemoveSource: widget.onRemoveSource,
-                  parentalConfigured: widget.parentalConfigured,
-                  parentalUnlocked: widget.parentalUnlocked,
-                  onSaveParentalPin: widget.onSaveParentalPin,
-                  onUnlockParental: widget.onUnlockParental,
+                  openSection: (section) => showLibrarySettings(
+                    context,
+                    section: section,
+                    configured: ref.read(metadataGatewayProvider) != null,
+                    metadataConsentStore: ref.read(
+                      metadataConsentStoreProvider,
+                    ),
+                    onImportEpgFile: widget.onImportEpgFile,
+                    onImportEpgUrl: widget.onImportEpgUrl,
+                    onRefreshSource: widget.onRefreshSource,
+                    onRefreshSources: widget.onRefreshSources,
+                    refreshIntervalFor: widget.refreshIntervalFor,
+                    lastRefreshAttemptFor: widget.lastRefreshAttemptFor,
+                    onRefreshIntervalChanged: widget.onRefreshIntervalChanged,
+                    sources: widget.sources,
+                    onAddPlaylist: widget.onAddPlaylist,
+                    onRenameSource: widget.onRenameSource,
+                    onRemoveSource: widget.onRemoveSource,
+                    parentalConfigured: widget.parentalConfigured,
+                    parentalUnlocked: widget.parentalUnlocked,
+                    availableParentalCategories:
+                        widget.entries
+                            .map((entry) => entry.group?.trim())
+                            .whereType<String>()
+                            .where((group) => group.isNotEmpty)
+                            .toSet()
+                            .toList()
+                          ..sort(),
+                    initialBlockedContent:
+                        ref
+                            .watch(
+                              userOverlaysControllerProvider(widget.profileId),
+                            )
+                            .asData
+                            ?.value
+                            .parentalPolicy
+                            ?.blockedContent ??
+                        const {'adult'},
+                    onSaveParentalPin: widget.onSaveParentalPin,
+                    onUnlockParental: widget.onUnlockParental,
+                  ),
                 ),
                 onProfileChanged: widget.onProfileChanged,
                 onSourcesRemoved: widget.onSourcesRemoved,
@@ -1051,6 +1739,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                   ),
                   child: TextField(
                     key: const ValueKey('library-search'),
+                    controller: _queryController,
                     autofocus: true,
                     decoration: const InputDecoration(
                       hintText: 'Search this section',
@@ -1085,13 +1774,23 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       entries: _entriesFor(_destination),
                       epgSchedules: widget.epgSchedules,
                       query: _query,
+                      channelSearchController: _queryController,
+                      onQueryChanged: (value) =>
+                          setState(() => _query = value.trim()),
+                      showLocalChannelSearch: !_searching,
                       selectedGroup: widget.selectedGroup,
                       selectedEntry: widget.selectedEntry,
                       playbackEngine: widget.playbackEngine,
                       onGroupSelected: widget.onGroupSelected,
+                      selectedCountryCode: _selectedCountryCode,
+                      onCountrySelected: (code) {
+                        setState(() => _selectedCountryCode = code);
+                        widget.onGroupSelected(null);
+                      },
                       onPlay: widget.onEntrySelected,
                       profileId: widget.profileId,
                       favorites: widget.favorites,
+                      history: widget.history,
                       onFavoriteToggled: widget.onFavoriteToggled,
                     ),
                     _CatalogDestination.movies => _CatalogPage(
@@ -1107,6 +1806,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       onPlay: widget.onEntrySelected,
                       profileId: widget.profileId,
                       favorites: widget.favorites,
+                      history: widget.history,
                       onFavoriteToggled: widget.onFavoriteToggled,
                     ),
                     _CatalogDestination.shows => _CatalogPage(
@@ -1122,6 +1822,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       onPlay: widget.onEntrySelected,
                       profileId: widget.profileId,
                       favorites: widget.favorites,
+                      history: widget.history,
                       onFavoriteToggled: widget.onFavoriteToggled,
                     ),
                   },
@@ -1180,8 +1881,10 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   }
 
   void _selectDestination(_CatalogDestination destination) {
+    _queryController.clear();
     setState(() {
       _destination = destination;
+      _selectedCountryCode = null;
       _query = '';
       _searching = false;
     });
@@ -1400,16 +2103,71 @@ final class _DestinationHome extends StatefulWidget {
 final class _DestinationHomeState extends State<_DestinationHome> {
   Timer? _heroTimer;
   var _heroIndex = 0;
+  bool? _reduceHeroMotion;
+  List<_LibraryEntry>? _countedEntries;
+  var _showCount = 0;
+  List<_LibraryEntry>? _heroSource;
+  List<_LibraryEntry>? _cachedHeroEntries;
 
-  List<_LibraryEntry> get _heroEntries => widget.entries
-      .where((entry) => entry.kind != MediaKind.live && entry.isPlayable)
-      .take(5)
-      .toList(growable: false);
+  int _countShows(List<_LibraryEntry> entries) {
+    if (!identical(_countedEntries, entries)) {
+      _countedEntries = entries;
+      _showCount = _groupSeriesEntries(
+        entries
+            .where((entry) => entry.kind == MediaKind.episode)
+            .toList(growable: false),
+      ).length;
+    }
+    return _showCount;
+  }
+
+  List<_LibraryEntry> get _heroEntries {
+    if (identical(_heroSource, widget.entries) && _cachedHeroEntries != null) {
+      return _cachedHeroEntries!;
+    }
+    final playable = widget.entries
+        .where((entry) => entry.kind != MediaKind.live && entry.isPlayable)
+        .toList(growable: false);
+    const normalizer = PlaylistTitleNormalizer();
+    final seenSeries = <String>{};
+    final distinct = playable
+        .where((entry) {
+          if (entry.kind != MediaKind.episode) return true;
+          final title = normalizer.normalize(entry.name, kind: entry.kind);
+          if (title.season == null || title.episode == null) return true;
+          return seenSeries.add(
+            '${entry.sourceId}\u0000${title.title.toLowerCase()}',
+          );
+        })
+        .toList(growable: false);
+    final selected = <_LibraryEntry>[
+      ...distinct.where(
+        (entry) =>
+            entry.kind == MediaKind.movie && entry.imageUri?.hasScheme == true,
+      ),
+      ...distinct.where(
+        (entry) =>
+            entry.kind != MediaKind.movie || entry.imageUri?.hasScheme != true,
+      ),
+    ].take(5).toList(growable: false);
+    _heroSource = widget.entries;
+    _cachedHeroEntries = selected;
+    return selected;
+  }
 
   @override
   void initState() {
     super.initState();
-    _startHeroTimer();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceHeroMotion != reduceMotion) {
+      _reduceHeroMotion = reduceMotion;
+      _startHeroTimer();
+    }
   }
 
   @override
@@ -1420,6 +2178,8 @@ final class _DestinationHomeState extends State<_DestinationHome> {
         .join('\u0000');
     final currentIds = widget.entries.map((entry) => entry.id).join('\u0000');
     if (previousIds != currentIds) {
+      _heroSource = null;
+      _cachedHeroEntries = null;
       _heroIndex = 0;
       _startHeroTimer();
     }
@@ -1427,11 +2187,21 @@ final class _DestinationHomeState extends State<_DestinationHome> {
 
   void _startHeroTimer() {
     _heroTimer?.cancel();
-    if (_heroEntries.length < 2) return;
+    if (_reduceHeroMotion != false || _heroEntries.length < 2) return;
     _heroTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!mounted) return;
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       setState(() => _heroIndex = (_heroIndex + 1) % _heroEntries.length);
     });
+  }
+
+  void _selectHero(int index) {
+    final entries = _heroEntries;
+    if (entries.isEmpty) return;
+    final selected = index % entries.length;
+    setState(
+      () => _heroIndex = selected < 0 ? selected + entries.length : selected,
+    );
+    _startHeroTimer();
   }
 
   @override
@@ -1443,8 +2213,7 @@ final class _DestinationHomeState extends State<_DestinationHome> {
   @override
   Widget build(BuildContext context) {
     final entries = widget.entries;
-    final profileId = widget.profileId;
-    final history = widget.history;
+    final showCount = _countShows(entries);
     final destinations = const <_CatalogDestination>[
       _CatalogDestination.live,
       _CatalogDestination.movies,
@@ -1463,56 +2232,37 @@ final class _DestinationHomeState extends State<_DestinationHome> {
                   _DestinationCard(
                     key: ValueKey('destination-${destination.name}'),
                     destination: destination,
-                    count: entries
-                        .where(
-                          (entry) => switch (destination) {
-                            _CatalogDestination.live =>
-                              entry.kind == MediaKind.live,
-                            _CatalogDestination.movies =>
-                              entry.kind == MediaKind.movie,
-                            _CatalogDestination.shows =>
-                              entry.kind == MediaKind.episode,
-                            _CatalogDestination.home => false,
-                          },
-                        )
-                        .length,
-                    artwork: _firstArtwork(entries, destination),
+                    count: switch (destination) {
+                      _CatalogDestination.live =>
+                        entries
+                            .where((entry) => entry.kind == MediaKind.live)
+                            .length,
+                      _CatalogDestination.movies =>
+                        entries
+                            .where((entry) => entry.kind == MediaKind.movie)
+                            .length,
+                      _CatalogDestination.shows => showCount,
+                      _CatalogDestination.home => 0,
+                    },
                     onPressed: () => widget.onSelected(destination),
                   ),
               ];
-              final entriesByLocator = <MediaLocator, _LibraryEntry>{
-                for (final entry in entries) entry.locator(profileId): entry,
-              };
-              final recent = history
-                  .map((item) {
-                    final entry = entriesByLocator[item.media];
-                    return entry == null ? null : (entry: entry, history: item);
-                  })
-                  .whereType<
-                    ({_LibraryEntry entry, PlaybackHistoryEntry history})
-                  >()
-                  .take(8)
-                  .toList(growable: false);
-              final continueWatching = recent
-                  .where(
-                    (item) =>
-                        item.entry.kind != MediaKind.live &&
-                        _resumePositionFor(item.history) > Duration.zero,
-                  )
-                  .toList(growable: false);
-              final displayedHistory = continueWatching.isNotEmpty
-                  ? continueWatching
-                  : recent;
               final heroEntries = _heroEntries;
               final hero = heroEntries.isEmpty
                   ? null
-                  : _HomeHero(
-                      entry: heroEntries[_heroIndex % heroEntries.length],
-                      entries: heroEntries,
-                      selectedIndex: _heroIndex % heroEntries.length,
-                      onSelected: (index) => setState(() => _heroIndex = index),
-                      onPlay: widget.onPlay,
-                      onDetails: widget.onDetails,
+                  : ValueListenableBuilder<bool>(
+                      valueListenable: metadataEnabled,
+                      builder: (context, enabled, _) => _HomeHero(
+                        entry: heroEntries[_heroIndex % heroEntries.length],
+                        entries: heroEntries,
+                        selectedIndex: _heroIndex % heroEntries.length,
+                        metadataEnabled: enabled,
+                        onSelected: _selectHero,
+                        onPrevious: () => _selectHero(_heroIndex - 1),
+                        onNext: () => _selectHero(_heroIndex + 1),
+                        onPlay: widget.onPlay,
+                        onDetails: widget.onDetails,
+                      ),
                     );
               final destinationCards = horizontal
                   ? SizedBox(
@@ -1548,75 +2298,16 @@ final class _DestinationHomeState extends State<_DestinationHome> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  destinationCards,
                   if (hero != null) ...<Widget>[
+                    SizedBox(height: horizontal ? 48 : 28),
                     SizedBox(
                       height: horizontal
                           ? MediaQuery.sizeOf(context).height >= 760
-                                ? 300
-                                : 190
-                          : 220,
+                                ? 330
+                                : 260
+                          : 260,
                       child: hero,
-                    ),
-                    const SizedBox(height: TviumSpacing.lg),
-                  ],
-                  destinationCards,
-                  if (displayedHistory.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.xl),
-                    Text(
-                      continueWatching.isNotEmpty
-                          ? 'Continue watching'
-                          : 'Recently played',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: TviumSpacing.sm),
-                    SizedBox(
-                      height: continueWatching.isNotEmpty ? 112 : 96,
-                      child: ListView.separated(
-                        key: const ValueKey('recently-played'),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: displayedHistory.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(width: TviumSpacing.sm),
-                        itemBuilder: (context, index) {
-                          final item = displayedHistory[index];
-                          final entry = item.entry;
-                          final durationMs =
-                              item.history.duration.inMilliseconds;
-                          final progress = durationMs <= 0
-                              ? 0.0
-                              : (item.history.position.inMilliseconds /
-                                        durationMs)
-                                    .clamp(0.0, 1.0);
-                          return SizedBox(
-                            width: 230,
-                            child: Card(
-                              child: ListTile(
-                                leading: Icon(_mediaIcon(entry.kind)),
-                                title: Text(
-                                  entry.displayName,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: continueWatching.isNotEmpty
-                                    ? Padding(
-                                        padding: const EdgeInsets.only(top: 10),
-                                        child: LinearProgressIndicator(
-                                          key: ValueKey(
-                                            'continue-progress-${entry.id}',
-                                          ),
-                                          value: progress,
-                                        ),
-                                      )
-                                    : null,
-                                trailing: const Icon(Icons.play_arrow_rounded),
-                                onTap: entry.isPlayable
-                                    ? () => widget.onPlay(entry)
-                                    : null,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
                     ),
                   ],
                 ],
@@ -1629,12 +2320,15 @@ final class _DestinationHomeState extends State<_DestinationHome> {
   }
 }
 
-final class _HomeHero extends StatelessWidget {
+final class _HomeHero extends ConsumerWidget {
   const _HomeHero({
     required this.entry,
     required this.entries,
     required this.selectedIndex,
+    required this.metadataEnabled,
     required this.onSelected,
+    required this.onPrevious,
+    required this.onNext,
     required this.onPlay,
     required this.onDetails,
   });
@@ -1642,52 +2336,132 @@ final class _HomeHero extends StatelessWidget {
   final _LibraryEntry entry;
   final List<_LibraryEntry> entries;
   final int selectedIndex;
+  final bool metadataEnabled;
   final ValueChanged<int> onSelected;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
   final ValueChanged<_LibraryEntry> onPlay;
   final ValueChanged<_LibraryEntry> onDetails;
 
   @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overlay = ref
+        .watch(
+          metadataHeroOverlayProvider((
+            sourceId: entry.sourceId,
+            entryId: entry.id,
+            title: entry.name,
+            kind: entry.kind,
+            enabled: metadataEnabled,
+          )),
+        )
+        .value;
+    final posterUri = overlay?.posterUri ?? entry.imageUri;
+    return GestureDetector(
       key: const ValueKey('home-hero'),
-      borderRadius: BorderRadius.circular(TviumRadius.hero),
-      child: AnimatedSwitcher(
-        duration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 280),
-        child: Stack(
-          key: ValueKey('home-hero-${entry.id}'),
-          fit: StackFit.expand,
-          children: <Widget>[
-            if (entry.imageUri case final artwork?)
-              CachedNetworkImage(
-                imageUrl: artwork.toString(),
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-                errorWidget: (context, url, error) => const SizedBox.shrink(),
-              ),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerRight,
-                  end: Alignment.centerLeft,
-                  colors: <Color>[
-                    Color(0x3318C7F0),
-                    Color(0xD90A1B2B),
-                    Color(0xFF06101B),
-                  ],
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: entries.length < 2
+          ? null
+          : (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity < -120) onNext();
+              if (velocity > 120) onPrevious();
+            },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(TviumRadius.hero),
+        child: AnimatedSwitcher(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 280),
+          child: Stack(
+            key: ValueKey('home-hero-${entry.id}'),
+            fit: StackFit.expand,
+            children: <Widget>[
+              if (overlay?.backdropUri case final backdrop?)
+                ArtworkImage(
+                  key: const ValueKey('home-hero-enriched-backdrop'),
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
+                  role: 'backdrop',
+                  uri: backdrop,
+                  fit: BoxFit.cover,
+                )
+              else
+                Image.asset(
+                  'assets/destinations/hero-home.png',
+                  key: const ValueKey('home-hero-backdrop'),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.centerRight,
+                ),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerRight,
+                    end: Alignment.centerLeft,
+                    colors: <Color>[
+                      Color(0x22081422),
+                      Color(0xE00A1B2B),
+                      Color(0xFF06101B),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _HomeHeroContent(
-              entry: entry,
-              entries: entries,
-              selectedIndex: selectedIndex,
-              onSelected: onSelected,
-              onPlay: onPlay,
-              onDetails: onDetails,
-            ),
-          ],
+              if (entry.kind == MediaKind.movie &&
+                  posterUri?.hasScheme == true &&
+                  MediaQuery.sizeOf(context).width >= 920)
+                Positioned(
+                  key: const ValueKey('home-hero-poster'),
+                  right: 84,
+                  top: 48,
+                  bottom: 30,
+                  width: 160,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: ColoredBox(
+                      color: const Color(0x99071320),
+                      child: ArtworkImage(
+                        sourceId: entry.sourceId,
+                        entryId: entry.id,
+                        role: 'poster',
+                        uri: posterUri,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+              _HomeHeroContent(
+                entry: entry,
+                entries: entries,
+                selectedIndex: selectedIndex,
+                onSelected: onSelected,
+                onPlay: onPlay,
+                onDetails: onDetails,
+              ),
+              if (entries.length > 1) ...<Widget>[
+                Positioned(
+                  right: TviumSpacing.xs,
+                  top: TviumSpacing.xs,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      IconButton.filledTonal(
+                        key: const ValueKey('home-hero-previous'),
+                        tooltip: 'Previous feature',
+                        onPressed: onPrevious,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                      ),
+                      IconButton.filledTonal(
+                        key: const ValueKey('home-hero-next'),
+                        tooltip: 'Next feature',
+                        onPressed: onNext,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -1716,97 +2490,101 @@ final class _HomeHeroContent extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact =
-            constraints.maxHeight < 260 || constraints.maxWidth < 600;
+            constraints.maxHeight < 300 || constraints.maxWidth < 600;
         return Padding(
           padding: EdgeInsets.all(compact ? TviumSpacing.md : TviumSpacing.xl),
           child: Align(
             alignment: Alignment.centerLeft,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  if (!compact) ...<Widget>[
-                    Text(
-                      entry.kind == MediaKind.movie
-                          ? 'Featured movie'
-                          : 'Featured series',
-                      style: Theme.of(context).textTheme.labelLarge
-                          ?.copyWith(color: TviumColors.accentDark),
-                    ),
-                    const SizedBox(height: TviumSpacing.xs),
-                  ],
-                  Text(
-                    entry.displayName,
-                    key: const ValueKey('home-hero-title'),
-                    maxLines: compact ? 1 : 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: compact
-                        ? Theme.of(context).textTheme.headlineMedium
-                        : Theme.of(context).textTheme.displaySmall,
-                  ),
-                  if (!compact) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.xs),
-                    Text(
-                      entry.group ?? 'Your library',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                  SizedBox(height: compact ? TviumSpacing.sm : TviumSpacing.md),
-                  Wrap(
-                    spacing: TviumSpacing.sm,
-                    runSpacing: TviumSpacing.xs,
-                    children: <Widget>[
-                      FilledButton.icon(
-                        key: const ValueKey('home-hero-play'),
-                        onPressed: () => onPlay(entry),
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Play'),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    if (!compact) ...<Widget>[
+                      Text(
+                        entry.kind == MediaKind.movie
+                            ? 'Featured movie'
+                            : 'Featured series',
+                        style: Theme.of(context).textTheme.labelLarge
+                            ?.copyWith(color: TviumColors.accentDark),
                       ),
-                      OutlinedButton.icon(
-                        key: const ValueKey('home-hero-details'),
-                        onPressed: () => onDetails(entry),
-                        icon: const Icon(Icons.info_outline_rounded),
-                        label: const Text('View details'),
+                      const SizedBox(height: TviumSpacing.xs),
+                    ],
+                    Text(
+                      entry.displayName,
+                      key: const ValueKey('home-hero-title'),
+                      maxLines: compact ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: compact
+                          ? Theme.of(context).textTheme.headlineMedium
+                          : Theme.of(context).textTheme.displaySmall,
+                    ),
+                    if (!compact) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.xs),
+                      Text(
+                        entry.kind == MediaKind.movie ? 'Movies' : 'TV Shows',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
                     ],
-                  ),
-                  if (!compact) ...<Widget>[
-                    const SizedBox(height: TviumSpacing.md),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
+                    SizedBox(
+                      height: compact ? TviumSpacing.sm : TviumSpacing.md,
+                    ),
+                    Wrap(
+                      spacing: TviumSpacing.sm,
+                      runSpacing: TviumSpacing.xs,
                       children: <Widget>[
-                        for (var index = 0; index < entries.length; index++)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 7),
-                            child: InkWell(
-                              key: ValueKey('home-hero-page-$index'),
-                              borderRadius: BorderRadius.circular(
-                                TviumRadius.pill,
-                              ),
-                              onTap: () => onSelected(index),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                width: index == selectedIndex ? 24 : 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: index == selectedIndex
-                                      ? TviumColors.accentDark
-                                      : Colors.white38,
-                                  borderRadius: BorderRadius.circular(
-                                    TviumRadius.pill,
+                        FilledButton.icon(
+                          key: const ValueKey('home-hero-play'),
+                          onPressed: () => onPlay(entry),
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          label: const Text('Play'),
+                        ),
+                        OutlinedButton.icon(
+                          key: const ValueKey('home-hero-details'),
+                          onPressed: () => onDetails(entry),
+                          icon: const Icon(Icons.info_outline_rounded),
+                          label: const Text('View details'),
+                        ),
+                      ],
+                    ),
+                    if (!compact) ...<Widget>[
+                      const SizedBox(height: TviumSpacing.md),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          for (var index = 0; index < entries.length; index++)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 7),
+                              child: InkWell(
+                                key: ValueKey('home-hero-page-$index'),
+                                borderRadius: BorderRadius.circular(
+                                  TviumRadius.pill,
+                                ),
+                                onTap: () => onSelected(index),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  width: index == selectedIndex ? 24 : 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: index == selectedIndex
+                                        ? TviumColors.accentDark
+                                        : Colors.white38,
+                                    borderRadius: BorderRadius.circular(
+                                      TviumRadius.pill,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -1832,50 +2610,54 @@ final class _DestinationCard extends StatelessWidget {
     super.key,
     required this.destination,
     required this.count,
-    required this.artwork,
     required this.onPressed,
   });
 
   final _CatalogDestination destination;
   final int count;
-  final Uri? artwork;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 190, maxHeight: 260),
-      child: Material(
-        color: const Color(0xFF10283C),
-        borderRadius: BorderRadius.circular(24),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onPressed,
-          focusColor: Theme.of(context).colorScheme.primary
-              .withValues(alpha: 0.18),
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              if (artwork case final uri?)
-                CachedNetworkImage(
-                  imageUrl: uri.toString(),
-                  fit: BoxFit.cover,
-                  errorWidget: (context, url, error) => const SizedBox.shrink(),
-                ),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[Color(0x2219C8E6), Color(0xF2071019)],
-                  ),
+    return Material(
+      color: const Color(0xFF10283C),
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        focusColor: Theme.of(context).colorScheme.primary
+            .withValues(alpha: 0.18),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Image.asset(
+              switch (destination) {
+                _CatalogDestination.live =>
+                  'assets/destinations/hero-live-tv.png',
+                _CatalogDestination.movies =>
+                  'assets/destinations/hero-movies.png',
+                _CatalogDestination.shows =>
+                  'assets/destinations/hero-tv-shows.png',
+                _CatalogDestination.home => 'assets/destinations/hero-home.png',
+              },
+              fit: BoxFit.cover,
+              alignment: Alignment.centerRight,
+            ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[Color(0x2219C8E6), Color(0xF2071019)],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(TviumSpacing.lg),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(TviumSpacing.lg),
+              child: SingleChildScrollView(
+                reverse: true,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
                   children: <Widget>[
                     Icon(_destinationIcon(destination), size: 38),
                     const SizedBox(height: TviumSpacing.sm),
@@ -1890,8 +2672,8 @@ final class _DestinationCard extends StatelessWidget {
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1905,13 +2687,19 @@ final class _CatalogPage extends ConsumerWidget {
     required this.entries,
     required this.epgSchedules,
     required this.query,
+    this.channelSearchController,
+    this.onQueryChanged,
+    this.showLocalChannelSearch = false,
     required this.selectedGroup,
     required this.selectedEntry,
     required this.playbackEngine,
     required this.onGroupSelected,
+    this.selectedCountryCode,
+    this.onCountrySelected,
     required this.onPlay,
     required this.profileId,
     required this.favorites,
+    required this.history,
     required this.onFavoriteToggled,
   });
 
@@ -1919,22 +2707,56 @@ final class _CatalogPage extends ConsumerWidget {
   final List<_LibraryEntry> entries;
   final Map<String, EpgNowNext?> epgSchedules;
   final String query;
+  final TextEditingController? channelSearchController;
+  final ValueChanged<String>? onQueryChanged;
+  final bool showLocalChannelSearch;
   final String? selectedGroup;
   final _LibraryEntry? selectedEntry;
   final PlaybackEngine? playbackEngine;
   final ValueChanged<String?> onGroupSelected;
+  final String? selectedCountryCode;
+  final ValueChanged<String?>? onCountrySelected;
   final ValueChanged<_LibraryEntry> onPlay;
   final String profileId;
   final Set<MediaLocator> favorites;
+  final List<PlaybackHistoryEntry> history;
   final ValueChanged<_LibraryEntry> onFavoriteToggled;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unknownGroup = AppLocalizations.of(context).unknownGroup;
+    final shortWindow = MediaQuery.sizeOf(context).height < 700;
+    final compactWidth = MediaQuery.sizeOf(context).width < 720;
+    final countryByGroup = destination == _CatalogDestination.live
+        ? <String?, LiveCountry?>{
+            for (final group in entries.map((entry) => entry.group).toSet())
+              group: countryForGroup(group),
+          }
+        : const <String?, LiveCountry?>{};
+    final countries = destination == _CatalogDestination.live
+        ? countriesForGroups(countryByGroup.keys)
+        : const <LiveCountry>[];
+    final activeCountryCode = countries.length < 2
+        ? 'ALL'
+        : selectedCountryCode == 'ALL' ||
+              countries.any((country) => country.code == selectedCountryCode)
+        ? selectedCountryCode!
+        : countries.first.code;
+    final countryEntries = activeCountryCode == 'ALL'
+        ? entries
+        : entries
+              .where(
+                (entry) =>
+                    countryByGroup[entry.group]?.code == activeCountryCode,
+              )
+              .toList(growable: false);
     final groups =
-        entries.map((entry) => entry.group ?? unknownGroup).toSet().toList()
+        countryEntries
+            .map((entry) => entry.group ?? unknownGroup)
+            .toSet()
+            .toList()
           ..sort();
-    final visible = entries
+    final visible = countryEntries
         .where((entry) {
           final inGroup =
               selectedGroup == null ||
@@ -1945,6 +2767,17 @@ final class _CatalogPage extends ConsumerWidget {
                   entry.displayName.toLowerCase().contains(normalizedQuery));
         })
         .toList(growable: false);
+    final featureEntry = destination == _CatalogDestination.live
+        ? null
+        : visible
+                  .where(
+                    (entry) =>
+                        entry.imageUri?.hasScheme == true &&
+                        (destination == _CatalogDestination.movies ||
+                            entry.xtreamSeriesId != null),
+                  )
+                  .firstOrNull ??
+              visible.firstOrNull;
     final showPlayer =
         selectedEntry != null &&
         switch (destination) {
@@ -1953,6 +2786,56 @@ final class _CatalogPage extends ConsumerWidget {
           _CatalogDestination.shows => selectedEntry!.kind == MediaKind.episode,
           _CatalogDestination.home => false,
         };
+    final liveChannels = destination == _CatalogDestination.live
+        ? visible.where((entry) => entry.isPlayable).toList(growable: false)
+        : const <_LibraryEntry>[];
+    final previewEntry = showPlayer ? selectedEntry : liveChannels.firstOrNull;
+    final selectedLiveLocator = selectedEntry?.locator(profileId);
+    final selectedLiveIndex = selectedLiveLocator == null
+        ? -1
+        : liveChannels.indexWhere(
+            (entry) => entry.locator(profileId) == selectedLiveLocator,
+          );
+    void zapChannel(int offset) {
+      if (selectedLiveIndex < 0 || liveChannels.length < 2) return;
+      final index =
+          (selectedLiveIndex + offset + liveChannels.length) %
+          liveChannels.length;
+      onPlay(liveChannels[index]);
+    }
+
+    void openChannelSwitcher() =>
+        _showChannelSwitcher(context, liveChannels, onPlay);
+
+    final entriesByLocator = <MediaLocator, _LibraryEntry>{
+      for (final entry in entries) ...<MediaLocator, _LibraryEntry>{
+        entry.locator(profileId): entry,
+        for (final episode in entry.seriesEpisodes)
+          episode.locator(profileId): episode,
+      },
+    };
+    final continueWatching =
+        destination == _CatalogDestination.movies ||
+            destination == _CatalogDestination.shows
+        ? history
+              .map((item) {
+                final entry = entriesByLocator[item.media];
+                return entry == null ||
+                        entry.kind !=
+                            (destination == _CatalogDestination.movies
+                                ? MediaKind.movie
+                                : MediaKind.episode) ||
+                        !entry.isPlayable ||
+                        _resumePositionFor(item) == Duration.zero
+                    ? null
+                    : (entry: entry, history: item);
+              })
+              .whereType<
+                ({_LibraryEntry entry, PlaybackHistoryEntry history})
+              >()
+              .take(8)
+              .toList(growable: false)
+        : const <({_LibraryEntry entry, PlaybackHistoryEntry history})>[];
     final media = visible.isEmpty
         ? Center(child: Text(AppLocalizations.of(context).noItems))
         : destination == _CatalogDestination.live
@@ -1988,6 +2871,7 @@ final class _CatalogPage extends ConsumerWidget {
                     ? const ValueKey('media-card-movie')
                     : ValueKey('media-card-${entry.id}'),
                 entry: entry,
+                prefetchMetadata: true,
                 schedule: epgSchedules[entry.id],
                 destination: destination,
                 favorite: favorites.contains(entry.locator(profileId)),
@@ -2003,6 +2887,107 @@ final class _CatalogPage extends ConsumerWidget {
           );
     final catalog = Column(
       children: <Widget>[
+        if (continueWatching.isNotEmpty && !showPlayer) ...<Widget>[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Continue watching',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+          ),
+          const SizedBox(height: TviumSpacing.sm),
+          SizedBox(
+            height: shortWindow ? 86 : 110,
+            child: ListView.separated(
+              key: ValueKey(
+                destination == _CatalogDestination.movies
+                    ? 'movies-continue-watching'
+                    : 'shows-continue-watching',
+              ),
+              scrollDirection: Axis.horizontal,
+              itemCount: continueWatching.length,
+              separatorBuilder: (_, _) =>
+                  const SizedBox(width: TviumSpacing.sm),
+              itemBuilder: (context, index) {
+                final item = continueWatching[index];
+                final duration = item.history.duration.inMilliseconds;
+                final progress = duration <= 0
+                    ? 0.0
+                    : (item.history.position.inMilliseconds / duration).clamp(
+                        0.0,
+                        1.0,
+                      );
+                return SizedBox(
+                  width: 240,
+                  child: Material(
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: const BorderSide(color: Color(0x44B8E8FF)),
+                    ),
+                    color: const Color(0xB8102638),
+                    child: InkWell(
+                      onTap: () => onPlay(item.entry),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          _CatalogArtwork(
+                            key: ValueKey('continue-artwork-${item.entry.id}'),
+                            entry: item.entry,
+                          ),
+                          const DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: <Color>[
+                                  Color(0x2207111B),
+                                  Color(0xF007111B),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(TviumSpacing.sm),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: <Widget>[
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        item.entry.displayName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    const Icon(Icons.play_arrow_rounded),
+                                  ],
+                                ),
+                                const SizedBox(height: 5),
+                                LinearProgressIndicator(
+                                  key: ValueKey(
+                                    'continue-progress-${item.entry.id}',
+                                  ),
+                                  value: progress,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: TviumSpacing.md),
+        ],
         if (showPlayer) ...<Widget>[
           SizedBox(
             key: const ValueKey('catalog-player'),
@@ -2010,6 +2995,16 @@ final class _CatalogPage extends ConsumerWidget {
             child: _PlayerPanel(
               selectedEntry: selectedEntry,
               engine: playbackEngine,
+              onOpenChannelSwitcher: liveChannels.isNotEmpty
+                  ? openChannelSwitcher
+                  : null,
+              onPreviousChannel:
+                  selectedLiveIndex >= 0 && liveChannels.length > 1
+                  ? () => zapChannel(-1)
+                  : null,
+              onNextChannel: selectedLiveIndex >= 0 && liveChannels.length > 1
+                  ? () => zapChannel(1)
+                  : null,
             ),
           ),
           const SizedBox(height: TviumSpacing.md),
@@ -2017,7 +3012,7 @@ final class _CatalogPage extends ConsumerWidget {
         Expanded(child: media),
       ],
     );
-    return Padding(
+    final pageContent = Padding(
       padding: const EdgeInsets.fromLTRB(
         TviumSpacing.lg,
         TviumSpacing.sm,
@@ -2027,14 +3022,265 @@ final class _CatalogPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            _destinationLabel(destination),
-            style: Theme.of(context).textTheme.displaySmall,
-          ),
-          const SizedBox(height: TviumSpacing.sm),
+          if (shortWindow ||
+              (compactWidth && destination != _CatalogDestination.live))
+            SizedBox(
+              height: 42,
+              child: Text(
+                _destinationLabel(destination),
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            )
+          else if (destination == _CatalogDestination.live)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: TviumSpacing.md),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'LIVE TV',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  Text(
+                    'Brings the world closer',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: MediaQuery.sizeOf(context).width < 720 ? 300 : 220,
+              child: _CatalogFeature(
+                destination: destination,
+                entry: featureEntry,
+                count: visible.length,
+                onPlay: onPlay,
+                onDetails: featureEntry == null
+                    ? null
+                    : () => _showTitleDetails(
+                        context,
+                        featureEntry,
+                        onPlay,
+                        ref.read(xtreamConnectionServiceProvider),
+                      ),
+              ),
+            ),
+          const SizedBox(height: TviumSpacing.md),
+          if (countries.length >= 2 &&
+              MediaQuery.sizeOf(context).width < 1100) ...<Widget>[
+            SizedBox(
+              height: 58,
+              child: ListView(
+                key: const ValueKey('live-country-rail'),
+                scrollDirection: Axis.horizontal,
+                children: <Widget>[
+                  for (final country in <LiveCountry?>[null, ...countries])
+                    Padding(
+                      padding: const EdgeInsets.only(right: TviumSpacing.sm),
+                      child: ChoiceChip(
+                        key: ValueKey('country-${country?.code ?? 'all'}'),
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            if (country == null)
+                              const Icon(Icons.public_rounded, size: 22)
+                            else
+                              ClipOval(
+                                child: Image.asset(
+                                  country.flagAsset,
+                                  key: ValueKey(
+                                    'country-flag-rail-${country.code}',
+                                  ),
+                                  width: 24,
+                                  height: 24,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            const SizedBox(width: TviumSpacing.xs),
+                            Text(country?.name ?? 'All countries'),
+                          ],
+                        ),
+                        selected: (country?.code ?? 'ALL') == activeCountryCode,
+                        onSelected: (_) =>
+                            onCountrySelected?.call(country?.code ?? 'ALL'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: TviumSpacing.xs),
+          ],
+          if (destination != _CatalogDestination.live &&
+              groups.isNotEmpty) ...<Widget>[
+            SizedBox(
+              height: shortWindow ? 44 : 56,
+              child: ListView.separated(
+                key: const ValueKey('catalog-category-chips'),
+                scrollDirection: Axis.horizontal,
+                itemCount: groups.length + 1,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(width: TviumSpacing.sm),
+                itemBuilder: (context, index) {
+                  final group = index == 0 ? null : groups[index - 1];
+                  return ChoiceChip(
+                    label: Text(group ?? 'All categories'),
+                    selected: group == selectedGroup,
+                    onSelected: (_) => onGroupSelected(group),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: TviumSpacing.xs),
+          ],
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
+                if (destination != _CatalogDestination.live) return catalog;
+                if (constraints.maxWidth >= 1050 && countries.length >= 2) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      SizedBox(
+                        key: const ValueKey('live-country-sidebar'),
+                        width: constraints.maxWidth < 1250 ? 170 : 190,
+                        child: _CountrySidebar(
+                          countries: countries,
+                          selectedCode: activeCountryCode,
+                          onSelected: onCountrySelected,
+                        ),
+                      ),
+                      const SizedBox(width: TviumSpacing.md),
+                      SizedBox(
+                        key: const ValueKey('catalog-group-sidebar'),
+                        width: constraints.maxWidth < 1250 ? 170 : 210,
+                        child: _GroupSidebar(
+                          groups: groups,
+                          selectedGroup: selectedGroup,
+                          onSelected: onGroupSelected,
+                        ),
+                      ),
+                      const SizedBox(width: TviumSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            Text(
+                              'Channels · ${visible.length}',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            if (showLocalChannelSearch) ...<Widget>[
+                              const SizedBox(height: TviumSpacing.sm),
+                              TextField(
+                                key: const ValueKey('live-channel-search'),
+                                controller: channelSearchController,
+                                decoration: const InputDecoration(
+                                  prefixIcon: Icon(Icons.search_rounded),
+                                  hintText: 'Search channels',
+                                  isDense: true,
+                                ),
+                                onChanged: onQueryChanged,
+                              ),
+                            ],
+                            const SizedBox(height: TviumSpacing.sm),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(
+                                  TviumRadius.surface,
+                                ),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 8,
+                                    sigmaY: 8,
+                                  ),
+                                  child: ColoredBox(
+                                    key: const ValueKey('live-channel-glass'),
+                                    color: const Color(0x400B2131),
+                                    child: media,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: TviumSpacing.md),
+                      SizedBox(
+                        key: const ValueKey('catalog-player'),
+                        width: constraints.maxWidth * 0.27,
+                        child: _LivePreviewPanel(
+                          entry: previewEntry,
+                          schedule: epgSchedules[previewEntry?.id],
+                          selectedEntry: selectedEntry,
+                          engine: playbackEngine,
+                          onPlay: previewEntry?.isPlayable == true
+                              ? () => onPlay(previewEntry!)
+                              : null,
+                          favorite:
+                              previewEntry != null &&
+                              favorites.contains(
+                                previewEntry.locator(profileId),
+                              ),
+                          onFavorite: previewEntry == null
+                              ? null
+                              : () => onFavoriteToggled(previewEntry),
+                          onOpenChannelSwitcher: liveChannels.isNotEmpty
+                              ? openChannelSwitcher
+                              : null,
+                          onPreviousChannel:
+                              selectedLiveIndex >= 0 && liveChannels.length > 1
+                              ? () => zapChannel(-1)
+                              : null,
+                          onNextChannel:
+                              selectedLiveIndex >= 0 && liveChannels.length > 1
+                              ? () => zapChannel(1)
+                              : null,
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                if (constraints.maxWidth >= 1100 &&
+                    destination == _CatalogDestination.live &&
+                    showPlayer) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      SizedBox(
+                        key: const ValueKey('catalog-group-sidebar'),
+                        width: 220,
+                        child: _GroupSidebar(
+                          groups: groups,
+                          selectedGroup: selectedGroup,
+                          onSelected: onGroupSelected,
+                        ),
+                      ),
+                      const SizedBox(width: TviumSpacing.md),
+                      Expanded(child: media),
+                      const SizedBox(width: TviumSpacing.md),
+                      SizedBox(
+                        key: const ValueKey('catalog-player'),
+                        width: constraints.maxWidth * 0.32,
+                        child: _PlayerPanel(
+                          selectedEntry: selectedEntry,
+                          engine: playbackEngine,
+                          onOpenChannelSwitcher: liveChannels.isNotEmpty
+                              ? openChannelSwitcher
+                              : null,
+                          onPreviousChannel:
+                              selectedLiveIndex >= 0 && liveChannels.length > 1
+                              ? () => zapChannel(-1)
+                              : null,
+                          onNextChannel:
+                              selectedLiveIndex >= 0 && liveChannels.length > 1
+                              ? () => zapChannel(1)
+                              : null,
+                        ),
+                      ),
+                    ],
+                  );
+                }
                 if (constraints.maxWidth >= 720) {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2090,6 +3336,523 @@ final class _CatalogPage extends ConsumerWidget {
         ],
       ),
     );
+    if (destination != _CatalogDestination.live) return pageContent;
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(
+          child: Image.asset(
+            'assets/destinations/hero-live-tv.png',
+            key: const ValueKey('live-page-background'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        const Positioned.fill(child: ColoredBox(color: Color(0xB8071422))),
+        pageContent,
+      ],
+    );
+  }
+}
+
+final class _CatalogFeature extends ConsumerWidget {
+  const _CatalogFeature({
+    required this.destination,
+    required this.entry,
+    required this.count,
+    required this.onPlay,
+    required this.onDetails,
+  });
+
+  final _CatalogDestination destination;
+  final _LibraryEntry? entry;
+  final int count;
+  final ValueChanged<_LibraryEntry> onPlay;
+  final VoidCallback? onDetails;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: metadataEnabled,
+      builder: (context, enabled, _) => _buildFeature(context, ref, enabled),
+    );
+  }
+
+  Widget _buildFeature(BuildContext context, WidgetRef ref, bool enabled) {
+    final item = entry;
+    final overlay = item == null || !enabled
+        ? null
+        : ref
+              .watch(
+                metadataHeroOverlayProvider((
+                  sourceId: item.sourceId,
+                  entryId: item.id,
+                  title: item.name,
+                  kind: item.kind,
+                  enabled: true,
+                )),
+              )
+              .value;
+    final posterUri = overlay?.posterUri ?? item?.imageUri;
+    final hasPoster =
+        posterUri?.hasScheme == true &&
+        (overlay?.posterUri != null ||
+            destination == _CatalogDestination.movies ||
+            item?.xtreamSeriesId != null);
+    return DecoratedBox(
+      key: const ValueKey('catalog-feature'),
+      decoration: const BoxDecoration(color: Color(0xFF071A2A)),
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          if (overlay?.backdropUri case final backdrop?)
+            ArtworkImage(
+              key: const ValueKey('catalog-feature-backdrop'),
+              sourceId: item!.sourceId,
+              entryId: item.id,
+              role: 'verified-backdrop',
+              uri: backdrop,
+              fit: BoxFit.cover,
+            ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: overlay?.backdropUri == null
+                    ? const <Color>[Color(0xFF102D42), Color(0xFF071A2A)]
+                    : const <Color>[Color(0xE6102D42), Color(0xF2071A2A)],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: TviumSpacing.sm),
+            child: Row(
+              children: <Widget>[
+                SizedBox(
+                  width: 140,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(TviumRadius.control),
+                    child: hasPoster
+                        ? ArtworkImage(
+                            key: const ValueKey('catalog-feature-poster'),
+                            sourceId: item!.sourceId,
+                            entryId: item.id,
+                            role: overlay?.posterUri == null
+                                ? 'poster'
+                                : 'verified-poster',
+                            uri: posterUri,
+                            fit: BoxFit.cover,
+                          )
+                        : const ColoredBox(
+                            color: Color(0xFF163044),
+                            child: Center(
+                              child: Icon(Icons.movie_outlined, size: 44),
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: TviumSpacing.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Text(
+                        _destinationLabel(destination),
+                        style: Theme.of(context).textTheme.labelLarge
+                            ?.copyWith(color: TviumColors.accentDark),
+                      ),
+                      const SizedBox(height: TviumSpacing.xs),
+                      Text(
+                        item?.displayName ?? 'No titles available',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: TviumSpacing.xs),
+                      Text('$count ${count == 1 ? 'title' : 'titles'}'),
+                      if (overlay?.overview case final overview?) ...<Widget>[
+                        const SizedBox(height: TviumSpacing.xs),
+                        Text(
+                          overview,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      if (item != null) ...<Widget>[
+                        const SizedBox(height: TviumSpacing.sm),
+                        Wrap(
+                          spacing: TviumSpacing.sm,
+                          runSpacing: TviumSpacing.xs,
+                          children: <Widget>[
+                            if (destination == _CatalogDestination.movies &&
+                                item.isPlayable)
+                              FilledButton.icon(
+                                onPressed: () => onPlay(item),
+                                icon: const Icon(Icons.play_arrow_rounded),
+                                label: const Text('Play'),
+                              ),
+                            OutlinedButton(
+                              onPressed: onDetails,
+                              child: const Text('View details'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+final class _CountrySidebar extends StatefulWidget {
+  const _CountrySidebar({
+    required this.countries,
+    required this.selectedCode,
+    required this.onSelected,
+  });
+
+  final List<LiveCountry> countries;
+  final String selectedCode;
+  final ValueChanged<String>? onSelected;
+
+  @override
+  State<_CountrySidebar> createState() => _CountrySidebarState();
+}
+
+final class _CountrySidebarState extends State<_CountrySidebar> {
+  String query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final needle = query.trim().toLowerCase();
+    final options = <LiveCountry?>[null, ...widget.countries]
+        .where(
+          (country) =>
+              needle.isEmpty ||
+              (country?.name.toLowerCase().contains(needle) ?? false) ||
+              (country?.code.toLowerCase().contains(needle) ?? false),
+        )
+        .toList(growable: false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            TviumSpacing.md,
+            TviumSpacing.md,
+            TviumSpacing.md,
+            TviumSpacing.sm,
+          ),
+          child: Text(
+            'Countries · ${widget.countries.length}',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            TviumSpacing.xs,
+            0,
+            TviumSpacing.xs,
+            TviumSpacing.sm,
+          ),
+          child: TextField(
+            key: const ValueKey('live-country-search'),
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search_rounded),
+              hintText: 'Search countries',
+              isDense: true,
+            ),
+            onChanged: (value) => setState(() => query = value),
+          ),
+        ),
+        Expanded(
+          child: options.isEmpty
+              ? const Center(child: Text('No countries found'))
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(
+                    TviumSpacing.xs,
+                    0,
+                    TviumSpacing.xs,
+                    TviumSpacing.sm,
+                  ),
+                  itemCount: options.length,
+                  itemBuilder: (context, index) {
+                    final country = options[index];
+                    final code = country?.code ?? 'ALL';
+                    final selected = code == widget.selectedCode;
+                    final artwork = countryArtwork[code];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: TviumSpacing.xs),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          key: ValueKey('country-${country?.code ?? 'all'}'),
+                          onTap: () => widget.onSelected?.call(code),
+                          borderRadius: BorderRadius.circular(
+                            TviumRadius.control,
+                          ),
+                          child: Ink(
+                            height: selected ? 150 : 68,
+                            decoration: BoxDecoration(
+                              color: const Color(0x88183044),
+                              borderRadius: BorderRadius.circular(
+                                TviumRadius.control,
+                              ),
+                              border: Border.all(
+                                color: selected
+                                    ? TviumColors.accentDark
+                                    : Colors.white.withValues(alpha: 0.12),
+                                width: selected ? 2 : 1,
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                TviumRadius.control,
+                              ),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: <Widget>[
+                                  if (artwork != null)
+                                    Image.asset(
+                                      artwork,
+                                      key: ValueKey('country-art-$code'),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  const DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: <Color>[
+                                          Color(0x66071320),
+                                          Color(0xEB071320),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(
+                                      TviumSpacing.sm,
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: <Widget>[
+                                        if (country == null)
+                                          Icon(
+                                            Icons.public_rounded,
+                                            size: selected ? 40 : 28,
+                                          )
+                                        else
+                                          ClipOval(
+                                            child: Image.asset(
+                                              country.flagAsset,
+                                              key: ValueKey(
+                                                'country-flag-$code',
+                                              ),
+                                              width: selected ? 44 : 32,
+                                              height: selected ? 44 : 32,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                        const SizedBox(width: TviumSpacing.xs),
+                                        Expanded(
+                                          child: Text(
+                                            country?.name ?? 'All countries',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: selected ? 16 : 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+final class _LivePreviewPanel extends StatelessWidget {
+  const _LivePreviewPanel({
+    required this.entry,
+    required this.schedule,
+    required this.selectedEntry,
+    required this.engine,
+    this.onPlay,
+    this.favorite = false,
+    this.onFavorite,
+    this.onPreviousChannel,
+    this.onNextChannel,
+    this.onOpenChannelSwitcher,
+  });
+
+  final _LibraryEntry? entry;
+  final EpgNowNext? schedule;
+  final _LibraryEntry? selectedEntry;
+  final PlaybackEngine? engine;
+  final VoidCallback? onPlay;
+  final bool favorite;
+  final VoidCallback? onFavorite;
+  final VoidCallback? onPreviousChannel;
+  final VoidCallback? onNextChannel;
+  final VoidCallback? onOpenChannelSwitcher;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = schedule?.current;
+    final next = schedule?.next;
+    final currentDuration = current == null
+        ? Duration.zero
+        : current.stopUtc.difference(current.startUtc);
+    final currentProgress = currentDuration.inMilliseconds > 0
+        ? (DateTime.now().toUtc().difference(current!.startUtc).inMilliseconds /
+                  currentDuration.inMilliseconds)
+              .clamp(0.0, 1.0)
+        : null;
+    String timeRange(EpgProgramme programme) {
+      String time(DateTime utc) {
+        final local = utc.toLocal();
+        return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+      }
+
+      return '${time(programme.startUtc)} – ${time(programme.stopUtc)}';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: _PlayerPanel(
+            selectedEntry: selectedEntry,
+            engine: engine,
+            onPreviousChannel: onPreviousChannel,
+            onNextChannel: onNextChannel,
+            onOpenChannelSwitcher: onOpenChannelSwitcher,
+          ),
+        ),
+        const SizedBox(height: TviumSpacing.md),
+        Expanded(
+          child: SingleChildScrollView(
+            key: const ValueKey('live-preview-info'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  entry?.displayName ?? 'Select a channel',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: TviumSpacing.sm),
+                if (current == null)
+                  const Text('Program guide unavailable')
+                else ...<Widget>[
+                  Text('Now · ${current.title}'),
+                  const SizedBox(height: TviumSpacing.xs),
+                  Text(timeRange(current)),
+                  if (currentProgress != null) ...<Widget>[
+                    const SizedBox(height: TviumSpacing.sm),
+                    LinearProgressIndicator(
+                      key: const ValueKey('live-preview-progress'),
+                      value: currentProgress,
+                    ),
+                  ],
+                  if (current.description case final description?) ...<Widget>[
+                    const SizedBox(height: TviumSpacing.xs),
+                    Text(description),
+                  ],
+                ],
+                if (next != null) ...<Widget>[
+                  const Divider(height: TviumSpacing.lg),
+                  Text('Up next · ${next.title}'),
+                  const SizedBox(height: TviumSpacing.xs),
+                  Text(timeRange(next)),
+                ] else if (current != null) ...<Widget>[
+                  const Divider(height: TviumSpacing.lg),
+                  const Text('Up next · Not available'),
+                ],
+                const SizedBox(height: TviumSpacing.md),
+                Wrap(
+                  spacing: TviumSpacing.sm,
+                  runSpacing: TviumSpacing.sm,
+                  children: <Widget>[
+                    FilledButton.icon(
+                      key: const ValueKey('live-preview-play'),
+                      onPressed: onPlay,
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('Play'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('live-preview-guide'),
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('TV Guide'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(entry?.displayName ?? 'Select a channel'),
+                              const SizedBox(height: TviumSpacing.md),
+                              Text(
+                                current == null
+                                    ? 'Now · Not available'
+                                    : 'Now · ${current.title}',
+                              ),
+                              const SizedBox(height: TviumSpacing.sm),
+                              Text(
+                                next == null
+                                    ? 'Up next · Not available'
+                                    : 'Up next · ${next.title}',
+                              ),
+                            ],
+                          ),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(),
+                              child: const Text('Close'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      icon: const Icon(Icons.view_list_rounded),
+                      label: const Text('TV Guide'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('live-preview-favorite'),
+                      onPressed: onFavorite,
+                      icon: Icon(
+                        favorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                      ),
+                      label: Text(favorite ? 'Saved' : 'Favorite'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -2107,76 +3870,95 @@ final class _GroupSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = <String?>[null, ...groups];
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xB30A1A2A),
-        borderRadius: BorderRadius.circular(TviumRadius.surface),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Padding(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            TviumSpacing.md,
+            TviumSpacing.md,
+            TviumSpacing.md,
+            TviumSpacing.sm,
+          ),
+          child: Text(
+            'Categories',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(
-              TviumSpacing.md,
-              TviumSpacing.md,
-              TviumSpacing.md,
+              TviumSpacing.xs,
+              0,
+              TviumSpacing.xs,
               TviumSpacing.sm,
             ),
-            child: Text(
-              'Categories',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(
-                TviumSpacing.xs,
-                0,
-                TviumSpacing.xs,
-                TviumSpacing.sm,
-              ),
-              itemCount: options.length,
-              itemBuilder: (context, index) {
-                final group = options[index];
-                final selected = group == selectedGroup;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: ListTile(
-                      dense: true,
-                      selected: selected,
-                      selectedTileColor: TviumColors.accentDark.withValues(
-                        alpha: 0.16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          TviumRadius.control,
-                        ),
-                      ),
-                      leading: Icon(
-                        selected
-                            ? Icons.radio_button_checked_rounded
-                            : Icons.radio_button_unchecked_rounded,
-                        size: 18,
-                      ),
-                      title: Text(
-                        group ?? 'All categories',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onTap: () => onSelected(group),
+            itemCount: options.length,
+            itemBuilder: (context, index) {
+              final group = options[index];
+              final selected = group == selectedGroup;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    selected: selected,
+                    selectedTileColor: TviumColors.accentDark.withValues(
+                      alpha: 0.16,
                     ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(TviumRadius.control),
+                    ),
+                    leading: Icon(
+                      _liveCategoryIcon(
+                        group == null ? '' : liveCategoryLabel(group),
+                      ),
+                      key: ValueKey(
+                        'live-category-icon-${group == null ? 'all' : liveCategoryLabel(group).toLowerCase()}',
+                      ),
+                      size: 22,
+                      color: selected ? TviumColors.accentDark : Colors.white70,
+                    ),
+                    title: Text(
+                      group == null
+                          ? 'All categories'
+                          : liveCategoryLabel(group),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => onSelected(group),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
+}
+
+IconData _liveCategoryIcon(String label) {
+  final value = label.toLowerCase();
+  if (value.contains('sport')) return Icons.emoji_events_outlined;
+  if (value.contains('news') || value.contains('info')) {
+    return Icons.newspaper_rounded;
+  }
+  if (value.contains('movie') ||
+      value.contains('cinema') ||
+      value.contains('film')) {
+    return Icons.movie_outlined;
+  }
+  if (value.contains('music')) return Icons.music_note_rounded;
+  if (value.contains('kid') || value.contains('child')) {
+    return Icons.child_care_rounded;
+  }
+  if (value.contains('document') || value.contains('nature')) {
+    return Icons.eco_outlined;
+  }
+  if (value.contains('entertainment')) return Icons.tv_rounded;
+  return label.isEmpty ? Icons.grid_view_rounded : Icons.category_outlined;
 }
 
 final class _LiveMediaRow extends StatelessWidget {
@@ -2199,7 +3981,7 @@ final class _LiveMediaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: EdgeInsets.zero,
-      color: const Color(0xFF102133),
+      color: const Color(0xA8102133),
       child: ListTile(
         minTileHeight: 72,
         contentPadding: const EdgeInsets.symmetric(
@@ -2269,6 +4051,7 @@ final class _MediaCard extends StatelessWidget {
   const _MediaCard({
     super.key,
     required this.entry,
+    this.prefetchMetadata = false,
     required this.schedule,
     required this.destination,
     required this.onTap,
@@ -2277,6 +4060,7 @@ final class _MediaCard extends StatelessWidget {
   });
 
   final _LibraryEntry entry;
+  final bool prefetchMetadata;
   final EpgNowNext? schedule;
   final _CatalogDestination destination;
   final VoidCallback? onTap;
@@ -2288,7 +4072,13 @@ final class _MediaCard extends StatelessWidget {
     final live = destination == _CatalogDestination.live;
     return Card(
       clipBehavior: Clip.antiAlias,
-      color: const Color(0xFF102133),
+      color: const Color(0xB8102638),
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(TviumRadius.surface),
+        side: const BorderSide(color: Color(0x44B8E8FF)),
+      ),
       child: InkWell(
         onTap: onTap,
         child: Column(
@@ -2298,7 +4088,10 @@ final class _MediaCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
-                  _CatalogArtwork(entry: entry),
+                  _CatalogArtwork(
+                    entry: entry,
+                    prefetchMetadata: prefetchMetadata,
+                  ),
                   Align(
                     alignment: Alignment.topRight,
                     child: IconButton.filledTonal(
@@ -2367,37 +4160,89 @@ final class _MediaCard extends StatelessWidget {
   }
 }
 
-final class _CatalogArtwork extends StatelessWidget {
-  const _CatalogArtwork({required this.entry});
+final class _CatalogArtwork extends ConsumerWidget {
+  const _CatalogArtwork({
+    super.key,
+    required this.entry,
+    this.prefetchMetadata = false,
+  });
 
   final _LibraryEntry entry;
+  final bool prefetchMetadata;
 
   @override
-  Widget build(BuildContext context) {
-    final uri = entry.imageUri;
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: metadataEnabled,
+      builder: (context, enabled, _) => _buildArtwork(context, ref, enabled),
+    );
+  }
+
+  Widget _buildArtwork(BuildContext context, WidgetRef ref, bool enabled) {
+    final live = entry.kind == MediaKind.live;
+    final overlay = live || !enabled
+        ? null
+        : prefetchMetadata
+        ? ref
+              .watch(
+                metadataVisibleOverlayProvider((
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
+                  title: entry.name,
+                  kind: entry.kind,
+                  enabled: true,
+                )),
+              )
+              .value
+        : ref
+              .watch(
+                metadataCachedOverlayProvider((
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
+                  title: entry.name,
+                  kind: entry.kind,
+                  enabled: true,
+                )),
+              )
+              .value;
+    final uri = overlay?.posterUri ?? entry.imageUri;
+    final episodeStillIsNotSeriesPoster =
+        entry.kind == MediaKind.episode &&
+        entry.seriesEpisodes.isNotEmpty &&
+        entry.xtreamSeriesId == null;
+    final fallback = Center(
+      key: episodeStillIsNotSeriesPoster
+          ? const ValueKey('catalog-series-placeholder')
+          : live
+          ? const ValueKey('live-logo-fallback')
+          : null,
+      child: Icon(
+        _mediaIcon(entry.kind),
+        size: live ? 30 : 46,
+        color: Colors.white54,
+      ),
+    );
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: <Color>[Color(0xFF163D58), Color(0xFF09141F)],
         ),
       ),
-      child: uri == null || !uri.hasScheme || uri.host.endsWith('.test')
-          ? Center(
-              child: Icon(
-                _mediaIcon(entry.kind),
-                size: 46,
-                color: Colors.white54,
-              ),
-            )
-          : CachedNetworkImage(
-              imageUrl: uri.toString(),
-              fit: BoxFit.cover,
-              errorWidget: (context, url, error) => Center(
-                child: Icon(
-                  _mediaIcon(entry.kind),
-                  size: 46,
-                  color: Colors.white54,
-                ),
+      child: episodeStillIsNotSeriesPoster && overlay?.posterUri == null
+          ? fallback
+          : Padding(
+              padding: EdgeInsets.all(live ? 4 : 0),
+              child: ArtworkImage(
+                sourceId: entry.sourceId,
+                entryId: entry.id,
+                role: live
+                    ? 'logo'
+                    : overlay?.posterUri != null
+                    ? 'verified-poster'
+                    : 'poster',
+                uri: uri,
+                fit: live ? BoxFit.contain : BoxFit.cover,
+                fallback: fallback,
               ),
             ),
     );
@@ -2424,43 +4269,151 @@ Future<void> _showTitleDetails(
   }
   return showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      key: const ValueKey('title-details'),
-      title: Text(entry.displayName),
-      content: SizedBox(
-        width: 480,
+    builder: (dialogContext) {
+      final wide = MediaQuery.sizeOf(dialogContext).width >= 720;
+      final details = SingleChildScrollView(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              entry.group ??
-                  (entry.kind == MediaKind.movie ? 'Movie' : 'TV show'),
+              entry.kind == MediaKind.movie ? 'MOVIE' : 'TV SHOW',
+              style: Theme.of(dialogContext).textTheme.labelLarge
+                  ?.copyWith(color: TviumColors.accentDark),
             ),
             const SizedBox(height: TviumSpacing.sm),
-            const Text(
-              'Online descriptions and ratings are optional and do not affect playback.',
+            Text(
+              entry.displayName,
+              key: const ValueKey('title-details-heading'),
+              style: Theme.of(dialogContext).textTheme.headlineMedium,
+            ),
+            if (entry.group != null) ...<Widget>[
+              const SizedBox(height: TviumSpacing.sm),
+              Text(entry.group!),
+            ],
+            const SizedBox(height: TviumSpacing.md),
+            OnlineMetadataSummary(
+              originalTitle: entry.name,
+              kind: entry.kind,
+              sourceId: entry.sourceId,
+              entryId: entry.id,
             ),
           ],
         ),
-      ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Close'),
+      );
+      return AlertDialog(
+        key: const ValueKey('title-details'),
+        content: SizedBox(
+          width: wide ? 680 : 320,
+          height: wide ? 320 : 410,
+          child: wide
+              ? Row(
+                  children: <Widget>[
+                    SizedBox(
+                      width: 190,
+                      child: _TitleDetailsPoster(entry: entry),
+                    ),
+                    const SizedBox(width: TviumSpacing.lg),
+                    Expanded(child: details),
+                  ],
+                )
+              : Column(
+                  children: <Widget>[
+                    SizedBox(
+                      width: 120,
+                      height: 180,
+                      child: _TitleDetailsPoster(entry: entry),
+                    ),
+                    const SizedBox(height: TviumSpacing.md),
+                    Expanded(child: details),
+                  ],
+                ),
         ),
-        FilledButton(
-          onPressed: entry.isPlayable
-              ? () {
-                  Navigator.of(dialogContext).pop();
-                  onPlay(entry);
-                }
-              : null,
-          child: const Text('Play now'),
-        ),
-      ],
-    ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+          FilledButton(
+            onPressed: entry.isPlayable
+                ? () {
+                    Navigator.of(dialogContext).pop();
+                    onPlay(entry);
+                  }
+                : null,
+            child: const Text('Play now'),
+          ),
+        ],
+      );
+    },
   );
+}
+
+final class _TitleDetailsPoster extends StatelessWidget {
+  const _TitleDetailsPoster({required this.entry});
+
+  final _LibraryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final usePoster =
+        entry.imageUri?.hasScheme == true &&
+        (entry.kind == MediaKind.movie || entry.xtreamSeriesId != null);
+    return ClipRRect(
+      key: const ValueKey('title-details-poster'),
+      borderRadius: BorderRadius.circular(TviumRadius.control),
+      child: ColoredBox(
+        color: const Color(0xFF163044),
+        child: usePoster
+            ? ArtworkImage(
+                sourceId: entry.sourceId,
+                entryId: entry.id,
+                role: 'poster',
+                uri: entry.imageUri,
+                fit: BoxFit.cover,
+              )
+            : Center(child: Icon(_mediaIcon(entry.kind), size: 44)),
+      ),
+    );
+  }
+}
+
+final class _SeriesDetailsBody extends StatelessWidget {
+  const _SeriesDetailsBody({required this.entry, required this.child});
+
+  final _LibraryEntry entry;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= 720;
+    final height = (MediaQuery.sizeOf(context).height * 0.58).clamp(
+      300.0,
+      480.0,
+    );
+    return SizedBox(
+      width: wide ? 700 : 320,
+      height: height,
+      child: wide
+          ? Row(
+              children: <Widget>[
+                SizedBox(width: 180, child: _TitleDetailsPoster(entry: entry)),
+                const SizedBox(width: TviumSpacing.lg),
+                Expanded(child: child),
+              ],
+            )
+          : Column(
+              children: <Widget>[
+                SizedBox(
+                  width: 100,
+                  height: 150,
+                  child: _TitleDetailsPoster(entry: entry),
+                ),
+                const SizedBox(height: TviumSpacing.sm),
+                Expanded(child: child),
+              ],
+            ),
+    );
+  }
 }
 
 Future<void> _showLocalSeriesDetails(
@@ -2494,11 +4447,17 @@ Future<void> _showLocalSeriesDetails(
     builder: (dialogContext) => AlertDialog(
       key: const ValueKey('title-details'),
       title: Text(entry.displayName),
-      content: SizedBox(
-        width: 560,
-        height: 480,
+      content: _SeriesDetailsBody(
+        entry: entry,
         child: ListView(
           children: <Widget>[
+            OnlineMetadataSummary(
+              originalTitle: entry.name,
+              kind: entry.kind,
+              sourceId: entry.sourceId,
+              entryId: entry.id,
+            ),
+            const SizedBox(height: TviumSpacing.sm),
             for (final seasonNumber in seasonNumbers)
               ExpansionTile(
                 key: ValueKey('season-$seasonNumber'),
@@ -2571,9 +4530,8 @@ Future<void> _showSeriesDetails(
     builder: (dialogContext) => AlertDialog(
       key: const ValueKey('title-details'),
       title: Text(entry.displayName),
-      content: SizedBox(
-        width: 560,
-        height: 480,
+      content: _SeriesDetailsBody(
+        entry: entry,
         child: FutureBuilder<XtreamSeriesDetails>(
           future: details,
           builder: (context, snapshot) {
@@ -2588,6 +4546,13 @@ Future<void> _showSeriesDetails(
             }
             return ListView(
               children: <Widget>[
+                OnlineMetadataSummary(
+                  originalTitle: entry.name,
+                  kind: entry.kind,
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
+                ),
+                const SizedBox(height: TviumSpacing.sm),
                 if (series.plot case final plot?) ...<Widget>[
                   Text(plot),
                   const SizedBox(height: TviumSpacing.sm),
@@ -2662,67 +4627,386 @@ IconData _mediaIcon(MediaKind kind) => switch (kind) {
   MediaKind.unclassified => Icons.play_circle_outline_rounded,
 };
 
-Uri? _firstArtwork(
-  List<_LibraryEntry> entries,
-  _CatalogDestination destination,
-) {
-  for (final entry in entries) {
-    final matches = switch (destination) {
-      _CatalogDestination.live => entry.kind == MediaKind.live,
-      _CatalogDestination.movies => entry.kind == MediaKind.movie,
-      _CatalogDestination.shows => entry.kind == MediaKind.episode,
-      _CatalogDestination.home => false,
-    };
-    final uri = entry.imageUri;
-    if (matches &&
-        uri != null &&
-        uri.hasScheme &&
-        !uri.host.endsWith('.test')) {
-      return uri;
-    }
-  }
-  return null;
-}
-
-final class _PlayerPanel extends ConsumerWidget {
-  const _PlayerPanel({required this.selectedEntry, required this.engine});
-
-  final _LibraryEntry? selectedEntry;
-  final PlaybackEngine? engine;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final playbackEngine = engine;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(TviumRadius.surface),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: playbackEngine == null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(TviumSpacing.lg),
-                child: Text(
-                  AppLocalizations.of(context).chooseChannel,
-                  textAlign: TextAlign.center,
-                ),
-              ),
+Future<void> _showChannelSwitcher(
+  BuildContext context,
+  List<_LibraryEntry> channels,
+  ValueChanged<_LibraryEntry> onPlay,
+) => showDialog<void>(
+  context: context,
+  builder: (dialogContext) {
+    var query = '';
+    return StatefulBuilder(
+      builder: (context, setDialogState) {
+        final matches = channels
+            .where(
+              (entry) =>
+                  entry.displayName.toLowerCase().contains(query.toLowerCase()),
             )
-          : Stack(
-              fit: StackFit.expand,
+            .toList(growable: false);
+        void chooseChannel(_LibraryEntry entry) {
+          Navigator.of(dialogContext).pop();
+          onPlay(entry);
+        }
+
+        return AlertDialog(
+          key: const ValueKey('live-channel-switcher'),
+          title: const Text('Switch channel'),
+          content: SizedBox(
+            width: 440,
+            height: (MediaQuery.sizeOf(context).height * 0.55).clamp(
+              180.0,
+              420.0,
+            ),
+            child: Column(
               children: <Widget>[
-                ref.watch(playbackViewBuilderProvider)(playbackEngine),
-                Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Container(
-                    padding: const EdgeInsets.all(TviumSpacing.md),
-                    color: Colors.black.withValues(alpha: 0.65),
-                    child: Text(selectedEntry?.name ?? ''),
+                TextField(
+                  key: const ValueKey('live-channel-switcher-search'),
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search_rounded),
+                    hintText: 'Search channels',
                   ),
+                  onChanged: (value) => setDialogState(() => query = value),
+                  onSubmitted: (value) {
+                    final submitted = value.toLowerCase();
+                    final first = channels
+                        .where(
+                          (entry) => entry.displayName.toLowerCase().contains(
+                            submitted,
+                          ),
+                        )
+                        .firstOrNull;
+                    if (first != null) chooseChannel(first);
+                  },
+                ),
+                const SizedBox(height: TviumSpacing.sm),
+                Expanded(
+                  child: matches.isEmpty
+                      ? const Center(child: Text('No matching channels'))
+                      : ListView.builder(
+                          itemCount: matches.length,
+                          itemBuilder: (context, index) {
+                            final entry = matches[index];
+                            return ListTile(
+                              key: ValueKey('switch-channel-${entry.id}'),
+                              title: Text(
+                                entry.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () => chooseChannel(entry),
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
+          ),
+        );
+      },
+    );
+  },
+);
+
+final class _PlayerPanel extends ConsumerStatefulWidget {
+  const _PlayerPanel({
+    required this.selectedEntry,
+    required this.engine,
+    this.onPreviousChannel,
+    this.onNextChannel,
+    this.onOpenChannelSwitcher,
+  });
+
+  final _LibraryEntry? selectedEntry;
+  final PlaybackEngine? engine;
+  final VoidCallback? onPreviousChannel;
+  final VoidCallback? onNextChannel;
+  final VoidCallback? onOpenChannelSwitcher;
+
+  @override
+  ConsumerState<_PlayerPanel> createState() => _PlayerPanelState();
+}
+
+final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
+  bool _fullScreen = false;
+  double _volume = 1;
+
+  Future<void> _openFullScreen() async {
+    final engine = widget.engine;
+    if (engine == null) return;
+    setState(() => _fullScreen = true);
+    final viewBuilder = ref.read(playbackViewBuilderProvider);
+    Timer? hideControls;
+    var controlsVisible = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        useSafeArea: false,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            void scheduleHide() {
+              hideControls?.cancel();
+              hideControls = Timer(const Duration(seconds: 3), () {
+                if (dialogContext.mounted) {
+                  setDialogState(() => controlsVisible = false);
+                }
+              });
+            }
+
+            void revealControls() {
+              if (!controlsVisible) {
+                setDialogState(() => controlsVisible = true);
+              }
+              scheduleHide();
+            }
+
+            if (hideControls == null) scheduleHide();
+            return Focus(
+              autofocus: true,
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.keyF) {
+                  Navigator.of(dialogContext).pop();
+                  return KeyEventResult.handled;
+                }
+                if (event is KeyDownEvent) revealControls();
+                return KeyEventResult.ignored;
+              },
+              child: Dialog.fullscreen(
+                child: Listener(
+                  onPointerDown: (_) => revealControls(),
+                  onPointerHover: (_) => revealControls(),
+                  child: ColoredBox(
+                    key: const ValueKey('live-fullscreen-player'),
+                    color: Colors.black,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: <Widget>[
+                        viewBuilder(engine),
+                        if (controlsVisible)
+                          Align(
+                            alignment: Alignment.bottomCenter,
+                            child: SafeArea(
+                              child: _controls(
+                                engine,
+                                fullScreen: true,
+                                onVolumeChanged: (value) {
+                                  setDialogState(() => _volume = value);
+                                  engine.setVolume(value);
+                                },
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      hideControls?.cancel();
+      if (mounted) setState(() => _fullScreen = false);
+    }
+  }
+
+  Widget _controls(
+    PlaybackEngine engine, {
+    required bool fullScreen,
+    ValueChanged<double>? onVolumeChanged,
+  }) {
+    return SizedBox(
+      key: ValueKey(
+        fullScreen ? 'live-fullscreen-controls' : 'live-preview-controls',
+      ),
+      height: 56,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: TviumSpacing.sm),
+        color: Colors.black.withValues(alpha: 0.72),
+        child: StreamBuilder<PlaybackState>(
+          stream: engine.state,
+          initialData: engine.currentState,
+          builder: (context, snapshot) {
+            final playing = snapshot.data?.phase == PlaybackPhase.playing;
+            final leading = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                IconButton(
+                  key: ValueKey(
+                    fullScreen ? 'live-fullscreen-play' : 'live-player-play',
+                  ),
+                  tooltip: playing ? 'Pause' : 'Play',
+                  onPressed: () => playing ? engine.pause() : engine.play(),
+                  icon: Icon(
+                    playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  ),
+                ),
+                if (fullScreen) ...<Widget>[
+                  const Icon(Icons.volume_up_rounded, size: 18),
+                  SizedBox(
+                    width: 110,
+                    child: Slider(
+                      key: const ValueKey('live-fullscreen-volume'),
+                      value: _volume,
+                      onChanged: onVolumeChanged,
+                    ),
+                  ),
+                ] else if (widget.onOpenChannelSwitcher != null)
+                  IconButton(
+                    key: const ValueKey('live-channel-switcher-button'),
+                    tooltip: 'Switch channel',
+                    onPressed: widget.onOpenChannelSwitcher,
+                    icon: const Icon(Icons.search_rounded),
+                  ),
+              ],
+            );
+            final channelControls = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (widget.onPreviousChannel != null) ...<Widget>[
+                  IconButton(
+                    key: const ValueKey('live-previous-channel'),
+                    tooltip: 'Previous channel',
+                    onPressed: widget.onPreviousChannel,
+                    icon: const Icon(Icons.skip_previous_rounded),
+                  ),
+                  IconButton(
+                    key: const ValueKey('live-next-channel'),
+                    tooltip: 'Next channel',
+                    onPressed: widget.onNextChannel,
+                    icon: const Icon(Icons.skip_next_rounded),
+                  ),
+                ],
+              ],
+            );
+            final fullScreenButton = !fullScreen
+                ? IconButton(
+                    key: const ValueKey('live-player-fullscreen'),
+                    tooltip: 'Full screen',
+                    onPressed: _openFullScreen,
+                    icon: const Icon(Icons.fullscreen_rounded),
+                  )
+                : IconButton(
+                    key: const ValueKey('live-fullscreen-exit'),
+                    tooltip: 'Exit full screen',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.fullscreen_exit_rounded),
+                  );
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                // Equal side slots keep the channel buttons at the actual
+                // center, regardless of the wider volume controls on the left.
+                if (constraints.maxWidth < (fullScreen ? 450 : 300)) {
+                  return Row(
+                    children: <Widget>[
+                      leading,
+                      const Spacer(),
+                      channelControls,
+                      fullScreenButton,
+                    ],
+                  );
+                }
+                return Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: leading,
+                      ),
+                    ),
+                    channelControls,
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: fullScreenButton,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final playbackEngine = widget.engine;
+    return Focus(
+      key: const ValueKey('live-player-focus'),
+      canRequestFocus: widget.onNextChannel != null,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) {
+          return KeyEventResult.ignored;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.keyF &&
+            playbackEngine != null) {
+          unawaited(_openFullScreen());
+          return KeyEventResult.handled;
+        }
+        if (widget.onNextChannel == null) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
+            event.logicalKey == LogicalKeyboardKey.pageUp) {
+          widget.onPreviousChannel?.call();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+            event.logicalKey == LogicalKeyboardKey.pageDown) {
+          widget.onNextChannel?.call();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(TviumRadius.surface),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: playbackEngine == null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(TviumSpacing.lg),
+                  child: Text(
+                    AppLocalizations.of(context).chooseChannel,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              )
+            : _fullScreen
+            ? const SizedBox.expand()
+            : Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  ref.watch(playbackViewBuilderProvider)(playbackEngine),
+                  if (widget.selectedEntry != null)
+                    Positioned(
+                      top: TviumSpacing.xs,
+                      left: TviumSpacing.sm,
+                      right: TviumSpacing.sm,
+                      child: Text(
+                        widget.selectedEntry!.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          shadows: <Shadow>[
+                            Shadow(color: Colors.black, blurRadius: 8),
+                          ],
+                        ),
+                      ),
+                    ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: _controls(playbackEngine, fullScreen: false),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 }
@@ -2888,7 +5172,7 @@ final class _LibraryEntry {
     sourceId: profileId,
   );
 
-  factory _LibraryEntry.fromPersisted(PersistedMediaEntry entry) {
+  factory _LibraryEntry.fromPersisted(PersistedMediaEntry entry, Uri? artwork) {
     final externalId = entry.externalId;
     final playable =
         externalId != null &&
@@ -2898,7 +5182,7 @@ final class _LibraryEntry {
       name: entry.originalName,
       kind: entry.kind,
       group: entry.groupName,
-      imageUri: null,
+      imageUri: artwork,
       m3uUri: null,
       m3uSourceReference: externalId == null ? entry.sourceReference : null,
       xtreamProfileId: externalId == null ? null : entry.sourceReference,
@@ -2908,7 +5192,7 @@ final class _LibraryEntry {
               name: entry.displayName,
               kind: entry.kind,
               categoryId: null,
-              imageUri: null,
+              imageUri: artwork,
               containerExtension: entry.containerExtension,
               epgChannelId: entry.epgChannelId,
             )

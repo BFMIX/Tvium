@@ -50,6 +50,46 @@ test('TMDB uses fixed upstream and bearer header; results are bounded and cached
   assert.equal(calls, 2);
 });
 
+test('TMDB preserves localized and original titles plus backdrop artwork', async () => {
+  const search = createSearch({ token: 'test-only-token', fetchImpl: async url => {
+    assert.equal(url.searchParams.get('language'), 'fr-FR');
+    return response({ results: [{ id: 7, title: 'Titre français', original_title: 'Original Title', release_date: '2020-01-01', poster_path: '/poster.jpg', backdrop_path: '/backdrop.jpg' }] });
+  } });
+  const result = await search({ title: 'Titre français', kind: 'movie', year: 2020, language: 'fr-FR' });
+  assert.equal(result.candidates[0].originalTitle, 'Original Title');
+  assert.equal(result.candidates[0].backdropUrl, 'https://image.tmdb.org/t/p/w1280/backdrop.jpg');
+});
+
+test('TMDB verifies regional movie titles through bounded alternative-title lookups', async () => {
+  const paths = [];
+  const search = createSearch({ token: 'test', fetchImpl: async url => {
+    paths.push(url.pathname);
+    if (url.pathname === '/3/search/movie') return response({ results: [
+      { id: 7, title: 'Original Name', release_date: '2020-01-01' },
+      { id: 8, title: 'Another Name', release_date: '2020-01-01' },
+      { id: 9, title: 'Wrong Year', release_date: '2019-01-01' },
+    ] });
+    if (url.pathname === '/3/movie/7/alternative_titles') return response({ titles: [{ title: 'Nom régional' }, { title: 'Nom régional' }, { title: 'https://private.example.test' }] });
+    throw new Error('unavailable');
+  } });
+  const result = await search({ title: 'Nom régional', kind: 'movie', year: 2020 });
+  assert.deepEqual(result.candidates[0].alternativeTitles, ['Nom régional']);
+  assert.equal(result.candidates[1].alternativeTitles, undefined);
+  assert.deepEqual(paths, ['/3/search/movie', '/3/movie/7/alternative_titles', '/3/movie/8/alternative_titles']);
+});
+
+test('TMDB verifies TV alternative titles while direct matches need one request', async () => {
+  const paths = [];
+  const search = createSearch({ token: 'test', fetchImpl: async url => {
+    paths.push(url.pathname);
+    if (url.pathname === '/3/search/tv') return response({ results: [{ id: 3, name: 'Original Series', first_air_date: '2020-01-01' }] });
+    return response({ results: [{ title: 'Série régionale' }] });
+  } });
+  const result = await search({ title: 'Série régionale', kind: 'series', year: 2020 });
+  assert.deepEqual(result.candidates[0].alternativeTitles, ['Série régionale']);
+  assert.deepEqual(paths, ['/3/search/tv', '/3/tv/3/alternative_titles']);
+});
+
 test('series falls back to TVmaze and strips HTML; unsafe image links omitted', async () => {
   const search = createSearch({ token: 'test-token', fetchImpl: async url => {
     if (url.hostname === 'api.themoviedb.org') throw new Error('private upstream details');

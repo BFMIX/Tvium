@@ -1,4 +1,9 @@
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
+import { createPairingRelay } from './pairing_relay.js';
+
+const phonePage = readFileSync(new URL('./pairing_phone.html', import.meta.url));
+const phoneScript = readFileSync(new URL('./pairing-phone.js', import.meta.url));
 
 const hosts = new Set(['api.themoviedb.org', 'api.tvmaze.com', 'iptv-org.github.io']);
 const unsafe = /(?:[a-z][a-z0-9+.-]*:\/|\/\/|www\.|[\w.-]+\.[a-z]{2,}(?:\/|:\d)|[\w.+-]+@[\w.-]+|(?:password|passwd|username|token|api[_ -]?key)\s*[:=]|[?&][\w]+=[^\s]+|%[0-9a-f]{2}|#EXTM3U|#EXTINF)/i;
@@ -53,12 +58,29 @@ export function createSearch({ fetchImpl = fetch, token = '', now = Date.now, tt
     url.search = new URLSearchParams({ query: query.title, language: query.language, include_adult: 'false', ...(query.year ? { [type === 'movie' ? 'year' : 'first_air_date_year']: String(query.year) } : {}) });
     const data = await json(url, { Authorization: `Bearer ${token}` });
     if (!Array.isArray(data.results)) throw new Error('upstream_unavailable');
-    return data.results.filter(item => Number.isInteger(item.id) && typeof (item.title ?? item.name) === 'string').slice(0, 20).map(item => ({
-      id: String(item.id), provider: 'tmdb', title: clean(item.title ?? item.name), kind: query.kind,
+    const candidates = data.results.filter(item => Number.isInteger(item.id) && typeof (item.title ?? item.name) === 'string').slice(0, 20).map(item => ({
+      id: String(item.id), provider: 'tmdb', title: clean(item.title ?? item.name), originalTitle: clean(item.original_title ?? item.original_name), kind: query.kind,
       year: yearOf(item.release_date ?? item.first_air_date), overview: clean(item.overview),
       posterUrl: /^\/[a-zA-Z0-9._-]+$/.test(item.poster_path ?? '') ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
+      backdropUrl: /^\/[a-zA-Z0-9._-]+$/.test(item.backdrop_path ?? '') ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : undefined,
       sourceUrl: `https://www.themoviedb.org/${type}/${item.id}`, license: 'TMDB terms; attribution required; non-commercial API use',
     }));
+    const title = normalize(query.title);
+    if (query.year && !candidates.some(item =>
+      item.year === query.year && [item.title, item.originalTitle].some(name => typeof name === 'string' && normalize(name) === title))) {
+      for (const candidate of candidates.filter(item => item.year === query.year).slice(0, 3)) {
+        try {
+          const details = await json(`https://api.themoviedb.org/3/${type}/${candidate.id}/alternative_titles`, { Authorization: `Bearer ${token}` });
+          const aliases = type === 'movie' ? details.titles : details.results;
+          if (!Array.isArray(aliases)) continue;
+          const matches = aliases.map(item => item?.title).filter(name =>
+            typeof name === 'string' && name.length <= 200 && !unsafe.test(name) &&
+            !bareAddress.test(name.trim()) && normalize(name) === title);
+          if (matches.length) candidate.alternativeTitles = [...new Set(matches)].slice(0, 5);
+        } catch { /* Optional verification must not discard search results. */ }
+      }
+    }
+    return candidates;
   }
   async function tvmaze(query) {
     const url = new URL('https://api.tvmaze.com/search/shows');
@@ -111,6 +133,7 @@ export function createSearch({ fetchImpl = fetch, token = '', now = Date.now, tt
 
 export function createGateway({ search = createSearch(), origins = [], now = Date.now, rateLimit = 60, maxBodyBytes = 2048 } = {}) {
   const clients = new Map();
+  const pairing = createPairingRelay({ now });
   const allowedOrigins = new Set((Array.isArray(origins) ? origins : []).filter(value => {
     if (typeof value !== 'string' || value === 'null' || value === '*') return false;
     try {
@@ -126,15 +149,26 @@ export function createGateway({ search = createSearch(), origins = [], now = Dat
     res.setHeader('X-Content-Type-Options', 'nosniff');
     const send = (status, body) => { res.writeHead(status); res.end(JSON.stringify(body)); };
     if (req.headers.origin) {
-      if (!allowedOrigins.has(req.headers.origin)) return send(403, { error: 'origin_not_allowed' });
+      const ownHost = req.headers.host;
+      const sameOrigin = ownHost && (req.headers.origin === `https://${ownHost}` || req.headers.origin === `http://${ownHost}`);
+      if (!allowedOrigins.has(req.headers.origin) && !sameOrigin) return send(403, { error: 'origin_not_allowed' });
       res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
       res.setHeader('Vary', 'Origin');
     }
-    if (req.method === 'OPTIONS' && req.url === '/v1/search') {
-      res.setHeader('Access-Control-Allow-Methods', 'POST');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'GET' && (req.url === '/pair' || req.url === '/pair/' || req.url === '/pairing-phone.js')) {
+      res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'");
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.setHeader('Content-Type', req.url === '/pair' || req.url === '/pair/' ? 'text/html; charset=utf-8' : 'text/javascript; charset=utf-8');
+      res.writeHead(200);
+      res.end(req.url === '/pair' || req.url === '/pair/' ? phonePage : phoneScript);
+      return;
+    }
+    if (req.method === 'OPTIONS' && (req.url === '/v1/search' || req.url?.startsWith('/v1/pairing'))) {
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       return send(204, undefined);
     }
+    if (await pairing(req, send)) return;
     if (req.method !== 'POST' || req.url !== '/v1/search') return send(404, { error: 'not_found' });
     const address = req.socket.remoteAddress;
     for (const [key, record] of clients) if (record.expires <= now()) clients.delete(key);

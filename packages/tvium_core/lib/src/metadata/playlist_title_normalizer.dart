@@ -130,9 +130,11 @@ final class PlaylistTitleNormalizer {
     }
     int? year;
     if (kind != MediaKind.live) {
-      final date = RegExp(r'\s+\((\d{4})\)$').firstMatch(title);
+      final date = RegExp(
+        r'(?:\s+\((\d{4})\)|\s+\[(\d{4})\]|\s+[-–—]\s+(\d{4}))$',
+      ).firstMatch(title);
       if (date != null) {
-        final parsed = int.parse(date[1]!);
+        final parsed = int.parse(date[1] ?? date[2] ?? date[3]!);
         if (parsed >= 1888 && parsed <= 2100) {
           year = parsed;
           title = title.substring(0, date.start).trim();

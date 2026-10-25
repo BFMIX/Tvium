@@ -1,17 +1,57 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:tvium_core/tvium_core.dart';
+
+final metadataGatewayProvider = Provider<MetadataGatewayClient?>((ref) {
+  const address = String.fromEnvironment('TVIUM_METADATA_GATEWAY');
+  final uri = resolveMetadataGatewayEndpoint(
+    configuredAddress: address,
+    platform: defaultTargetPlatform,
+    isWeb: kIsWeb,
+  );
+  if (uri == null) return null;
+  final client = MetadataGatewayClient(endpoint: uri);
+  ref.onDispose(client.close);
+  return client;
+});
+
+Uri? resolveMetadataGatewayEndpoint({
+  required String configuredAddress,
+  required TargetPlatform platform,
+  required bool isWeb,
+}) {
+  final address = configuredAddress.isNotEmpty
+      ? configuredAddress
+      : !isWeb &&
+            (platform == TargetPlatform.macOS ||
+                platform == TargetPlatform.windows ||
+                platform == TargetPlatform.linux)
+      ? 'http://127.0.0.1:8787'
+      : '';
+  final uri = Uri.tryParse(address);
+  if (uri == null || !uri.hasAuthority || uri.userInfo.isNotEmpty) return null;
+  if (uri.scheme == 'https') return uri;
+  if (uri.scheme == 'http' &&
+      const <String>['localhost', '127.0.0.1', '::1'].contains(uri.host)) {
+    return uri;
+  }
+  return null;
+}
 
 final class EnrichedMetadata {
   const EnrichedMetadata({
     required this.candidate,
     this.overview,
     this.posterUri,
+    this.backdropUri,
   });
   final MetadataCandidate candidate;
   final String? overview;
   final Uri? posterUri;
+  final Uri? backdropUri;
 }
 
 final class MetadataLookupException implements Exception {
@@ -91,7 +131,11 @@ final class MetadataGatewayClient {
       'title': title.title,
       'kind': kind,
       if (title.year != null) 'year': title.year,
-      'language': title.language ?? 'en',
+      'language': switch (title.language) {
+        null || 'fr' => 'fr-FR',
+        'en' => 'en-US',
+        final language => language,
+      },
     });
     final cached = _cache[body];
     if (cached != null && cached.$1.isAfter(DateTime.now())) {
@@ -154,6 +198,12 @@ final class MetadataGatewayClient {
                 provider: provider,
                 id: id,
                 title: name,
+                alternativeTitles: [
+                  if (row['originalTitle'] case final String originalTitle)
+                    if (safeTitle(originalTitle)) originalTitle,
+                  if (row['alternativeTitles'] case final List<dynamic> aliases)
+                    ...aliases.whereType<String>().where(safeTitle).take(5),
+                ],
                 kind: title.kind,
                 year: row['year'] is int ? row['year'] as int : null,
                 provenance: MetadataProvenance(
@@ -171,6 +221,7 @@ final class MetadataGatewayClient {
                     )
                   : null,
               posterUri: _publicUri(row['posterUrl']),
+              backdropUri: _publicUri(row['backdropUrl']),
             ),
           );
         }

@@ -1,3 +1,3 @@
 ## 0.0.1
 
-* TODO: Describe initial release.
+- Added shared theme tokens and focusable controls for the Tvium prototype.

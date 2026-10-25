@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -7,6 +8,33 @@ import 'package:tvium_app/features/metadata/metadata_gateway_client.dart';
 import 'package:tvium_core/tvium_core.dart';
 
 void main() {
+  test('desktop builds find the local gateway without a launch flag', () {
+    expect(
+      resolveMetadataGatewayEndpoint(
+        configuredAddress: '',
+        platform: TargetPlatform.macOS,
+        isWeb: false,
+      )?.toString(),
+      'http://127.0.0.1:8787',
+    );
+    expect(
+      resolveMetadataGatewayEndpoint(
+        configuredAddress: '',
+        platform: TargetPlatform.iOS,
+        isWeb: false,
+      ),
+      isNull,
+    );
+    expect(
+      resolveMetadataGatewayEndpoint(
+        configuredAddress: '',
+        platform: TargetPlatform.macOS,
+        isWeb: true,
+      ),
+      isNull,
+    );
+  });
+
   test(
     'sends only cleaned identity fields and caches successful results',
     () async {
@@ -19,23 +47,29 @@ void main() {
             'title': 'Arrival',
             'kind': 'movie',
             'year': 2016,
-            'language': 'en',
+            'language': 'en-US',
           });
-          return http.Response(
-            jsonEncode({
-              'candidates': [
-                {
-                  'id': '1',
-                  'provider': 'tmdb',
-                  'title': 'Arrival',
-                  'kind': 'movie',
-                  'year': 2016,
-                  'overview': 'A visitor arrives.',
-                  'sourceUrl': 'https://www.themoviedb.org/movie/1',
-                  'license': 'TMDB terms',
-                },
-              ],
-            }),
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'candidates': [
+                  {
+                    'id': '1',
+                    'provider': 'tmdb',
+                    'title': 'Arrival',
+                    'originalTitle': 'Original Arrival',
+                    'alternativeTitles': ['L arrivée', 'Arrival'],
+                    'kind': 'movie',
+                    'year': 2016,
+                    'overview': 'A visitor arrives.',
+                    'backdropUrl':
+                        'https://image.tmdb.org/t/p/w1280/backdrop.jpg',
+                    'sourceUrl': 'https://www.themoviedb.org/movie/1',
+                    'license': 'TMDB terms',
+                  },
+                ],
+              }),
+            ),
             200,
           );
         }),
@@ -47,6 +81,12 @@ void main() {
       final first = await client.search(title);
       final second = await client.search(title);
       expect(first.single.candidate.title, 'Arrival');
+      expect(first.single.candidate.alternativeTitles, [
+        'Original Arrival',
+        'L arrivée',
+        'Arrival',
+      ]);
+      expect(first.single.backdropUri?.host, 'image.tmdb.org');
       expect(second.single.overview, 'A visitor arrives.');
       expect(requests, 1);
     },
@@ -90,7 +130,7 @@ void main() {
             'title': 'Mission: Impossible?',
             'kind': 'movie',
             'year': 1996,
-            'language': 'en',
+            'language': 'fr-FR',
           });
           expect(request.body, isNot(contains('playlist.example.test')));
           return http.Response(jsonEncode({'candidates': <Object>[]}), 200);

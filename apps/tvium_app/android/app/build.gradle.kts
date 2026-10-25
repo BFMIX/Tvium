@@ -29,11 +29,38 @@ android {
         versionName = flutter.versionName
     }
 
+    val releaseStorePath = System.getenv("TVIUM_ANDROID_KEYSTORE_PATH")
+    val releaseStorePassword = System.getenv("TVIUM_ANDROID_STORE_PASSWORD")
+    val releaseKeyAlias = System.getenv("TVIUM_ANDROID_KEY_ALIAS")
+    val releaseKeyPassword = System.getenv("TVIUM_ANDROID_KEY_PASSWORD")
+    val hasReleaseSigning = listOf(
+        releaseStorePath,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword,
+    ).all { !it.isNullOrBlank() }
+
+    if (System.getenv("TVIUM_REQUIRE_ANDROID_RELEASE_SIGNING") == "true" && !hasReleaseSigning) {
+        throw GradleException("Android release signing credentials are required.")
+    }
+
+    if (hasReleaseSigning) {
+        signingConfigs.create("tviumRelease") {
+            storeFile = file(requireNotNull(releaseStorePath))
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("tviumRelease")
+            } else {
+                // Local development builds remain installable without release secrets.
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

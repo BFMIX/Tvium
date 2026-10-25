@@ -5,11 +5,16 @@ import 'package:go_router/go_router.dart';
 import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_design_system/tvium_design_system.dart';
 
+import 'features/artwork/artwork_reference_store.dart';
 import 'features/home/home_screen.dart';
 import 'features/import/local_playlist_picker.dart';
 import 'features/import/playlist_import_controller.dart';
 import 'features/import/playlist_import_provider.dart';
+import 'features/import/qr_pairing.dart';
 import 'features/library/library_bootstrap_controller.dart';
+import 'features/metadata/metadata_gateway_client.dart';
+import 'features/metadata/metadata_overlay_store.dart';
+import 'features/updates/update_checker.dart';
 import 'features/xtream/xtream_connection_service.dart';
 import 'l10n/generated/app_localizations.dart';
 
@@ -25,8 +30,16 @@ final class TviumApp extends StatelessWidget {
     this.localPlaylistPicker,
     this.xtreamConnectionService,
     this.profileSourceRepository,
+    this.artworkReferenceStore,
+    this.metadataGatewayClient,
+    this.metadataOverlayStore,
+    this.metadataConsentStore,
     this.playbackEngineFactory,
     this.playbackViewBuilder,
+    this.updateChecker,
+    this.updateClock,
+    this.releaseTag,
+    this.qrPairingStarter,
     super.key,
   });
 
@@ -34,8 +47,16 @@ final class TviumApp extends StatelessWidget {
   final LocalPlaylistPicker? localPlaylistPicker;
   final XtreamConnectionService? xtreamConnectionService;
   final ProfileSourceRepository? profileSourceRepository;
+  final ArtworkReferenceStore? artworkReferenceStore;
+  final MetadataGatewayClient? metadataGatewayClient;
+  final MetadataOverlayStore? metadataOverlayStore;
+  final MetadataConsentStore? metadataConsentStore;
   final PlaybackEngineFactory? playbackEngineFactory;
   final PlaybackViewBuilder? playbackViewBuilder;
+  final UpdateChecker? updateChecker;
+  final DateTime Function()? updateClock;
+  final String? releaseTag;
+  final Future<QrPairingSession> Function()? qrPairingStarter;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +69,17 @@ final class TviumApp extends StatelessWidget {
           libraryRepositoryProvider.overrideWith(
             (ref) async => profileSourceRepository!,
           ),
+        if (artworkReferenceStore != null || profileSourceRepository != null)
+          artworkReferenceStoreProvider.overrideWithValue(
+            artworkReferenceStore ??
+                ArtworkReferenceStore(MemoryArtworkKeyValueStore()),
+          ),
+        if (metadataGatewayClient != null)
+          metadataGatewayProvider.overrideWithValue(metadataGatewayClient),
+        if (metadataOverlayStore != null)
+          metadataOverlayStoreProvider.overrideWithValue(metadataOverlayStore!),
+        if (metadataConsentStore != null)
+          metadataConsentStoreProvider.overrideWithValue(metadataConsentStore!),
         if (controller != null)
           playlistImportControllerProvider.overrideWith(
             (ref) => controller,
@@ -63,6 +95,14 @@ final class TviumApp extends StatelessWidget {
           ),
         if (playbackViewBuilder != null)
           playbackViewBuilderProvider.overrideWithValue(playbackViewBuilder!),
+        if (updateChecker != null)
+          updateCheckerProvider.overrideWithValue(updateChecker!),
+        if (updateClock != null)
+          updateClockProvider.overrideWithValue(updateClock!),
+        if (releaseTag != null)
+          installedReleaseTagProvider.overrideWithValue(releaseTag!),
+        if (qrPairingStarter != null)
+          qrPairingStarterProvider.overrideWithValue(qrPairingStarter!),
       ],
       child: MaterialApp.router(
         title: 'Tvium',

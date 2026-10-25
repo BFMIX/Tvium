@@ -136,6 +136,6 @@ final class MediaKitPlaybackView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Video(controller: engine._videoController, fit: fit);
+    return Video(controller: engine._videoController, fit: fit, controls: null);
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -111,5 +113,69 @@ void main() {
         ),
       );
     });
+
+    test('stops when a playlist body stalls after parsed rows', () async {
+      var cancelled = false;
+      final body = StreamController<List<int>>(
+        onCancel: () => cancelled = true,
+      );
+      final client = _StreamingClient(body.stream);
+      addTearDown(client.close);
+      final source = M3uUrlSource(
+        Uri.parse('https://playlist.example.test/list.m3u'),
+        client: client,
+        timeout: const Duration(milliseconds: 50),
+      );
+      final lines = source.readLines().toList();
+      body.add(
+        utf8.encode(
+          '#EXTM3U\n#EXTINF:-1,Demo\nhttps://stream.example.test/live\n',
+        ),
+      );
+
+      await expectLater(
+        lines,
+        throwsA(
+          isA<M3uSourceException>().having(
+            (error) => error.message,
+            'message',
+            'Playlist request timed out',
+          ),
+        ),
+      );
+      expect(cancelled, isTrue);
+    });
+
+    test('stops a never-ending trickle before the overall deadline', () async {
+      final body = StreamController<List<int>>();
+      final timer = Timer.periodic(
+        const Duration(milliseconds: 10),
+        (_) => body.add(utf8.encode('#EXTINF:-1,Demo\n')),
+      );
+      addTearDown(timer.cancel);
+      final client = _StreamingClient(body.stream);
+      addTearDown(client.close);
+      final source = M3uUrlSource(
+        Uri.parse('https://playlist.example.test/list.m3u'),
+        client: client,
+        timeout: const Duration(milliseconds: 100),
+        maxDuration: const Duration(milliseconds: 200),
+      );
+
+      await expectLater(
+        source.readLines().toList(),
+        throwsA(isA<M3uSourceException>()),
+      );
+    });
   });
+}
+
+final class _StreamingClient extends http.BaseClient {
+  _StreamingClient(this.body);
+
+  final Stream<List<int>> body;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async =>
+      http.StreamedResponse(body, 200);
 }

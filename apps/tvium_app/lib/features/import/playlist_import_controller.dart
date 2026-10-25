@@ -4,7 +4,7 @@ import 'package:tvium_m3u/tvium_m3u.dart';
 
 import 'm3u_import_persistence.dart';
 
-enum PlaylistImportPhase { empty, importing, ready, failed }
+enum PlaylistImportPhase { empty, importing, saving, ready, failed }
 
 final class PlaylistImportState {
   const PlaylistImportState({
@@ -84,6 +84,15 @@ final class PlaylistImportController extends ChangeNotifier {
             _setState(_state.copyWith(warningCount: _state.warningCount + 1));
           case M3uCompleted(:final summary):
             if (descriptor != null) {
+              _setState(
+                PlaylistImportState(
+                  phase: PlaylistImportPhase.saving,
+                  entries: List<M3uEntry>.unmodifiable(entries),
+                  parsedCount: summary.parsedEntries,
+                  warningCount: summary.warningCount,
+                  groupCount: summary.groupCount,
+                ),
+              );
               await _persistence?.persist(descriptor, entries);
             }
             _setState(
