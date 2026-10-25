@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:tvium_app/features/artwork/artwork_cache_budget.dart';
 import 'package:tvium_app/features/artwork/artwork_image.dart';
 import 'package:tvium_app/features/artwork/artwork_reference_store.dart';
 import 'package:tvium_app/features/library/source_refresh_schedule.dart';
@@ -59,6 +60,53 @@ void main() {
     expect(opened, SettingsSection.parental);
     expect(find.byKey(const ValueKey('parental-pin-field')), findsOneWidget);
     expect(find.byKey(const ValueKey('epg-url-field')), findsNothing);
+  });
+
+  testWidgets('Storage shows artwork size and clears it after confirmation', (
+    tester,
+  ) async {
+    var bytes = 1536 * 1024;
+    var clears = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showSettingsPages(
+                context,
+                openSection: (section) => showLibrarySettings(
+                  context,
+                  configured: false,
+                  section: section,
+                  onReadArtworkStorage: () async => ArtworkCacheStorage(
+                    entryCount: bytes == 0 ? 0 : 2,
+                    bytes: bytes,
+                  ),
+                  onClearArtworkCache: () async {
+                    clears++;
+                    bytes = 0;
+                  },
+                ),
+              ),
+              child: const Text('Open settings pages'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open settings pages'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-page-storage')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('1.5 MiB'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('clear-artwork-cache')));
+    await tester.pumpAndSettle();
+    expect(clears, 0);
+    await tester.tap(find.text('Clear images'));
+    await tester.pumpAndSettle();
+    expect(clears, 1);
+    expect(find.textContaining('0 B'), findsOneWidget);
   });
 
   testWidgets('Settings explains update checks for development builds', (

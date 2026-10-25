@@ -109,4 +109,41 @@ void main() {
       expect(repo.entries.keys, isNot(contains('opaque-0')));
     },
   );
+
+  test('reports actual cached bytes and clears only artwork entries', () async {
+    final files = _MemoryCacheFiles();
+    final repo = _MemoryRepo({
+      'opaque-a': CacheObject(
+        'https://images.example.test/a.jpg',
+        key: 'opaque-a',
+        relativePath: 'a.jpg',
+        validTill: DateTime.utc(2027),
+        id: 1,
+      ),
+      'opaque-b': CacheObject(
+        'https://images.example.test/b.jpg',
+        key: 'opaque-b',
+        relativePath: 'b.jpg',
+        validTill: DateTime.utc(2027),
+        id: 2,
+      ),
+    });
+    files.files.file('a.jpg').writeAsBytesSync(List.filled(12, 0));
+    files.files.file('b.jpg').writeAsBytesSync(List.filled(18, 0));
+    final cache = CacheManager(
+      Config('synthetic-artwork-storage', repo: repo, fileSystem: files),
+    );
+
+    final before = await readArtworkCacheStorage(cacheManager: cache);
+    expect(before, const ArtworkCacheStorage(entryCount: 2, bytes: 30));
+
+    await clearArtworkCache(cacheManager: cache);
+
+    expect(
+      await readArtworkCacheStorage(cacheManager: cache),
+      const ArtworkCacheStorage(entryCount: 0, bytes: 0),
+    );
+    expect(await files.files.file('a.jpg').exists(), isFalse);
+    expect(await files.files.file('b.jpg').exists(), isFalse);
+  });
 }
