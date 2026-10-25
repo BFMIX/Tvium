@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:tvium_app/features/artwork/artwork_image.dart';
 import 'package:tvium_app/features/artwork/artwork_reference_store.dart';
+import 'package:tvium_app/features/library/source_refresh_schedule.dart';
 import 'package:tvium_app/features/metadata/metadata_details.dart';
 import 'package:tvium_app/features/metadata/metadata_gateway_client.dart';
 import 'package:tvium_app/features/metadata/metadata_overlay_store.dart';
@@ -904,6 +905,47 @@ void main() {
     await tester.pumpAndSettle();
     final localTime = checked.toLocal().toString().substring(0, 16);
     expect(find.text('Last checked: $localTime'), findsOneWidget);
+  });
+
+  testWidgets('playlist settings show safe refresh health and next check', (
+    tester,
+  ) async {
+    const source = IptvSource(
+      id: 'source-1',
+      displayName: 'Family TV',
+      identityDigest: 'digest',
+      secretReference: 'secret',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showLibrarySettings(
+              context,
+              configured: false,
+              sources: const [source],
+              refreshHealthFor: (_) async => SourceRefreshHealth(
+                lastAttempt: DateTime.utc(2026, 1, 1, 19),
+                lastSuccess: DateTime.utc(2026, 1, 1, 12),
+                lastAttemptFailed: true,
+                nextCheck: DateTime.utc(2026, 1, 2, 1),
+              ),
+            ),
+            child: const Text('Open settings'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Last refresh failed; saved library kept'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Last success:'), findsOneWidget);
+    expect(find.textContaining('Next check:'), findsOneWidget);
+    expect(find.textContaining('secret'), findsNothing);
   });
 
   testWidgets('settings saves explicit protected categories', (tester) async {

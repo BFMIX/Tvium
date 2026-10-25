@@ -189,6 +189,7 @@ Future<void> showLibrarySettings(
   Future<String> Function(IptvSource source)? onRefreshSource,
   Future<SourceRefreshInterval> Function(IptvSource source)? refreshIntervalFor,
   Future<DateTime?> Function(IptvSource source)? lastRefreshAttemptFor,
+  Future<SourceRefreshHealth> Function(IptvSource source)? refreshHealthFor,
   Future<void> Function(IptvSource source, SourceRefreshInterval interval)?
   onRefreshIntervalChanged,
   List<IptvSource> sources = const <IptvSource>[],
@@ -255,7 +256,8 @@ Future<void> showLibrarySettings(
                       title: Text(source.displayName),
                       subtitle:
                           refreshIntervalFor == null &&
-                              lastRefreshAttemptFor == null
+                              lastRefreshAttemptFor == null &&
+                              refreshHealthFor == null
                           ? null
                           : Column(
                               mainAxisSize: MainAxisSize.min,
@@ -268,7 +270,40 @@ Future<void> showLibrarySettings(
                                       'Refresh: ${snapshot.data?.label ?? 'Loading'}',
                                     ),
                                   ),
-                                if (lastRefreshAttemptFor != null)
+                                if (refreshHealthFor != null)
+                                  FutureBuilder<SourceRefreshHealth>(
+                                    future: refreshHealthFor(source),
+                                    builder: (context, snapshot) {
+                                      final health = snapshot.data;
+                                      if (health == null) {
+                                        return const Text(
+                                          'Loading refresh status…',
+                                        );
+                                      }
+                                      String stamp(DateTime value) => value
+                                          .toLocal()
+                                          .toString()
+                                          .substring(0, 16);
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            health.lastAttemptFailed
+                                                ? 'Last refresh failed; saved library kept'
+                                                : health.lastAttempt == null
+                                                ? 'Never checked'
+                                                : 'Last checked: ${stamp(health.lastAttempt!)}',
+                                          ),
+                                          if (health.lastSuccess case final at?)
+                                            Text('Last success: ${stamp(at)}'),
+                                          if (health.nextCheck case final at?)
+                                            Text('Next check: ${stamp(at)}'),
+                                        ],
+                                      );
+                                    },
+                                  )
+                                else if (lastRefreshAttemptFor != null)
                                   FutureBuilder<DateTime?>(
                                     future: lastRefreshAttemptFor(source),
                                     builder: (context, snapshot) {

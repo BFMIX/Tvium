@@ -19,6 +19,20 @@ enum SourceRefreshInterval {
   final String label;
 }
 
+final class SourceRefreshHealth {
+  const SourceRefreshHealth({
+    required this.lastAttempt,
+    required this.lastSuccess,
+    required this.lastAttemptFailed,
+    required this.nextCheck,
+  });
+
+  final DateTime? lastAttempt;
+  final DateTime? lastSuccess;
+  final bool lastAttemptFailed;
+  final DateTime? nextCheck;
+}
+
 /// Stores only an opaque source ID and timestamps, never playlist details.
 final class SourceRefreshSchedule {
   SourceRefreshSchedule({SecureKeyValueStore? store, DateTime Function()? now})
@@ -76,9 +90,44 @@ final class SourceRefreshSchedule {
     return stored == null ? null : DateTime.tryParse(stored)?.toUtc();
   }
 
+  Future<void> recordSuccess(String sourceId) async {
+    final at = _now().toUtc().toIso8601String();
+    await _store.write(_key(sourceId, 'attempt'), at);
+    await _store.write(_key(sourceId, 'success'), at);
+    await _store.write(_key(sourceId, 'outcome'), 'success');
+  }
+
+  Future<void> recordFailure(String sourceId) async {
+    await markAttempt(sourceId);
+    await _store.write(_key(sourceId, 'outcome'), 'failure');
+  }
+
+  Future<SourceRefreshHealth> healthFor(String sourceId) async {
+    final interval = await intervalFor(sourceId);
+    final attempt = await lastAttemptFor(sourceId);
+    final savedSuccess = await _store.read(_key(sourceId, 'success'));
+    final success = savedSuccess == null
+        ? null
+        : DateTime.tryParse(savedSuccess)?.toUtc();
+    final outcome = await _store.read(_key(sourceId, 'outcome'));
+    final duration = interval.duration;
+    final now = _now().toUtc();
+    final nextCheck = duration == null || attempt == null
+        ? null
+        : (attempt.isAfter(now) ? now : attempt).add(duration);
+    return SourceRefreshHealth(
+      lastAttempt: attempt,
+      lastSuccess: success,
+      lastAttemptFailed: outcome == 'failure',
+      nextCheck: nextCheck,
+    );
+  }
+
   Future<void> remove(String sourceId) async {
     await _store.delete(_key(sourceId, 'interval'));
     await _store.delete(_key(sourceId, 'attempt'));
+    await _store.delete(_key(sourceId, 'success'));
+    await _store.delete(_key(sourceId, 'outcome'));
   }
 }
 
