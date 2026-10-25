@@ -1,6 +1,6 @@
 # Project review
 
-**Snapshot:** 24 October 2026, branch `codex/tvium-repo-review`. This review combines the checked-out code with separately verified release results; it is not a physical-device test.
+**Snapshot:** 25 October 2026, `main` after PRs #17 and #18. This review combines the checked-out code with separately verified release results; it is not a physical-device test.
 
 ## What is worth keeping
 
@@ -19,7 +19,7 @@
 
 | Area | Evidence in this checkout | Next safe action |
 |---|---|---|
-| Release trust | Alpha.8 was published by successful run `40073065845`: Android signing, macOS and Web builds, Pages deployment, and release publication passed. The downloaded APK's SHA-256 and release certificate were checked independently. The macOS DMG is still ad-hoc signed. | Keep the Android verifier pinned to the tested SDK version. Obtain Developer ID and notarize macOS before calling it a normal installer. See [Release run audit](RELEASE_RUN_AUDIT.md). |
+| Release trust | Alpha.11 was published by successful run `40149791776`: Android signing, macOS and Web builds, Pages deployment, and release publication passed. The downloaded alpha.8 APK's SHA-256 and release certificate were checked independently; alpha.11 passed the pinned certificate verifier in CI. The macOS DMG is still ad-hoc signed. | Keep the Android verifier pinned to the tested SDK version. Obtain Developer ID and notarize macOS before calling it a normal installer. See [Release run audit](RELEASE_RUN_AUDIT.md). |
 | Public metadata | The desktop preview can use a local gateway. Public Web/mobile builds still need a hosted HTTPS gateway and server-side token. | Host and protect the gateway, verify provider terms, then test from a clean install. |
 | Main UI maintainability | `home_screen.dart` is over 5,000 lines and `tvium_shell_test.dart` over 2,000. | Extract one screen or behavior at a time behind existing tests; avoid a wholesale rewrite. |
 | Device evidence | TV remote, QR pairing, image-cache eviction, Android playback, and Windows/tvOS behavior lack complete physical or platform-specific evidence. | Use a device matrix with synthetic or public test content; record build, runtime, and limitations separately. |
