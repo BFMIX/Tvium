@@ -13,6 +13,68 @@ final class ArtworkCacheUsage {
   final DateTime lastUsed;
 }
 
+final class ArtworkCacheStorage {
+  const ArtworkCacheStorage({required this.entryCount, required this.bytes});
+
+  final int entryCount;
+  final int bytes;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ArtworkCacheStorage &&
+      other.entryCount == entryCount &&
+      other.bytes == bytes;
+
+  @override
+  int get hashCode => Object.hash(entryCount, bytes);
+}
+
+Future<List<ArtworkCacheUsage>> _scanArtworkCache(CacheManager cache) async {
+  final repo = cache.config.repo;
+  await repo.open();
+  final entries = await repo.getAllObjects();
+  final usage = <ArtworkCacheUsage>[];
+  for (final entry in entries) {
+    try {
+      final file = await cache.config.fileSystem.createFile(entry.relativePath);
+      if (!await file.exists()) continue;
+      usage.add(
+        ArtworkCacheUsage(
+          entry.key,
+          await file.length(),
+          entry.touched ?? DateTime.fromMillisecondsSinceEpoch(0),
+        ),
+      );
+    } on Object {
+      // A missing or unreadable image does not affect other cache entries.
+    }
+  }
+  return usage;
+}
+
+/// Returns native artwork usage without exposing stored image addresses.
+Future<ArtworkCacheStorage?> readArtworkCacheStorage({
+  CacheManager? cacheManager,
+}) async {
+  if (kIsWeb) return null;
+  final usage = await _scanArtworkCache(cacheManager ?? artworkCache);
+  return ArtworkCacheStorage(
+    entryCount: usage.length,
+    bytes: usage.fold<int>(0, (sum, entry) => sum + entry.bytes),
+  );
+}
+
+/// Removes downloaded artwork only. Library entries and metadata stay saved.
+Future<void> clearArtworkCache({CacheManager? cacheManager}) async {
+  if (kIsWeb) return;
+  final cache = cacheManager ?? artworkCache;
+  final repo = cache.config.repo;
+  await repo.open();
+  for (final entry in await repo.getAllObjects()) {
+    await cache.removeFile(entry.key);
+  }
+}
+
 /// Chooses least recently used files without reading or logging image URLs.
 List<String> artworkEvictionKeys(
   Iterable<ArtworkCacheUsage> entries, {
@@ -42,27 +104,7 @@ Future<void> pruneArtworkCache({
   if (kIsWeb) return;
   final cache = cacheManager ?? artworkCache;
   try {
-    final repo = cache.config.repo;
-    await repo.open();
-    final entries = await repo.getAllObjects();
-    final usage = <ArtworkCacheUsage>[];
-    for (final entry in entries) {
-      try {
-        final file = await cache.config.fileSystem.createFile(
-          entry.relativePath,
-        );
-        if (!await file.exists()) continue;
-        usage.add(
-          ArtworkCacheUsage(
-            entry.key,
-            await file.length(),
-            entry.touched ?? DateTime.fromMillisecondsSinceEpoch(0),
-          ),
-        );
-      } on Object {
-        // A missing or unreadable image should not interrupt startup.
-      }
-    }
+    final usage = await _scanArtworkCache(cache);
     for (final key in artworkEvictionKeys(usage, maxBytes: maxBytes)) {
       try {
         await cache.removeFile(key);
