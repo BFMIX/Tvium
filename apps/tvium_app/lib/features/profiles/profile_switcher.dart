@@ -7,12 +7,14 @@ import '../library/library_bootstrap_controller.dart';
 /// A compact profile menu for households sharing the same device.
 final class ProfileSwitcher extends ConsumerWidget {
   const ProfileSwitcher({
+    this.compact = false,
     this.onProfileChanged,
     this.onSourcesRemoved,
     super.key,
   });
 
   final VoidCallback? onProfileChanged;
+  final bool compact;
   final Future<void> Function(List<IptvSource> sources)? onSourcesRemoved;
 
   @override
@@ -22,8 +24,26 @@ final class ProfileSwitcher extends ConsumerWidget {
       data: (snapshot) => TextButton.icon(
         key: const ValueKey('profile-action'),
         onPressed: () => _showProfiles(context, ref, snapshot),
-        icon: const Icon(Icons.account_circle_outlined),
-        label: Text(snapshot.activeProfile.displayName),
+        style: compact
+            ? TextButton.styleFrom(
+                backgroundColor: const Color(0x331B425D),
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              )
+            : null,
+        icon: const CircleAvatar(
+          radius: 16,
+          backgroundColor: Color(0x5534D2F6),
+          child: Icon(Icons.person_outline_rounded, size: 20),
+        ),
+        label: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: compact ? 80 : 200),
+          child: Text(
+            snapshot.activeProfile.displayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ),
       error: (error, stackTrace) => IconButton(
         key: const ValueKey('profile-switcher-error'),
