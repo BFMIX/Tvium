@@ -43,6 +43,49 @@ jobs:
           flutter --disable-analytics
           dart pub get
           dart run melos bootstrap
+      - name: Test macOS distribution gate
+        run: bash scripts/release/test_macos_distribution_gate.sh
+      - name: Prepare Developer ID signing and notarization
+        env:
+          DEVELOPER_ID_P12_BASE64: ${{ secrets.TVIUM_MACOS_DEVELOPER_ID_P12_BASE64 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.TVIUM_MACOS_DEVELOPER_ID_P12_PASSWORD }}
+          NOTARY_KEY_BASE64: ${{ secrets.TVIUM_APPLE_NOTARY_KEY_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.TVIUM_APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.TVIUM_APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          for value in "$DEVELOPER_ID_P12_BASE64" "$DEVELOPER_ID_P12_PASSWORD" \
+            "$NOTARY_KEY_BASE64" "$NOTARY_KEY_ID" "$NOTARY_ISSUER_ID"; do
+            if [[ -z "$value" ]]; then
+              echo 'Developer ID signing and notarization secrets are required for a macOS release.' >&2
+              exit 1
+            fi
+          done
+          keychain="$RUNNER_TEMP/tvium-release.keychain-db"
+          keychain_password="$(openssl rand -hex 32)"
+          p12="$RUNNER_TEMP/tvium-developer-id.p12"
+          notary_key="$RUNNER_TEMP/tvium-notary-key.p8"
+          printf '%s' "$DEVELOPER_ID_P12_BASE64" | base64 -D > "$p12"
+          printf '%s' "$NOTARY_KEY_BASE64" | base64 -D > "$notary_key"
+          chmod 600 "$p12" "$notary_key"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain"
+          security import "$p12" -k "$keychain" -P "$DEVELOPER_ID_P12_PASSWORD" \
+            -T /usr/bin/codesign >/dev/null
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" "$keychain" >/dev/null
+          identity="$(security find-identity -v -p codesigning "$keychain" \
+            | awk '/Developer ID Application:/ {print $2; exit}')"
+          if [[ -z "$identity" ]]; then
+            echo 'The imported certificate is not a Developer ID Application identity.' >&2
+            exit 1
+          fi
+          echo "TVIUM_MACOS_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "TVIUM_NOTARY_KEY_PATH=$notary_key" >> "$GITHUB_ENV"
+          echo "TVIUM_NOTARY_KEY_ID=$NOTARY_KEY_ID" >> "$GITHUB_ENV"
+          echo "TVIUM_NOTARY_ISSUER_ID=$NOTARY_ISSUER_ID" >> "$GITHUB_ENV"
       - name: Build macOS release
         working-directory: ${{ env.APP_DIRECTORY }}
         run: |
@@ -57,20 +100,43 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             DEVELOPMENT_TEAM= \
             build
-      - name: Ad-hoc sign macOS app
+      - name: Sign macOS app for distribution
         working-directory: ${{ env.APP_DIRECTORY }}
         run: |
           codesign \
             --force \
             --deep \
-            --sign - \
+            --options runtime \
+            --timestamp \
+            --sign "$TVIUM_MACOS_SIGNING_IDENTITY" \
             --entitlements macos/Runner/Release.entitlements \
+            build/macos/Build/Products/Release/Tvium.app
+          codesign --verify --deep --strict \
             build/macos/Build/Products/Release/Tvium.app
       - name: Package DMG
         run: >-
           scripts/release/package_macos_dmg.sh
           apps/tvium_app/build/macos/Build/Products/Release/Tvium.app
           dist/Tvium-macOS.dmg
+      - name: Notarize and verify macOS DMG
+        run: |
+          set -euo pipefail
+          codesign --force --timestamp --sign "$TVIUM_MACOS_SIGNING_IDENTITY" \
+            dist/Tvium-macOS.dmg
+          xcrun notarytool submit dist/Tvium-macOS.dmg \
+            --key "$TVIUM_NOTARY_KEY_PATH" \
+            --key-id "$TVIUM_NOTARY_KEY_ID" \
+            --issuer "$TVIUM_NOTARY_ISSUER_ID" \
+            --wait --output-format json > "$RUNNER_TEMP/tvium-notary-result.json"
+          if ! jq -e '.status == "Accepted"' \
+            "$RUNNER_TEMP/tvium-notary-result.json" >/dev/null; then
+            echo 'Apple notarization did not accept the macOS DMG.' >&2
+            exit 1
+          fi
+          xcrun stapler staple dist/Tvium-macOS.dmg
+          scripts/release/verify_macos_distribution.sh \
+            apps/tvium_app/build/macos/Build/Products/Release/Tvium.app \
+            dist/Tvium-macOS.dmg
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: tvium-macos

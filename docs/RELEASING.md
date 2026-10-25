@@ -29,8 +29,10 @@ skips only the deployment job.
 
 ## Signing Status
 
-Current artifacts are suitable for private testing only. The macOS app is
-ad-hoc signed and is not notarized. Starting with the first release after
+The `v1.0.0-alpha.14` macOS DMG is ad-hoc signed and is not notarized; macOS
+Gatekeeper rejects it. Do not present that download as a ready-to-run Mac app.
+Future releases require Developer ID signing and notarization before the DMG
+is uploaded. Starting with the first release after
 `v1.0.0-alpha.7`, the Android APK uses a persistent release key held outside
 the repository and provided to CI through four protected secrets. Older
 GitHub APKs used an ephemeral debug key and cannot be updated in place with
@@ -44,21 +46,35 @@ The Android release job requires `TVIUM_ANDROID_KEYSTORE_BASE64`,
 with a runner's debug key when any credential is missing. The signing gate is
 covered by `bash scripts/release/test_android_signing_gate.sh`.
 
-The ad-hoc macOS build can repeatedly ask for access to the login Keychain,
-including after **Always Allow**. Do not treat that dialog as a playlist or
-password validation error, and do not ask testers to keep approving it. The
-release workflow must not describe this artifact as a normal public Mac build.
-Before promoting it beyond test use:
+The previous ad-hoc macOS build can repeatedly ask for access to the login
+Keychain, including after **Always Allow**. Do not ask testers to keep approving
+it. The release workflow now requires these protected GitHub Actions secrets:
 
-1. Obtain a **Developer ID Application** signing identity from the Apple
-   Developer account holder and keep its private key outside the repository.
-2. Sign all executable code with the same identity, hardened runtime, required
+- `TVIUM_MACOS_DEVELOPER_ID_P12_BASE64`: base64-encoded Developer ID
+  Application `.p12` export containing its private key.
+- `TVIUM_MACOS_DEVELOPER_ID_P12_PASSWORD`: export password.
+- `TVIUM_APPLE_NOTARY_KEY_BASE64`: base64-encoded App Store Connect API `.p8` key.
+- `TVIUM_APPLE_NOTARY_KEY_ID` and `TVIUM_APPLE_NOTARY_ISSUER_ID`: identifiers
+  for that API key.
+
+The account holder must create the Developer ID certificate and notarization
+API key in Apple Developer/App Store Connect, then add the values directly to
+GitHub Actions secrets. Never send the private key or export password in chat.
+The workflow fails before packaging if any secret is missing. It then:
+
+1. Imports the **Developer ID Application** identity into a temporary CI
+   Keychain and keeps its private key outside the repository.
+2. Signs executable code with that identity, hardened runtime, required
    entitlements, and a secure timestamp; verify the bundle signature.
-3. Submit the distributable DMG with `notarytool`, wait for acceptance, staple
-   the ticket, and check Gatekeeper assessment.
-4. On a clean Mac user account, test first launch and Keychain access. Then
+3. Submits the DMG with `notarytool`, requires acceptance, staples the ticket,
+   and checks Gatekeeper assessment before uploading the file.
+4. Requires a clean Mac user account test of first launch and Keychain access.
+   Then
    install an update and verify that saved sources remain usable without
    repeated permission dialogs.
+
+Run `bash scripts/release/test_macos_distribution_gate.sh` on macOS to verify
+that an ad-hoc signed application is rejected before publication.
 
 An **Apple Development** certificate is insufficient for Developer ID
 distribution. Apple documents the [Developer ID and notarization requirements](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)
