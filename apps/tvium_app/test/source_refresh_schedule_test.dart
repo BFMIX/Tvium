@@ -69,6 +69,40 @@ void main() {
     );
   });
 
+  test(
+    'refresh health survives restart and never stores provider details',
+    () async {
+      var now = DateTime.utc(2026, 1, 1, 12);
+      final backend = _MemoryStore();
+      final schedule = SourceRefreshSchedule(store: backend, now: () => now);
+      await schedule.setInterval('source-a', SourceRefreshInterval.sixHours);
+      await schedule.recordSuccess('source-a');
+      now = now.add(const Duration(hours: 7));
+      await schedule.recordFailure('source-a');
+
+      final restored = SourceRefreshSchedule(store: backend, now: () => now);
+      final health = await restored.healthFor('source-a');
+      expect(health.lastAttempt, DateTime.utc(2026, 1, 1, 19));
+      expect(health.lastSuccess, DateTime.utc(2026, 1, 1, 12));
+      expect(health.lastAttemptFailed, isTrue);
+      expect(health.nextCheck, DateTime.utc(2026, 1, 2, 1));
+      expect(backend.values.values.join(), isNot(contains('provider.test')));
+
+      await restored.remove('source-a');
+      expect((await restored.healthFor('source-a')).lastSuccess, isNull);
+    },
+  );
+
+  test('manual refresh has no automatic next check', () async {
+    final schedule = SourceRefreshSchedule(
+      store: _MemoryStore(),
+      now: () => DateTime.utc(2026, 1, 1),
+    );
+    await schedule.setInterval('source-a', SourceRefreshInterval.manual);
+    await schedule.recordSuccess('source-a');
+    expect((await schedule.healthFor('source-a')).nextCheck, isNull);
+  });
+
   test('runner refreshes due sources once while the app stays open', () async {
     var now = DateTime.utc(2026, 1, 1);
     final schedule = SourceRefreshSchedule(

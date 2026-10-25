@@ -352,6 +352,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                       lastRefreshAttemptFor: (source) => ref
                           .read(sourceRefreshScheduleProvider)
                           .lastAttemptFor(source.id),
+                      refreshHealthFor: (source) => ref
+                          .read(sourceRefreshScheduleProvider)
+                          .healthFor(source.id),
                       onRefreshIntervalChanged: (source, interval) => ref
                           .read(sourceRefreshScheduleProvider)
                           .setInterval(source.id, interval),
@@ -1008,6 +1011,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   Future<String> _refreshSources() async {
+    String? activeSourceId;
     try {
       final repository = await ref.read(libraryRepositoryProvider.future);
       final profile = await repository.activeProfile();
@@ -1025,8 +1029,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
       var upgraded = 0;
       final m3uRefresh = ref.read(m3uSourceRefreshProvider);
       for (final source in sources) {
+        activeSourceId = source.id;
         if (await _tryUpgradeM3uSource(source)) {
           upgraded++;
+          activeSourceId = null;
           continue;
         }
         final refreshedEntries = await m3uRefresh.refresh(
@@ -1034,23 +1040,29 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
         );
         if (refreshedEntries != null) {
           m3uRefreshed++;
-          await _recordRefreshAttempt(source.id);
+          await _recordRefreshSuccess(source.id);
+          activeSourceId = null;
           continue;
         }
         if (refreshService == null) {
+          await _recordRefreshFailure(source.id);
           return 'Some connected sources cannot be refreshed in this build.';
         }
         final result = await refreshService.refreshSource(source.id);
-        await _recordRefreshAttempt(source.id);
+        await _recordRefreshSuccess(source.id);
         added += result.addedCount;
         changed += result.changedCount;
         removed += result.removedCount;
+        activeSourceId = null;
       }
       ref.invalidate(libraryBootstrapProvider);
       ref.invalidate(epgNowNextProvider);
       return 'Sources refreshed: $m3uRefreshed M3U, $upgraded upgraded, $added added, '
           '$changed updated, $removed removed.';
     } on Object {
+      if (activeSourceId case final sourceId?) {
+        await _recordRefreshFailure(sourceId);
+      }
       return 'Sources could not be refreshed. The existing library was kept.';
     }
   }
@@ -1064,23 +1076,25 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
           .read(m3uSourceRefreshProvider)
           .refresh(source.secretReference);
       if (refreshedEntries != null) {
-        await _recordRefreshAttempt(source.id);
+        await _recordRefreshSuccess(source.id);
         ref.invalidate(libraryBootstrapProvider);
         ref.invalidate(epgNowNextProvider);
         return 'Playlist refreshed: M3U catalog updated.';
       }
       final service = ref.read(xtreamConnectionServiceProvider);
       if (service is! XtreamSourceRefreshService) {
+        await _recordRefreshFailure(source.id);
         return 'This playlist cannot be refreshed in this build.';
       }
       final refreshService = service as XtreamSourceRefreshService;
       final result = await refreshService.refreshSource(source.id);
-      await _recordRefreshAttempt(source.id);
+      await _recordRefreshSuccess(source.id);
       ref.invalidate(libraryBootstrapProvider);
       ref.invalidate(epgNowNextProvider);
       return 'Playlist refreshed: ${result.addedCount} added, '
           '${result.changedCount} updated, ${result.removedCount} removed.';
     } on Object {
+      await _recordRefreshFailure(source.id);
       return 'Playlist refresh failed. The existing library was kept.';
     }
   }
@@ -1189,11 +1203,19 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  Future<void> _recordRefreshAttempt(String sourceId) async {
+  Future<void> _recordRefreshSuccess(String sourceId) async {
     try {
-      await ref.read(sourceRefreshScheduleProvider).markAttempt(sourceId);
+      await ref.read(sourceRefreshScheduleProvider).recordSuccess(sourceId);
     } on Object {
       // A successful catalog refresh remains successful if settings storage fails.
+    }
+  }
+
+  Future<void> _recordRefreshFailure(String sourceId) async {
+    try {
+      await ref.read(sourceRefreshScheduleProvider).recordFailure(sourceId);
+    } on Object {
+      // A failed refresh never replaces the cached catalog.
     }
   }
 
@@ -1594,6 +1616,7 @@ final class _LibraryView extends ConsumerStatefulWidget {
     required this.onRefreshSources,
     required this.refreshIntervalFor,
     required this.lastRefreshAttemptFor,
+    required this.refreshHealthFor,
     required this.onRefreshIntervalChanged,
     required this.parentalConfigured,
     required this.parentalUnlocked,
@@ -1625,6 +1648,8 @@ final class _LibraryView extends ConsumerStatefulWidget {
   final Future<SourceRefreshInterval> Function(IptvSource source)
   refreshIntervalFor;
   final Future<DateTime?> Function(IptvSource source) lastRefreshAttemptFor;
+  final Future<SourceRefreshHealth> Function(IptvSource source)
+  refreshHealthFor;
   final Future<void> Function(IptvSource source, SourceRefreshInterval interval)
   onRefreshIntervalChanged;
   final bool parentalConfigured;
@@ -1697,6 +1722,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                     onRefreshSources: widget.onRefreshSources,
                     refreshIntervalFor: widget.refreshIntervalFor,
                     lastRefreshAttemptFor: widget.lastRefreshAttemptFor,
+                    refreshHealthFor: widget.refreshHealthFor,
                     onRefreshIntervalChanged: widget.onRefreshIntervalChanged,
                     sources: widget.sources,
                     onAddPlaylist: widget.onAddPlaylist,

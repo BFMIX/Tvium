@@ -4,7 +4,7 @@ These are proposals, not approved requirements. They preserve Tvium's local-firs
 
 | Order | Proposal | User benefit | Smallest useful version |
 |---|---|---|---|
-| 1 | Source health page | A user can tell whether a source refreshed, is waiting, failed, or needs attention without seeing a perpetual spinner. | Show last success, next check, sanitized failure reason, and one retry action per source. |
+| 1 | Source health page | A user can tell whether a source refreshed, is waiting, failed, or needs attention without seeing a perpetual spinner. | Implemented in Playlists settings with last success, next check, a generic failure state, and per-source retry; physical-device validation remains open. |
 | 2 | Pre-import summary and safe recovery | Large or changed playlists become understandable before they replace a working library. | Show counts by Live/Movies/TV Shows, aggregate changes, and a rollback action for the last successful catalog. |
 | 3 | Guided EPG matching | Real Now/Next coverage improves when guide names differ from playlist channel names. | Suggest a small set of local candidate matches, let the user confirm or clear a mapping, and keep the original names. |
 | 4 | Storage budget and offline diagnostics | TVs with little free space keep artwork without slowdowns or silent cache growth. | Show cache size, cap and evict old public artwork, allow cache clearing, and explain when an image is unavailable offline. |
