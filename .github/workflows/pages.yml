@@ -1,0 +1,55 @@
+name: Deploy Web
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tvium-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy GitHub Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          cache: true
+      - name: Prepare Flutter workspace
+        run: |
+          flutter --disable-analytics
+          dart pub get
+          dart run melos bootstrap
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Validate Web configuration
+        run: bash scripts/release/test_build_web_release.sh
+      - name: Build Web release
+        working-directory: apps/tvium_app
+        env:
+          TVIUM_METADATA_GATEWAY: ${{ vars.TVIUM_METADATA_GATEWAY }}
+          TVIUM_PAIRING_RELAY: ${{ vars.TVIUM_PAIRING_RELAY }}
+        run: bash ../../scripts/release/build_web_release.sh
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: apps/tvium_app/build/web
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
