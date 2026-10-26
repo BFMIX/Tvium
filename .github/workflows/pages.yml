@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # Pages follows main rather than a tagged app release. This non-version tag
+  # prevents the installed-app updater from recommending a DMG to Web users.
+  TVIUM_RELEASE_TAG: web-main
+
 concurrency:
   group: tvium-pages
   cancel-in-progress: false
