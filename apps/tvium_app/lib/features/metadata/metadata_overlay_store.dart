@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tvium_core/tvium_core.dart';
 
 import '../xtream/secure_xtream_profile_store.dart';
+import 'metadata_cache_backend_stub.dart'
+    if (dart.library.io) 'metadata_cache_backend_io.dart';
 import 'metadata_gateway_client.dart';
 
 final metadataOverlayStoreProvider = Provider<MetadataOverlayStore>(
@@ -215,7 +217,7 @@ final class MetadataOverlay {
 /// unchanged, and opaque storage keys do not contain playlist titles or IDs.
 final class MetadataOverlayStore {
   MetadataOverlayStore([SecureKeyValueStore? backend])
-    : _backend = backend ?? FlutterSecureKeyValueStore();
+    : _backend = backend ?? createMetadataCacheBackend();
 
   final SecureKeyValueStore _backend;
 

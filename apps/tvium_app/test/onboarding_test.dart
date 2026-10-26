@@ -7,6 +7,34 @@ import 'package:tvium_app/app.dart';
 import 'package:tvium_app/features/import/qr_pairing.dart';
 
 void main() {
+  testWidgets('welcome content and source choices share one centered axis', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const TviumApp());
+
+    final panelCenter = tester
+        .getRect(find.byKey(const ValueKey('onboarding-panel')))
+        .center
+        .dx;
+    for (final key in const [
+      'tvium-brand-logo',
+      'onboarding-welcome-title',
+      'qr-pairing-separator',
+      'qr-pairing-action',
+    ]) {
+      final center = tester.getRect(find.byKey(ValueKey(key))).center.dx;
+      expect((center - panelCenter).abs(), lessThan(8), reason: key);
+    }
+    final first = tester.getRect(find.byKey(const ValueKey('m3u-url-action')));
+    final last = tester.getRect(find.byKey(const ValueKey('xtream-action')));
+    expect(((first.left + last.right) / 2 - panelCenter).abs(), lessThan(8));
+    expect(tester.widget<Text>(find.text('Import local M3U')).maxLines, 1);
+  });
+
   testWidgets('first launch uses scenic artwork and prominent source choices', (
     tester,
   ) async {

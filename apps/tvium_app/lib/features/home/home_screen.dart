@@ -426,7 +426,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
               padding: const EdgeInsets.all(TviumSpacing.lg),
               child: Container(
                 key: const ValueKey('onboarding-panel'),
-                constraints: const BoxConstraints(maxWidth: 900),
+                constraints: const BoxConstraints(maxWidth: 1020),
                 padding: const EdgeInsets.all(TviumSpacing.xl),
                 decoration: BoxDecoration(
                   color: const Color(0xB8081A2B),
@@ -436,23 +436,28 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                   borderRadius: BorderRadius.circular(TviumRadius.surface),
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
-                    Row(
+                    Stack(
+                      alignment: Alignment.center,
                       children: <Widget>[
-                        TviumBrandLogo(
-                          key: const ValueKey<String>('tvium-brand-logo'),
-                          semanticLabel: strings.appTitle,
-                          height: 36,
+                        Center(
+                          child: TviumBrandLogo(
+                            key: const ValueKey<String>('tvium-brand-logo'),
+                            semanticLabel: strings.appTitle,
+                            height: 52,
+                          ),
                         ),
-                        const Spacer(),
-                        ProfileSwitcher(
-                          onProfileChanged: _resetProfileSession,
-                          onSourcesRemoved: _removeOrphanedSources,
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ProfileSwitcher(
+                            onProfileChanged: _resetProfileSession,
+                            onSourcesRemoved: _removeOrphanedSources,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: TviumSpacing.xl),
+                    const SizedBox(height: TviumSpacing.lg),
                     Container(
                       width: 48,
                       height: 3,
@@ -464,6 +469,8 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                     const SizedBox(height: TviumSpacing.md),
                     Text(
                       strings.welcomeTitle,
+                      key: const ValueKey('onboarding-welcome-title'),
+                      textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.displayMedium
                           ?.copyWith(
                             color: Colors.white,
@@ -473,11 +480,13 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                     const SizedBox(height: TviumSpacing.sm),
                     Text(
                       strings.welcomeBody,
+                      textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     const SizedBox(height: TviumSpacing.xs),
                     Text(
                       strings.disclaimer,
+                      textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: TviumSpacing.xl),
@@ -485,8 +494,13 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                       policy: OrderedTraversalPolicy(),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final compact = constraints.maxWidth < 600;
-                          final cardWidth = compact ? double.infinity : 250.0;
+                          final compact = constraints.maxWidth < 680;
+                          final cardWidth = compact
+                              ? double.infinity
+                              : (constraints.maxWidth -
+                                        2 * TviumSpacing.sm -
+                                        12) /
+                                    3;
                           final cards = <Widget>[
                             SourceActionCard(
                               key: const ValueKey<String>('m3u-url-action'),
@@ -539,12 +553,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                               children: cards,
                             );
                           }
-                          return SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              spacing: TviumSpacing.sm,
-                              children: cards,
-                            ),
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            spacing: TviumSpacing.sm,
+                            children: cards,
                           );
                         },
                       ),
@@ -560,16 +572,13 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                         key: const ValueKey('qr-pairing-separator'),
                         children: <Widget>[
                           const Expanded(child: Divider()),
-                          Flexible(
-                            flex: 4,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: TviumSpacing.sm,
-                              ),
-                              child: Text(
-                                strings.orAddWithPhone,
-                                textAlign: TextAlign.center,
-                              ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: TviumSpacing.sm,
+                            ),
+                            child: Text(
+                              strings.orAddWithPhone,
+                              textAlign: TextAlign.center,
                             ),
                           ),
                           const Expanded(child: Divider()),
