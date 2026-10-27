@@ -118,7 +118,7 @@ Verified: durable profile-scoped parental-policy persistence, salted iterative P
 
 Performance, accessibility, security review, crash isolation, profiling, native player adapters, and real-device matrices.
 
-- In progress: saved catalogs open through bounded SQLite pages (120 entries per media kind), artwork for large sources loads after the first frame, and M3U import UI retains only a bounded preview. Synthetic tests and workspace checks pass. Low-memory Android TV startup, import, and playback still require measured device validation before this is marked verified.
+- In progress: saved catalogs open through bounded SQLite pages (120 entries per media kind), saved Xtream imports release their in-memory network catalog after persistence, artwork for large sources loads after the first frame, and M3U import UI retains only a bounded preview. Synthetic tests and workspace checks pass. Low-memory Android TV startup, import, and playback still require measured device validation before this is marked verified.
 
 ## M9 — Release preparation (in progress)
 
