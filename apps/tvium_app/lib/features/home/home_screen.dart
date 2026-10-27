@@ -2112,50 +2112,73 @@ final class _CatalogHeader extends StatelessWidget {
       child: wide
           ? SizedBox(
               height: 58,
-              child: Stack(
-                alignment: Alignment.center,
-                children: <Widget>[
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF14283B).withValues(alpha: 0.82),
-                      borderRadius: BorderRadius.circular(TviumRadius.pill),
-                      border: Border.all(color: Colors.white12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        for (final item in const <_CatalogDestination>[
-                          _CatalogDestination.home,
-                          _CatalogDestination.live,
-                        ])
-                          _HeaderDestination(
-                            destination: item,
-                            selected: destination == item,
-                            onPressed: () => onDestinationSelected(item),
-                          ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          child: TviumBrandLogo(
-                            key: const ValueKey<String>('tvium-brand-logo'),
-                            semanticLabel: strings.appTitle,
-                            height: 38,
-                          ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final centered =
+                      constraints.maxWidth >=
+                      1180 * MediaQuery.textScalerOf(context).scale(1);
+                  final navigation = Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF14283B)
+                              .withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(TviumRadius.pill),
+                          border: Border.all(color: Colors.white12),
                         ),
-                        for (final item in const <_CatalogDestination>[
-                          _CatalogDestination.movies,
-                          _CatalogDestination.shows,
-                        ])
-                          _HeaderDestination(
-                            destination: item,
-                            selected: destination == item,
-                            onPressed: () => onDestinationSelected(item),
-                          ),
-                      ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            for (final item in const <_CatalogDestination>[
+                              _CatalogDestination.home,
+                              _CatalogDestination.live,
+                            ])
+                              _HeaderDestination(
+                                destination: item,
+                                selected: destination == item,
+                                onPressed: () => onDestinationSelected(item),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                              ),
+                              child: TviumBrandLogo(
+                                key: const ValueKey<String>('tvium-brand-logo'),
+                                semanticLabel: strings.appTitle,
+                                height: 38,
+                              ),
+                            ),
+                            for (final item in const <_CatalogDestination>[
+                              _CatalogDestination.movies,
+                              _CatalogDestination.shows,
+                            ])
+                              _HeaderDestination(
+                                destination: item,
+                                selected: destination == item,
+                                onPressed: () => onDestinationSelected(item),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  Align(alignment: Alignment.centerRight, child: actions),
-                ],
+                  );
+                  if (centered) {
+                    return Stack(
+                      children: <Widget>[
+                        Positioned.fill(child: navigation),
+                        Align(alignment: Alignment.centerRight, child: actions),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: <Widget>[
+                      Expanded(child: navigation),
+                      actions,
+                    ],
+                  );
+                },
               ),
             )
           : Row(

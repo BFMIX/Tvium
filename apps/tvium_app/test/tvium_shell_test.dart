@@ -2077,6 +2077,31 @@ void main() {
       greaterThan(logoCenter.dx),
     );
   });
+
+  testWidgets('720p TV header keeps search clear of TV Shows', (tester) async {
+    tester.view.physicalSize = const Size(1000, 720);
+    tester.view.devicePixelRatio = 1;
+    tester.binding.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(
+      tester.binding.platformDispatcher.clearTextScaleFactorTestValue,
+    );
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    final shows = find.widgetWithText(TextButton, 'TV Shows');
+    final search = find.byTooltip('Search');
+    expect(shows, findsOneWidget);
+    expect(search, findsOneWidget);
+    expect(
+      tester.getTopRight(shows).dx,
+      lessThan(tester.getTopLeft(search).dx),
+    );
+  });
 }
 
 final class _FakePlaybackEngine implements PlaybackEngine {
