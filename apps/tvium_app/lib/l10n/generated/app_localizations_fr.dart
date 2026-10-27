@@ -106,6 +106,47 @@ class AppLocalizationsFr extends AppLocalizations {
   String get networkTimeout => 'Le serveur a mis trop de temps à répondre';
 
   @override
+  String get xtreamConnecting => 'Connexion au serveur...';
+
+  @override
+  String xtreamCatalogProgress(String section, int current, int total) {
+    return 'Téléchargement de $section ($current/$total)...';
+  }
+
+  @override
+  String get xtreamLiveCategories => 'catégories TV';
+
+  @override
+  String get xtreamLiveStreams => 'chaînes Live';
+
+  @override
+  String get xtreamVodCategories => 'catégories de films';
+
+  @override
+  String get xtreamVodStreams => 'films';
+
+  @override
+  String get xtreamSeriesCategories => 'catégories de séries';
+
+  @override
+  String get xtreamSeries => 'séries TV';
+
+  @override
+  String get xtreamSaving => 'Enregistrement dans la bibliothèque...';
+
+  @override
+  String xtreamTimedOutAt(String section) {
+    return 'Le serveur a expiré pendant le téléchargement de $section. La bibliothèque existante a été conservée.';
+  }
+
+  @override
+  String get xtreamRetryExtended => 'Réessayer avec un délai de 2 minutes';
+
+  @override
+  String get xtreamPartialAdded =>
+      'Les chaînes Live ont été ajoutées. Certaines sections films ou séries ont expiré et pourront être actualisées plus tard.';
+
+  @override
   String get serverUnreachable => 'Le serveur est actuellement inaccessible';
 
   @override

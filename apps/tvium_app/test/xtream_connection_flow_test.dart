@@ -7,6 +7,47 @@ import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_xtream/tvium_xtream.dart';
 
 void main() {
+  testWidgets('shows a timed-out stage and retries with two minutes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final service = _FakeXtreamConnectionService()..failFirstCatalog = true;
+    await tester.pumpWidget(TviumApp(xtreamConnectionService: service));
+    await tester.tap(find.byKey(const ValueKey<String>('xtream-action')));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xtream-profile-name')),
+      'Fixture',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xtream-server-url')),
+      'https://provider.example.test',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xtream-username')),
+      'fixture-user',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xtream-password')),
+      'fixture-password',
+    );
+    final addButton = find.byKey(const ValueKey<String>('xtream-add-playlist'));
+    await tester.ensureVisible(addButton);
+    await tester.tap(addButton);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('movies'), findsWidgets);
+    final retry = find.byKey(const ValueKey<String>('xtream-retry-extended'));
+    expect(retry, findsOneWidget);
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    await tester.pumpAndSettle();
+    expect(service.lastRetryTimeout, const Duration(minutes: 2));
+    expect(service.added, isNotNull);
+  });
+
   testWidgets('uses paged storage after a saved Xtream import', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
@@ -188,9 +229,33 @@ final class _SavedXtreamConnectionService implements XtreamConnectionService {
       Uri.parse('https://stream.example.test/${item.id}');
 }
 
-final class _FakeXtreamConnectionService implements XtreamConnectionService {
+final class _FakeXtreamConnectionService
+    implements XtreamConnectionService, XtreamProgressConnectionService {
   XtreamConnectionInput? tested;
   XtreamConnectionInput? added;
+  bool failFirstCatalog = false;
+  Duration? lastRetryTimeout;
+
+  @override
+  Future<XtreamAddedProfile> addPlaylistWithProgress(
+    XtreamConnectionInput input, {
+    XtreamCatalogProgress? onProgress,
+    void Function()? onSaving,
+    Duration? catalogTimeout,
+    bool allowPartialCatalog = false,
+  }) async {
+    lastRetryTimeout = catalogTimeout;
+    onProgress?.call(XtreamCatalogStep.vodStreams, 4, 6);
+    if (failFirstCatalog) {
+      failFirstCatalog = false;
+      throw const XtreamException(
+        XtreamFailure.networkTimeout,
+        catalogStep: XtreamCatalogStep.vodStreams,
+      );
+    }
+    onSaving?.call();
+    return addPlaylist(input);
+  }
 
   @override
   Future<XtreamAccountInfo> testConnection(XtreamConnectionInput input) async {

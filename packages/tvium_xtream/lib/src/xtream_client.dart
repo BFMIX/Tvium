@@ -6,16 +6,23 @@ import 'package:tvium_core/tvium_core.dart';
 
 import 'xtream_account_info.dart';
 import 'xtream_catalog.dart';
+import 'xtream_catalog_step.dart';
 import 'xtream_credentials.dart';
 import 'xtream_failure.dart';
+import 'xtream_json_decoder.dart';
 import 'xtream_profile.dart';
 import 'xtream_series_details.dart';
 
 final class XtreamClient {
-  XtreamClient(this._httpClient, {this.timeout = const Duration(seconds: 15)});
+  XtreamClient(
+    this._httpClient, {
+    this.timeout = const Duration(seconds: 25),
+    this.catalogTimeout = const Duration(seconds: 120),
+  });
 
   final http.Client _httpClient;
   final Duration timeout;
+  final Duration catalogTimeout;
 
   Future<XtreamAccountInfo> authenticate(
     XtreamProfile profile,
@@ -57,58 +64,80 @@ final class XtreamClient {
 
   Future<XtreamCatalog> loadCatalog(
     XtreamProfile profile,
-    XtreamCredentials credentials,
-  ) async {
+    XtreamCredentials credentials, {
+    XtreamCatalogProgress? onProgress,
+    bool allowPartialCatalog = false,
+  }) async {
     final warnings = <String>[];
-    final responses = <String, List<Object?>>{};
-    for (final action in const <String>[
-      'get_live_categories',
-      'get_live_streams',
-      'get_vod_categories',
-      'get_vod_streams',
-      'get_series_categories',
-      'get_series',
-    ]) {
-      responses[action] = await _loadList(profile, credentials, action);
+    var liveCategories = <XtreamCategory>[];
+    var liveStreams = <XtreamMediaItem>[];
+    var movieCategories = <XtreamCategory>[];
+    var movies = <XtreamMediaItem>[];
+    var seriesCategories = <XtreamCategory>[];
+    var series = <XtreamSeriesSummary>[];
+    for (final step in XtreamCatalogStep.values) {
+      onProgress?.call(step, step.index + 1, XtreamCatalogStep.values.length);
+      late final List<Object?> records;
+      try {
+        records = await _loadList(profile, credentials, step);
+      } on XtreamException catch (error) {
+        if (!allowPartialCatalog ||
+            error.failure != XtreamFailure.networkTimeout ||
+            step.index < XtreamCatalogStep.vodCategories.index ||
+            liveStreams.isEmpty) {
+          rethrow;
+        }
+        records = const <Object?>[];
+        warnings.add('The ${step.name} catalog timed out and was skipped.');
+      }
+      switch (step) {
+        case XtreamCatalogStep.liveCategories:
+          liveCategories = _mapRecords(
+            records,
+            _category,
+            'live category',
+            warnings,
+          );
+        case XtreamCatalogStep.liveStreams:
+          liveStreams = _mapRecords(
+            records,
+            (record) => _mediaItem(record, MediaKind.live),
+            'live stream',
+            warnings,
+          );
+        case XtreamCatalogStep.vodCategories:
+          movieCategories = _mapRecords(
+            records,
+            _category,
+            'movie category',
+            warnings,
+          );
+        case XtreamCatalogStep.vodStreams:
+          movies = _mapRecords(
+            records,
+            (record) => _mediaItem(record, MediaKind.movie),
+            'movie',
+            warnings,
+          );
+        case XtreamCatalogStep.seriesCategories:
+          seriesCategories = _mapRecords(
+            records,
+            _category,
+            'series category',
+            warnings,
+          );
+        case XtreamCatalogStep.series:
+          series = _mapRecords(records, _series, 'series', warnings);
+      }
     }
 
     return XtreamCatalog(
-      liveCategories: _mapRecords(
-        responses['get_live_categories']!,
-        _category,
-        'live category',
-        warnings,
-      ),
-      liveStreams: _mapRecords(
-        responses['get_live_streams']!,
-        (record) => _mediaItem(record, MediaKind.live),
-        'live stream',
-        warnings,
-      ),
-      movieCategories: _mapRecords(
-        responses['get_vod_categories']!,
-        _category,
-        'movie category',
-        warnings,
-      ),
-      movies: _mapRecords(
-        responses['get_vod_streams']!,
-        (record) => _mediaItem(record, MediaKind.movie),
-        'movie',
-        warnings,
-      ),
-      seriesCategories: _mapRecords(
-        responses['get_series_categories']!,
-        _category,
-        'series category',
-        warnings,
-      ),
-      series: _mapRecords(
-        responses['get_series']!,
-        _series,
-        'series',
-        warnings,
-      ),
+      liveCategories: liveCategories,
+      liveStreams: liveStreams,
+      movieCategories: movieCategories,
+      movies: movies,
+      seriesCategories: seriesCategories,
+      series: series,
       warnings: warnings,
     );
   }
@@ -210,13 +239,15 @@ final class XtreamClient {
   Future<List<Object?>> _loadList(
     XtreamProfile profile,
     XtreamCredentials credentials,
-    String action,
+    XtreamCatalogStep step,
   ) async {
     final response = await _get(
-      _endpoint(profile, credentials, action: action),
+      _endpoint(profile, credentials, action: step.action),
+      requestTimeout: catalogTimeout,
+      catalogStep: step,
     );
     try {
-      final decoded = jsonDecode(response.body);
+      final decoded = await decodeXtreamJson(response.bodyBytes);
       if (decoded is List<Object?>) {
         return decoded;
       }
@@ -226,12 +257,21 @@ final class XtreamClient {
     throw const XtreamException(XtreamFailure.invalidResponse);
   }
 
-  Future<http.Response> _get(Uri endpoint) async {
+  Future<http.Response> _get(
+    Uri endpoint, {
+    Duration? requestTimeout,
+    XtreamCatalogStep? catalogStep,
+  }) async {
     late http.Response response;
     try {
-      response = await _httpClient.get(endpoint).timeout(timeout);
+      response = await _httpClient
+          .get(endpoint)
+          .timeout(requestTimeout ?? timeout);
     } on TimeoutException {
-      throw const XtreamException(XtreamFailure.networkTimeout);
+      throw XtreamException(
+        XtreamFailure.networkTimeout,
+        catalogStep: catalogStep,
+      );
     } on Object {
       throw const XtreamException(XtreamFailure.serverUnreachable);
     }

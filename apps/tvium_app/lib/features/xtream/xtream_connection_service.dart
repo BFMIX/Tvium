@@ -73,8 +73,25 @@ abstract interface class XtreamConnectionService {
   Future<Uri> resolveStreamUri(String profileId, XtreamMediaItem item);
 }
 
+abstract interface class XtreamProgressConnectionService {
+  Future<XtreamAddedProfile> addPlaylistWithProgress(
+    XtreamConnectionInput input, {
+    XtreamCatalogProgress? onProgress,
+    void Function()? onSaving,
+    Duration? catalogTimeout,
+    bool allowPartialCatalog,
+  });
+}
+
 abstract interface class XtreamSourceRefreshService {
   Future<XtreamRefreshResult> refreshSource(String sourceId);
+}
+
+abstract interface class XtreamProgressRefreshService {
+  Future<XtreamRefreshResult> refreshSourceWithProgress(
+    String sourceId, {
+    XtreamCatalogProgress? onProgress,
+  });
 }
 
 abstract interface class XtreamCatalogPreviewService {
@@ -112,8 +129,10 @@ final class XtreamRefreshResult {
 final class DefaultXtreamConnectionService
     implements
         XtreamConnectionService,
+        XtreamProgressConnectionService,
         XtreamCatalogPreviewService,
         XtreamSourceRefreshService,
+        XtreamProgressRefreshService,
         XtreamSeriesService {
   DefaultXtreamConnectionService({
     http.Client? httpClient,
@@ -121,6 +140,7 @@ final class DefaultXtreamConnectionService
     Random? random,
     Future<ProfileSourceRepository> Function()? repositoryLoader,
     SourceIdentityService? identityService,
+    this.catalogTimeout = const Duration(seconds: 90),
   }) : _httpClient = httpClient ?? http.Client(),
        _ownsHttpClient = httpClient == null,
        _secretStore = secretStore ?? SecureXtreamProfileStore(),
@@ -136,6 +156,7 @@ final class DefaultXtreamConnectionService
   final Random _random;
   final Future<ProfileSourceRepository> Function()? _repositoryLoader;
   final SourceIdentityService? _identityService;
+  final Duration catalogTimeout;
   Future<void> _registrationTail = Future.value();
 
   @override
@@ -147,7 +168,7 @@ final class DefaultXtreamConnectionService
   @override
   Future<XtreamCatalog> previewCatalog(XtreamConnectionInput input) async {
     final profile = _profile(input, 'catalog-preview');
-    final client = XtreamClient(_httpClient);
+    final client = XtreamClient(_httpClient, catalogTimeout: catalogTimeout);
     await client.authenticate(profile, input.credentials);
     return client.loadCatalog(profile, input.credentials);
   }
@@ -166,13 +187,39 @@ final class DefaultXtreamConnectionService
 
   @override
   Future<XtreamAddedProfile> addPlaylist(XtreamConnectionInput input) =>
-      _serialized(() => _register(input));
+      addPlaylistWithProgress(input, allowPartialCatalog: false);
+
+  @override
+  Future<XtreamAddedProfile> addPlaylistWithProgress(
+    XtreamConnectionInput input, {
+    XtreamCatalogProgress? onProgress,
+    void Function()? onSaving,
+    Duration? catalogTimeout,
+    bool allowPartialCatalog = false,
+  }) => _serialized(
+    () => _register(
+      input,
+      onProgress: onProgress,
+      onSaving: onSaving,
+      catalogTimeout: catalogTimeout ?? this.catalogTimeout,
+      allowPartialCatalog: allowPartialCatalog,
+    ),
+  );
 
   @override
   Future<XtreamRefreshResult> refreshSource(String sourceId) =>
-      _serialized(() => _refreshSource(sourceId));
+      refreshSourceWithProgress(sourceId);
 
-  Future<XtreamRefreshResult> _refreshSource(String sourceId) async {
+  @override
+  Future<XtreamRefreshResult> refreshSourceWithProgress(
+    String sourceId, {
+    XtreamCatalogProgress? onProgress,
+  }) => _serialized(() => _refreshSource(sourceId, onProgress: onProgress));
+
+  Future<XtreamRefreshResult> _refreshSource(
+    String sourceId, {
+    XtreamCatalogProgress? onProgress,
+  }) async {
     final repository = await _repositoryLoader?.call();
     if (repository == null) throw const XtreamSecretStoreException();
     final active = await repository.activeProfile();
@@ -189,9 +236,13 @@ final class DefaultXtreamConnectionService
       serverUri: secret.serverUri,
       credentialReference: source.secretReference,
     );
-    final client = XtreamClient(_httpClient);
+    final client = XtreamClient(_httpClient, catalogTimeout: catalogTimeout);
     await client.authenticate(profile, secret.credentials);
-    final catalog = await client.loadCatalog(profile, secret.credentials);
+    final catalog = await client.loadCatalog(
+      profile,
+      secret.credentials,
+      onProgress: onProgress,
+    );
     final incoming = _project(source.id, catalog);
     final previous = await repository.entriesForPlaylist(source.id);
     final diff = PlaylistDiff.calculate(previous: previous, incoming: incoming);
@@ -205,7 +256,13 @@ final class DefaultXtreamConnectionService
     );
   }
 
-  Future<XtreamAddedProfile> _register(XtreamConnectionInput input) async {
+  Future<XtreamAddedProfile> _register(
+    XtreamConnectionInput input, {
+    XtreamCatalogProgress? onProgress,
+    void Function()? onSaving,
+    required Duration catalogTimeout,
+    required bool allowPartialCatalog,
+  }) async {
     final repository = await _repositoryLoader?.call();
     final digest = await _identityService?.xtreamDigest(
       input.serverUri,
@@ -216,9 +273,15 @@ final class DefaultXtreamConnectionService
         : await repository?.sourceByIdentity(digest);
     final reference = existing?.secretReference ?? _secureReference();
     final profile = _profile(input, reference);
-    final client = XtreamClient(_httpClient);
+    final client = XtreamClient(_httpClient, catalogTimeout: catalogTimeout);
     final account = await client.authenticate(profile, input.credentials);
-    final catalog = await client.loadCatalog(profile, input.credentials);
+    final catalog = await client.loadCatalog(
+      profile,
+      input.credentials,
+      onProgress: onProgress,
+      allowPartialCatalog: allowPartialCatalog,
+    );
+    onSaving?.call();
     final active = await repository?.ensureDefaultProfile();
     final linked = active == null
         ? <IptvSource>[]

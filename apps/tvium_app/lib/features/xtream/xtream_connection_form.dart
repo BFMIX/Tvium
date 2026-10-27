@@ -29,6 +29,7 @@ final class _XtreamConnectionFormState
   var _processing = false;
   String? _status;
   var _statusIsError = false;
+  var _canRetryExtended = false;
 
   @override
   void dispose() {
@@ -138,6 +139,14 @@ final class _XtreamConnectionFormState
               ),
             ),
           ],
+          if (_canRetryExtended && !_processing) ...<Widget>[
+            const SizedBox(height: TviumSpacing.sm),
+            OutlinedButton(
+              key: const ValueKey<String>('xtream-retry-extended'),
+              onPressed: () => _run(addPlaylist: true, extended: true),
+              child: Text(strings.xtreamRetryExtended),
+            ),
+          ],
           const SizedBox(height: TviumSpacing.md),
           Wrap(
             alignment: WrapAlignment.end,
@@ -161,7 +170,7 @@ final class _XtreamConnectionFormState
     );
   }
 
-  Future<void> _run({required bool addPlaylist}) async {
+  Future<void> _run({required bool addPlaylist, bool extended = false}) async {
     final strings = AppLocalizations.of(context);
     final input = _readInput();
     if (input == null) {
@@ -174,19 +183,47 @@ final class _XtreamConnectionFormState
 
     setState(() {
       _processing = true;
-      _status = null;
+      _status = strings.xtreamConnecting;
+      _statusIsError = false;
+      _canRetryExtended = false;
     });
     try {
       final service = ref.read(xtreamConnectionServiceProvider);
       if (addPlaylist) {
-        final result = await service.addPlaylist(input);
+        final result = service is XtreamProgressConnectionService
+            ? await (service as XtreamProgressConnectionService)
+                  .addPlaylistWithProgress(
+                    input,
+                    catalogTimeout: extended
+                        ? const Duration(minutes: 2)
+                        : null,
+                    allowPartialCatalog: extended,
+                    onProgress: (step, current, total) {
+                      if (!mounted) return;
+                      setState(() {
+                        _status = strings.xtreamCatalogProgress(
+                          _stepLabel(strings, step),
+                          current,
+                          total,
+                        );
+                      });
+                    },
+                    onSaving: () {
+                      if (mounted) {
+                        setState(() => _status = strings.xtreamSaving);
+                      }
+                    },
+                  )
+            : await service.addPlaylist(input);
         if (!mounted) return;
         _serverController.clear();
         _usernameController.clear();
         _passwordController.clear();
         TextInput.finishAutofillContext();
         setState(() {
-          _status = strings.xtreamPlaylistAdded(result.itemCount);
+          _status = result.catalog.warnings.isEmpty
+              ? strings.xtreamPlaylistAdded(result.itemCount)
+              : strings.xtreamPartialAdded;
           _statusIsError = false;
         });
         widget.onPlaylistAdded(result);
@@ -201,8 +238,16 @@ final class _XtreamConnectionFormState
     } on XtreamException catch (error) {
       if (!mounted) return;
       setState(() {
-        _status = _failureMessage(strings, error.failure);
+        _status =
+            error.failure == XtreamFailure.networkTimeout &&
+                error.catalogStep != null
+            ? strings.xtreamTimedOutAt(_stepLabel(strings, error.catalogStep!))
+            : _failureMessage(strings, error.failure);
         _statusIsError = true;
+        _canRetryExtended =
+            addPlaylist &&
+            error.failure == XtreamFailure.networkTimeout &&
+            !extended;
       });
     } on Object {
       if (!mounted) return;
@@ -216,6 +261,16 @@ final class _XtreamConnectionFormState
       }
     }
   }
+
+  String _stepLabel(AppLocalizations strings, XtreamCatalogStep step) =>
+      switch (step) {
+        XtreamCatalogStep.liveCategories => strings.xtreamLiveCategories,
+        XtreamCatalogStep.liveStreams => strings.xtreamLiveStreams,
+        XtreamCatalogStep.vodCategories => strings.xtreamVodCategories,
+        XtreamCatalogStep.vodStreams => strings.xtreamVodStreams,
+        XtreamCatalogStep.seriesCategories => strings.xtreamSeriesCategories,
+        XtreamCatalogStep.series => strings.xtreamSeries,
+      };
 
   XtreamConnectionInput? _readInput() {
     final profileName = _profileController.text.trim();

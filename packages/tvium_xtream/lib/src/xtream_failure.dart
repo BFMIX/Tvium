@@ -1,3 +1,5 @@
+import 'xtream_catalog_step.dart';
+
 enum XtreamFailure {
   incorrectCredentials,
   serverUnreachable,
@@ -7,9 +9,10 @@ enum XtreamFailure {
 }
 
 final class XtreamException implements Exception {
-  const XtreamException(this.failure);
+  const XtreamException(this.failure, {this.catalogStep});
 
   final XtreamFailure failure;
+  final XtreamCatalogStep? catalogStep;
 
   String get message => switch (failure) {
     XtreamFailure.incorrectCredentials => 'Incorrect credentials',

@@ -278,6 +278,78 @@ abstract class AppLocalizations {
   /// **'The server took too long to respond'**
   String get networkTimeout;
 
+  /// No description provided for @xtreamConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to the server...'**
+  String get xtreamConnecting;
+
+  /// No description provided for @xtreamCatalogProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading {section} ({current}/{total})...'**
+  String xtreamCatalogProgress(String section, int current, int total);
+
+  /// No description provided for @xtreamLiveCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'Live categories'**
+  String get xtreamLiveCategories;
+
+  /// No description provided for @xtreamLiveStreams.
+  ///
+  /// In en, this message translates to:
+  /// **'Live TV channels'**
+  String get xtreamLiveStreams;
+
+  /// No description provided for @xtreamVodCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'movie categories'**
+  String get xtreamVodCategories;
+
+  /// No description provided for @xtreamVodStreams.
+  ///
+  /// In en, this message translates to:
+  /// **'movies'**
+  String get xtreamVodStreams;
+
+  /// No description provided for @xtreamSeriesCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'series categories'**
+  String get xtreamSeriesCategories;
+
+  /// No description provided for @xtreamSeries.
+  ///
+  /// In en, this message translates to:
+  /// **'TV series'**
+  String get xtreamSeries;
+
+  /// No description provided for @xtreamSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving to the library...'**
+  String get xtreamSaving;
+
+  /// No description provided for @xtreamTimedOutAt.
+  ///
+  /// In en, this message translates to:
+  /// **'The server timed out while downloading {section}. Your existing library was kept.'**
+  String xtreamTimedOutAt(String section);
+
+  /// No description provided for @xtreamRetryExtended.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry with a 2-minute limit'**
+  String get xtreamRetryExtended;
+
+  /// No description provided for @xtreamPartialAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Live TV was added. Some movie or series sections timed out and can be refreshed later.'**
+  String get xtreamPartialAdded;
+
   /// No description provided for @serverUnreachable.
   ///
   /// In en, this message translates to:

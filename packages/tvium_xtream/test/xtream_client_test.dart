@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -158,5 +159,87 @@ void main() {
     expect(catalog.warnings, hasLength(1));
     expect(catalog.warnings.single, isNot(contains('fixture-user')));
     expect(catalog.warnings.single, isNot(contains('fixture-password')));
+  });
+
+  test('catalog uses its own timeout and reports each safe step', () async {
+    final steps = <XtreamCatalogStep>[];
+    final client = XtreamClient(
+      MockClient((request) async {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+        return http.Response('[]', 200);
+      }),
+      timeout: const Duration(milliseconds: 5),
+      catalogTimeout: const Duration(milliseconds: 100),
+    );
+    await client.loadCatalog(
+      profile,
+      credentials,
+      onProgress: (step, current, total) {
+        expect(current, steps.length + 1);
+        expect(total, 6);
+        steps.add(step);
+      },
+    );
+    expect(steps, XtreamCatalogStep.values);
+  });
+
+  test('reports the timed-out catalog step without request details', () async {
+    final client = XtreamClient(
+      MockClient((request) async {
+        if (request.url.queryParameters['action'] == 'get_vod_streams') {
+          await Completer<void>().future;
+        }
+        return http.Response('[]', 200);
+      }),
+      catalogTimeout: const Duration(milliseconds: 5),
+    );
+    await expectLater(
+      client.loadCatalog(profile, credentials),
+      throwsA(
+        isA<XtreamException>()
+            .having(
+              (error) => error.failure,
+              'failure',
+              XtreamFailure.networkTimeout,
+            )
+            .having(
+              (error) => error.catalogStep,
+              'step',
+              XtreamCatalogStep.vodStreams,
+            )
+            .having(
+              (error) => error.toString(),
+              'safe text',
+              isNot(contains('provider.example.test')),
+            ),
+      ),
+    );
+  });
+
+  test('optional partial import retains Live when VOD times out', () async {
+    final client = XtreamClient(
+      MockClient((request) async {
+        final action = request.url.queryParameters['action'];
+        if (action == 'get_vod_streams') await Completer<void>().future;
+        return http.Response(
+          action == 'get_live_streams'
+              ? '[{"stream_id":1,"name":"Fixture Live"}]'
+              : '[]',
+          200,
+        );
+      }),
+      catalogTimeout: const Duration(milliseconds: 5),
+    );
+    final catalog = await client.loadCatalog(
+      profile,
+      credentials,
+      allowPartialCatalog: true,
+    );
+    expect(catalog.liveStreams.single.name, 'Fixture Live');
+    expect(catalog.movies, isEmpty);
+    expect(
+      catalog.warnings,
+      contains('The vodStreams catalog timed out and was skipped.'),
+    );
   });
 }

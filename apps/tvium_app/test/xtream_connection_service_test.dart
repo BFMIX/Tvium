@@ -12,6 +12,30 @@ import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_xtream/tvium_xtream.dart';
 
 void main() {
+  test('reports catalog and saving stages during registration', () async {
+    final steps = <XtreamCatalogStep>[];
+    var saving = false;
+    final service = DefaultXtreamConnectionService(
+      httpClient: MockClient((request) async {
+        if (request.url.queryParameters['action'] == null) {
+          return http.Response(
+            '{"user_info":{"auth":1,"status":"Active"}}',
+            200,
+          );
+        }
+        return http.Response('[]', 200);
+      }),
+      secretStore: SecureXtreamProfileStore(_MemorySecureKeyValueStore()),
+    );
+    await service.addPlaylistWithProgress(
+      _input,
+      onProgress: (step, current, total) => steps.add(step),
+      onSaving: () => saving = true,
+    );
+    expect(steps, XtreamCatalogStep.values);
+    expect(saving, isTrue);
+  });
+
   test(
     'stores credentials only after authentication and catalog load',
     () async {
