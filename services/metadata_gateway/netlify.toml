@@ -1,0 +1,19 @@
+[build]
+  command = "npm run build:pairing"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[[headers]]
+  for = "/pair/*"
+  [headers.values]
+    Cache-Control = "no-store"
+    Content-Security-Policy = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'"
+    Referrer-Policy = "no-referrer"
+    X-Content-Type-Options = "nosniff"
+
+[[headers]]
+  for = "/pairing-phone.js"
+  [headers.values]
+    Cache-Control = "no-store"
+    Referrer-Policy = "no-referrer"
+    X-Content-Type-Options = "nosniff"

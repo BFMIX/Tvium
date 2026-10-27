@@ -1,5 +1,5 @@
-import { createSearch } from '../../services/metadata_gateway/src/gateway.js';
-import { createNetlifyHandler } from '../../services/metadata_gateway/src/netlify_handler.js';
+import { createSearch } from '../../src/gateway.js';
+import { createNetlifyHandler } from '../../src/netlify_handler.js';
 
 const search = createSearch({ token: Netlify.env.get('TMDB_READ_ACCESS_TOKEN') ?? '' });
 

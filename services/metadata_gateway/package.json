@@ -3,5 +3,13 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=22" },
-  "scripts": { "start": "node src/server.js", "test": "node --test" }
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "build:netlify": "bash scripts/build-netlify-pairing.sh",
+    "build:pairing": "bash scripts/build-netlify-pairing.sh"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.6"
+  }
 }

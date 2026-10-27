@@ -58,3 +58,7 @@ secrets.*
 !test/fixtures/*.m3u
 test/fixtures/generated/
 *.m3u.local
+
+# Local Netlify folder
+.netlify
+services/metadata_gateway/node_modules/
