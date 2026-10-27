@@ -18,6 +18,10 @@ For a local macOS preview, run `zsh scripts/run_metadata_preview_macos.zsh` from
 
 The Web release can be pointed at a hosted gateway by setting the repository variable `TVIUM_METADATA_GATEWAY` to its public HTTPS origin before running the Release workflow. The build rejects credentials, paths, and insecure addresses. This variable is a public endpoint address, never the TMDB token. Leave it unset until the gateway has TLS and ingress protections; setting the variable does not deploy a gateway. Configure `ALLOWED_ORIGINS` on the gateway to permit the deployed Pages origin.
 
+## Netlify prototype endpoint
+
+`netlify/functions/metadata-search.mjs` adapts the same validated search contract to `/v1/search`. It permits only the Tvium GitHub Pages and Netlify presentation origins, accepts native requests without an `Origin`, limits each IP to 20 requests per minute at the Netlify ingress, and never logs titles or provider errors. Configure `TMDB_READ_ACCESS_TOKEN` as a secret with Functions scope on the Tvium Netlify project, then deploy and verify the HTTPS endpoint before setting `TVIUM_METADATA_GATEWAY` for application builds. The public endpoint and token must be managed separately. A local passing test does not establish production abuse resistance or TMDB commercial licensing.
+
 ## Contract
 
 `POST /v1/search`, `Content-Type: application/json`:
