@@ -1873,6 +1873,23 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                 const Positioned.fill(
                   child: ColoredBox(color: Color(0xB8071422)),
                 ),
+              ] else if (_destination == _CatalogDestination.movies ||
+                  _destination == _CatalogDestination.shows) ...<Widget>[
+                Positioned.fill(
+                  child: ImageFiltered(
+                    key: const ValueKey('catalog-page-background'),
+                    imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                    child: Image.asset(
+                      _destination == _CatalogDestination.movies
+                          ? 'assets/destinations/hero-movies.png'
+                          : 'assets/destinations/hero-tv-shows.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const Positioned.fill(
+                  child: ColoredBox(color: Color(0xD4071422)),
+                ),
               ],
               Column(
                 children: <Widget>[

@@ -1062,6 +1062,33 @@ void main() {
     );
   });
 
+  testWidgets('Movies and TV Shows extend scenery behind the header', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('catalog-page-background')),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'TV Shows'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('catalog-page-background')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('poster catalogs use a width-responsive compact grid', (
     tester,
   ) async {
