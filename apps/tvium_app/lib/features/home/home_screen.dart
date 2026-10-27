@@ -1982,7 +1982,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                   if (!wide)
                     NavigationBar(
                       key: const ValueKey('compact-navigation'),
-                      height: MediaQuery.sizeOf(context).height < 500 ? 56 : 80,
+                      height: MediaQuery.sizeOf(context).height < 500 ? 56 : 64,
                       selectedIndex: _destination.index,
                       onDestinationSelected: (index) =>
                           _selectDestination(_CatalogDestination.values[index]),
@@ -2971,7 +2971,7 @@ final class _CatalogPage extends ConsumerWidget {
               if (showPlayer) ...<Widget>[
                 SizedBox(
                   key: const ValueKey('catalog-player'),
-                  height: 210,
+                  height: compactWidth ? 168 : 210,
                   child: _PlayerPanel(
                     selectedEntry: selectedEntry,
                     engine: playbackEngine,
@@ -3998,18 +3998,19 @@ final class _LiveMediaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Card(
       margin: EdgeInsets.zero,
       color: const Color(0xA8102133),
       child: ListTile(
-        minTileHeight: 72,
-        contentPadding: const EdgeInsets.symmetric(
+        minTileHeight: compact ? 60 : 72,
+        contentPadding: EdgeInsets.symmetric(
           horizontal: TviumSpacing.sm,
-          vertical: TviumSpacing.xs,
+          vertical: compact ? 0 : TviumSpacing.xs,
         ),
         onTap: onTap,
         leading: SizedBox.square(
-          dimension: 56,
+          dimension: compact ? 44 : 56,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(TviumRadius.control),
             child: _CatalogArtwork(entry: entry),

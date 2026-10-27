@@ -273,6 +273,42 @@ void main() {
     expect(find.byKey(const ValueKey('country-flag-rail-FR')), findsOneWidget);
   });
 
+  testWidgets('phone portrait keeps the Live TV player and rows compact', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+        playbackEngineFactory: _FakePlaybackEngine.new,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('media-row-entry-1'));
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('catalog-player'))).height,
+      lessThanOrEqualTo(180),
+    );
+    expect(tester.getSize(row).height, lessThanOrEqualTo(68));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('compact-navigation'))).height,
+      lessThanOrEqualTo(68),
+    );
+  });
+
   testWidgets('wide Live TV can search detected countries in the left pane', (
     tester,
   ) async {
