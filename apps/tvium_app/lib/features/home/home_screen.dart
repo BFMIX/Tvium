@@ -1969,6 +1969,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
               if (!wide)
                 NavigationBar(
                   key: const ValueKey('compact-navigation'),
+                  height: MediaQuery.sizeOf(context).height < 500 ? 56 : 80,
                   selectedIndex: _destination.index,
                   onDestinationSelected: (index) =>
                       _selectDestination(_CatalogDestination.values[index]),
@@ -2806,10 +2807,14 @@ final class _DestinationCard extends StatelessWidget {
                       _destinationLabel(destination),
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
-                    Text(
-                      '$count ${count == 1 ? 'title' : 'titles'}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
+                    Text(switch (destination) {
+                      _CatalogDestination.live =>
+                        '$count TV ${count == 1 ? 'channel' : 'channels'}',
+                      _CatalogDestination.movies =>
+                        '$count ${count == 1 ? 'movie' : 'movies'}',
+                      _CatalogDestination.shows => '$count TV series',
+                      _CatalogDestination.home => '',
+                    }, style: Theme.of(context).textTheme.bodyMedium),
                   ],
                 ),
               ),
@@ -3034,133 +3039,171 @@ final class _CatalogPage extends ConsumerWidget {
               );
             },
           );
-    final catalog = Column(
-      children: <Widget>[
-        if (continueWatching.isNotEmpty && !showPlayer) ...<Widget>[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Continue watching',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-          ),
-          const SizedBox(height: TviumSpacing.sm),
-          SizedBox(
-            height: shortWindow ? 86 : 110,
-            child: ListView.separated(
-              key: ValueKey(
-                destination == _CatalogDestination.movies
-                    ? 'movies-continue-watching'
-                    : 'shows-continue-watching',
+    final catalog =
+        destination == _CatalogDestination.live &&
+            showPlayer &&
+            shortWindow &&
+            !compactWidth
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Expanded(child: media),
+              const SizedBox(width: TviumSpacing.sm),
+              SizedBox(
+                key: const ValueKey('catalog-player'),
+                width: (MediaQuery.sizeOf(context).width * 0.36).clamp(
+                  220.0,
+                  340.0,
+                ),
+                child: _PlayerPanel(
+                  selectedEntry: selectedEntry,
+                  engine: playbackEngine,
+                  onOpenChannelSwitcher: liveChannels.isNotEmpty
+                      ? openChannelSwitcher
+                      : null,
+                  onPreviousChannel:
+                      selectedLiveIndex >= 0 && liveChannels.length > 1
+                      ? () => zapChannel(-1)
+                      : null,
+                  onNextChannel:
+                      selectedLiveIndex >= 0 && liveChannels.length > 1
+                      ? () => zapChannel(1)
+                      : null,
+                ),
               ),
-              scrollDirection: Axis.horizontal,
-              itemCount: continueWatching.length,
-              separatorBuilder: (_, _) =>
-                  const SizedBox(width: TviumSpacing.sm),
-              itemBuilder: (context, index) {
-                final item = continueWatching[index];
-                final duration = item.history.duration.inMilliseconds;
-                final progress = duration <= 0
-                    ? 0.0
-                    : (item.history.position.inMilliseconds / duration).clamp(
-                        0.0,
-                        1.0,
-                      );
-                return SizedBox(
-                  width: 240,
-                  child: Material(
-                    clipBehavior: Clip.antiAlias,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      side: const BorderSide(color: Color(0x44B8E8FF)),
+            ],
+          )
+        : Column(
+            children: <Widget>[
+              if (continueWatching.isNotEmpty && !showPlayer) ...<Widget>[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Continue watching',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+                const SizedBox(height: TviumSpacing.sm),
+                SizedBox(
+                  height: shortWindow ? 86 : 110,
+                  child: ListView.separated(
+                    key: ValueKey(
+                      destination == _CatalogDestination.movies
+                          ? 'movies-continue-watching'
+                          : 'shows-continue-watching',
                     ),
-                    color: const Color(0xB8102638),
-                    child: InkWell(
-                      onTap: () => onPlay(item.entry),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: <Widget>[
-                          _CatalogArtwork(
-                            key: ValueKey('continue-artwork-${item.entry.id}'),
-                            entry: item.entry,
+                    scrollDirection: Axis.horizontal,
+                    itemCount: continueWatching.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(width: TviumSpacing.sm),
+                    itemBuilder: (context, index) {
+                      final item = continueWatching[index];
+                      final duration = item.history.duration.inMilliseconds;
+                      final progress = duration <= 0
+                          ? 0.0
+                          : (item.history.position.inMilliseconds / duration)
+                                .clamp(0.0, 1.0);
+                      return SizedBox(
+                        width: 240,
+                        child: Material(
+                          clipBehavior: Clip.antiAlias,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: const BorderSide(color: Color(0x44B8E8FF)),
                           ),
-                          const DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: <Color>[
-                                  Color(0x2207111B),
-                                  Color(0xF007111B),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(TviumSpacing.sm),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.end,
+                          color: const Color(0xB8102638),
+                          child: InkWell(
+                            onTap: () => onPlay(item.entry),
+                            child: Stack(
+                              fit: StackFit.expand,
                               children: <Widget>[
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: Text(
-                                        item.entry.displayName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                    const Icon(Icons.play_arrow_rounded),
-                                  ],
-                                ),
-                                const SizedBox(height: 5),
-                                LinearProgressIndicator(
+                                _CatalogArtwork(
                                   key: ValueKey(
-                                    'continue-progress-${item.entry.id}',
+                                    'continue-artwork-${item.entry.id}',
                                   ),
-                                  value: progress,
+                                  entry: item.entry,
+                                ),
+                                const DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: <Color>[
+                                        Color(0x2207111B),
+                                        Color(0xF007111B),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.all(
+                                    TviumSpacing.sm,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: <Widget>[
+                                      Row(
+                                        children: <Widget>[
+                                          Expanded(
+                                            child: Text(
+                                              item.entry.displayName,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                          const Icon(Icons.play_arrow_rounded),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 5),
+                                      LinearProgressIndicator(
+                                        key: ValueKey(
+                                          'continue-progress-${item.entry.id}',
+                                        ),
+                                        value: progress,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: TviumSpacing.md),
-        ],
-        if (showPlayer) ...<Widget>[
-          SizedBox(
-            key: const ValueKey('catalog-player'),
-            height: 210,
-            child: _PlayerPanel(
-              selectedEntry: selectedEntry,
-              engine: playbackEngine,
-              onOpenChannelSwitcher: liveChannels.isNotEmpty
-                  ? openChannelSwitcher
-                  : null,
-              onPreviousChannel:
-                  selectedLiveIndex >= 0 && liveChannels.length > 1
-                  ? () => zapChannel(-1)
-                  : null,
-              onNextChannel: selectedLiveIndex >= 0 && liveChannels.length > 1
-                  ? () => zapChannel(1)
-                  : null,
-            ),
-          ),
-          const SizedBox(height: TviumSpacing.md),
-        ],
-        Expanded(child: media),
-      ],
-    );
+                ),
+                const SizedBox(height: TviumSpacing.md),
+              ],
+              if (showPlayer) ...<Widget>[
+                SizedBox(
+                  key: const ValueKey('catalog-player'),
+                  height: 210,
+                  child: _PlayerPanel(
+                    selectedEntry: selectedEntry,
+                    engine: playbackEngine,
+                    onOpenChannelSwitcher: liveChannels.isNotEmpty
+                        ? openChannelSwitcher
+                        : null,
+                    onPreviousChannel:
+                        selectedLiveIndex >= 0 && liveChannels.length > 1
+                        ? () => zapChannel(-1)
+                        : null,
+                    onNextChannel:
+                        selectedLiveIndex >= 0 && liveChannels.length > 1
+                        ? () => zapChannel(1)
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: TviumSpacing.md),
+              ],
+              Expanded(child: media),
+            ],
+          );
     final pageContent = Padding(
       padding: const EdgeInsets.fromLTRB(
         TviumSpacing.lg,
@@ -3250,7 +3293,7 @@ final class _CatalogPage extends ConsumerWidget {
           if (countries.length >= 2 &&
               MediaQuery.sizeOf(context).width < 1100) ...<Widget>[
             SizedBox(
-              height: 58,
+              height: shortWindow ? 40 : 58,
               child: ListView(
                 key: const ValueKey('live-country-rail'),
                 scrollDirection: Axis.horizontal,

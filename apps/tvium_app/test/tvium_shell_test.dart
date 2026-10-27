@@ -117,22 +117,26 @@ void main() {
     expect(find.text('Demo News'), findsNothing);
   });
 
-  testWidgets('Home TV Shows count matches grouped series titles', (
-    tester,
-  ) async {
+  testWidgets('Home counts name each kind of content', (tester) async {
     final controller = PlaylistImportController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(TviumApp(importController: controller));
     unawaited(controller.importSource(const _DesignFixtureSource()));
     await tester.pumpAndSettle();
 
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('destination-shows')),
-        matching: find.text('1 title'),
-      ),
-      findsOneWidget,
-    );
+    for (final (key, label) in [
+      ('destination-live', '1 TV channel'),
+      ('destination-movies', '1 movie'),
+      ('destination-shows', '1 TV series'),
+    ]) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey(key)),
+          matching: find.text(label),
+        ),
+        findsOneWidget,
+      );
+    }
   });
 
   testWidgets('live destination shows channels without movie or show rows', (
@@ -508,6 +512,40 @@ void main() {
       greaterThan(
         tester.getTopLeft(find.byKey(const ValueKey('live-channel-list'))).dx,
       ),
+    );
+  });
+
+  testWidgets('phone landscape keeps channels beside the player', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(932, 430);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+        playbackEngineFactory: _FakePlaybackEngine.new,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('media-row-entry-1')));
+    await tester.pumpAndSettle();
+    final channels = find.byKey(const ValueKey('live-channel-list'));
+    final player = find.byKey(const ValueKey('catalog-player'));
+    expect(channels, findsOneWidget);
+    expect(player, findsOneWidget);
+    expect(tester.getSize(channels).height, greaterThan(80));
+    expect(
+      tester.getTopLeft(player).dx,
+      greaterThan(tester.getTopLeft(channels).dx),
     );
   });
 
@@ -2098,6 +2136,8 @@ void main() {
     final initialTitle = tester.widget<Text>(
       find.byKey(const ValueKey('home-hero-title')).last,
     );
+    await tester.ensureVisible(find.byKey(const ValueKey('home-hero')));
+    await tester.pumpAndSettle();
     await tester.fling(
       find.byKey(const ValueKey('home-hero')),
       const Offset(-240, 0),
