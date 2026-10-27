@@ -7,6 +7,48 @@ import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_xtream/tvium_xtream.dart';
 
 void main() {
+  testWidgets('uses paged storage after a saved Xtream import', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = InMemoryProfileSourceRepository();
+    final active = await repository.ensureDefaultProfile();
+    final service = _SavedXtreamConnectionService(repository, active.id);
+    await tester.pumpWidget(
+      TviumApp(
+        xtreamConnectionService: service,
+        profileSourceRepository: repository,
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey<String>('xtream-action')));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xtream-profile-name')),
+      'Fixture',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xtream-server-url')),
+      'https://provider.example.test',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xtream-username')),
+      'fixture-user',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('xtream-password')),
+      'fixture-password',
+    );
+    final addButton = find.byKey(const ValueKey<String>('xtream-add-playlist'));
+    await tester.ensureVisible(addButton);
+    await tester.tap(addButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('catalog-pagination')), findsOneWidget);
+    expect(find.text('1–120 / 260'), findsOneWidget);
+  });
+
   testWidgets('tests and securely adds an Xtream profile', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
@@ -82,6 +124,68 @@ void main() {
     expect(find.text('News'), findsNothing);
     expect(find.text('Welcome to Tvium'), findsOneWidget);
   });
+}
+
+final class _SavedXtreamConnectionService implements XtreamConnectionService {
+  _SavedXtreamConnectionService(this.repository, this.profileId);
+  final InMemoryProfileSourceRepository repository;
+  final String profileId;
+
+  @override
+  Future<XtreamAccountInfo> testConnection(XtreamConnectionInput input) async =>
+      _account;
+
+  @override
+  Future<XtreamAddedProfile> addPlaylist(XtreamConnectionInput input) async {
+    const source = IptvSource(
+      id: 'saved-xtream',
+      displayName: 'Fixture',
+      identityDigest: 'fixture-digest',
+      secretReference: 'fixture-secret',
+    );
+    await repository.registerSource(source, profileId, [
+      for (var index = 0; index < 260; index++)
+        PersistedMediaEntry(
+          id: 'movie:$index',
+          playlistId: source.id,
+          sourceReference: source.id,
+          originalName: 'Fixture Movie $index',
+          displayName: 'Fixture Movie $index',
+          groupName: 'Fixture',
+          kind: MediaKind.movie,
+          externalId: '$index',
+        ),
+    ]);
+    return XtreamAddedProfile(
+      profileId: source.id,
+      account: _account,
+      targetProfileId: profileId,
+      catalog: XtreamCatalog(
+        liveCategories: const [],
+        liveStreams: const [],
+        movieCategories: const [],
+        movies: [
+          for (var index = 0; index < 260; index++)
+            XtreamMediaItem(
+              id: '$index',
+              name: 'Fixture Movie $index',
+              categoryId: null,
+              kind: MediaKind.movie,
+              imageUri: null,
+              containerExtension: null,
+              epgChannelId: null,
+            ),
+        ],
+        seriesCategories: const [],
+        series: const [],
+        warnings: const [],
+      ),
+    );
+  }
+
+  @override
+  Future<Uri> resolveStreamUri(String profileId, XtreamMediaItem item) async =>
+      Uri.parse('https://stream.example.test/${item.id}');
 }
 
 final class _FakeXtreamConnectionService implements XtreamConnectionService {

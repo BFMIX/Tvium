@@ -1023,7 +1023,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
       }
     }
     setState(() {
-      _xtreamProfile = profile;
+      // Persisted Xtream entries are read in pages from SQLite. Keeping the
+      // network catalog here duplicates the entire source in memory and makes
+      // every Home rebuild map all of its channels, movies, and series.
+      _xtreamProfile = targetProfileId == null ? profile : null;
       _selectedGroup = null;
       _selectedEntry = null;
       _playbackError = null;
