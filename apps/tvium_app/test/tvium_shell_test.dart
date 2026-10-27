@@ -1041,6 +1041,32 @@ void main() {
     });
   }
 
+  for (final destination in <String>['movies', 'shows']) {
+    testWidgets('phone landscape keeps $destination posters compact', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(932, 430);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final controller = PlaylistImportController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(TviumApp(importController: controller));
+      unawaited(controller.importSource(const _DesignFixtureSource()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey('destination-$destination')));
+      await tester.pumpAndSettle();
+
+      final grid = find.byKey(const ValueKey('poster-grid'));
+      expect(grid, findsOneWidget);
+      final delegate =
+          tester.widget<GridView>(grid).gridDelegate
+              as SliverGridDelegateWithMaxCrossAxisExtent;
+      expect(delegate.maxCrossAxisExtent, lessThanOrEqualTo(160));
+      expect(tester.getSize(grid).height, greaterThan(180));
+    });
+  }
+
   testWidgets('M3U episodes are grouped into one series with seasons', (
     tester,
   ) async {

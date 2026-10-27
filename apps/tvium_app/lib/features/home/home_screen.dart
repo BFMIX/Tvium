@@ -3035,11 +3035,11 @@ final class _CatalogPage extends ConsumerWidget {
           )
         : GridView.builder(
             key: const ValueKey('poster-grid'),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 210,
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: shortWindow ? 150 : 210,
               mainAxisSpacing: TviumSpacing.sm,
               crossAxisSpacing: TviumSpacing.sm,
-              childAspectRatio: 0.62,
+              childAspectRatio: shortWindow ? 0.72 : 0.62,
             ),
             itemCount: visible.length,
             itemBuilder: (context, index) {
@@ -3229,11 +3229,11 @@ final class _CatalogPage extends ConsumerWidget {
             ],
           );
     final pageContent = Padding(
-      padding: const EdgeInsets.fromLTRB(
-        TviumSpacing.lg,
-        TviumSpacing.sm,
-        TviumSpacing.lg,
-        TviumSpacing.lg,
+      padding: EdgeInsets.fromLTRB(
+        shortWindow ? TviumSpacing.sm : TviumSpacing.lg,
+        shortWindow ? 0 : TviumSpacing.sm,
+        shortWindow ? TviumSpacing.sm : TviumSpacing.lg,
+        shortWindow ? TviumSpacing.sm : TviumSpacing.lg,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3241,10 +3241,12 @@ final class _CatalogPage extends ConsumerWidget {
           if (shortWindow ||
               (compactWidth && destination != _CatalogDestination.live))
             SizedBox(
-              height: 42,
+              height: shortWindow ? 28 : 42,
               child: Text(
                 _destinationLabel(destination),
-                style: Theme.of(context).textTheme.headlineMedium,
+                style: shortWindow
+                    ? Theme.of(context).textTheme.titleLarge
+                    : Theme.of(context).textTheme.headlineMedium,
               ),
             )
           else if (destination == _CatalogDestination.live)
