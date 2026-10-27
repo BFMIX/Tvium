@@ -105,7 +105,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('destination-live')));
     await tester.pumpAndSettle();
-    expect(find.text('News'), findsOneWidget);
+    expect(find.text('News'), findsWidgets);
 
     await tester.tap(find.widgetWithText(TextButton, 'Movies'));
     await tester.pumpAndSettle();

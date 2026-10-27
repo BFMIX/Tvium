@@ -1860,142 +1860,166 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
               ],
             ),
           ),
-          child: Column(
+          child: Stack(
             children: <Widget>[
-              _CatalogHeader(
-                wide: wide,
-                destination: _destination,
-                searching: _searching,
-                onDestinationSelected: _selectDestination,
-                onSearch: () => setState(() {
-                  _searching = !_searching;
-                  if (!_searching) {
-                    _query = '';
-                    _queryController.clear();
-                  }
-                }),
-                onSettings: () => showSettingsPages(
-                  context,
-                  openSection: (section) => showLibrarySettings(
-                    context,
-                    section: section,
-                    configured: ref.read(metadataGatewayProvider) != null,
-                    metadataConsentStore: ref.read(
-                      metadataConsentStoreProvider,
-                    ),
-                    onImportEpgFile: widget.onImportEpgFile,
-                    onImportEpgUrl: widget.onImportEpgUrl,
-                    onRefreshSource: widget.onRefreshSource,
-                    onRefreshSources: widget.onRefreshSources,
-                    refreshIntervalFor: widget.refreshIntervalFor,
-                    lastRefreshAttemptFor: widget.lastRefreshAttemptFor,
-                    onRefreshIntervalChanged: widget.onRefreshIntervalChanged,
-                    sources: widget.sources,
-                    onAddPlaylist: widget.onAddPlaylist,
-                    onRenameSource: widget.onRenameSource,
-                    onRemoveSource: widget.onRemoveSource,
-                    parentalConfigured: widget.parentalConfigured,
-                    parentalUnlocked: widget.parentalUnlocked,
-                    availableParentalCategories:
-                        widget.entries
-                            .map((entry) => entry.group?.trim())
-                            .whereType<String>()
-                            .where((group) => group.isNotEmpty)
-                            .toSet()
-                            .toList()
-                          ..sort(),
-                    initialBlockedContent:
-                        ref
-                            .watch(
-                              userOverlaysControllerProvider(widget.profileId),
-                            )
-                            .asData
-                            ?.value
-                            .parentalPolicy
-                            ?.blockedContent ??
-                        const {'adult'},
-                    onSaveParentalPin: widget.onSaveParentalPin,
-                    onUnlockParental: widget.onUnlockParental,
+              if (_destination == _CatalogDestination.live) ...<Widget>[
+                Positioned.fill(
+                  child: Image.asset(
+                    'assets/destinations/hero-live-tv.png',
+                    key: const ValueKey('live-page-background'),
+                    fit: BoxFit.cover,
                   ),
                 ),
-                onProfileChanged: widget.onProfileChanged,
-                onSourcesRemoved: widget.onSourcesRemoved,
-              ),
-              if (_searching && _destination != _CatalogDestination.home)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    TviumSpacing.lg,
-                    0,
-                    TviumSpacing.lg,
-                    TviumSpacing.sm,
-                  ),
-                  child: TextField(
-                    key: const ValueKey('library-search'),
-                    controller: _queryController,
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Search this section',
-                      prefixIcon: Icon(Icons.search_rounded),
-                    ),
-                    onChanged: (value) => setState(() => _query = value.trim()),
-                  ),
+                const Positioned.fill(
+                  child: ColoredBox(color: Color(0xB8071422)),
                 ),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : const Duration(milliseconds: 180),
-                  child: switch (_destination) {
-                    _CatalogDestination.home => _DestinationHome(
-                      key: const ValueKey('page-home'),
-                      entries: entries,
-                      profileId: widget.profileId,
-                      history: widget.history,
-                      onSelected: _selectDestination,
-                      onPlay: widget.onEntrySelected,
-                      onDetails: (entry) => _showTitleDetails(
+              ],
+              Column(
+                children: <Widget>[
+                  _CatalogHeader(
+                    wide: wide,
+                    destination: _destination,
+                    searching: _searching,
+                    onDestinationSelected: _selectDestination,
+                    onSearch: () => setState(() {
+                      _searching = !_searching;
+                      if (!_searching) {
+                        _query = '';
+                        _queryController.clear();
+                      }
+                    }),
+                    onSettings: () => showSettingsPages(
+                      context,
+                      openSection: (section) => showLibrarySettings(
                         context,
-                        entry,
-                        widget.onEntrySelected,
-                        ref.read(xtreamConnectionServiceProvider),
+                        section: section,
+                        configured: ref.read(metadataGatewayProvider) != null,
+                        metadataConsentStore: ref.read(
+                          metadataConsentStoreProvider,
+                        ),
+                        onImportEpgFile: widget.onImportEpgFile,
+                        onImportEpgUrl: widget.onImportEpgUrl,
+                        onRefreshSource: widget.onRefreshSource,
+                        onRefreshSources: widget.onRefreshSources,
+                        refreshIntervalFor: widget.refreshIntervalFor,
+                        lastRefreshAttemptFor: widget.lastRefreshAttemptFor,
+                        onRefreshIntervalChanged:
+                            widget.onRefreshIntervalChanged,
+                        sources: widget.sources,
+                        onAddPlaylist: widget.onAddPlaylist,
+                        onRenameSource: widget.onRenameSource,
+                        onRemoveSource: widget.onRemoveSource,
+                        parentalConfigured: widget.parentalConfigured,
+                        parentalUnlocked: widget.parentalUnlocked,
+                        availableParentalCategories:
+                            widget.entries
+                                .map((entry) => entry.group?.trim())
+                                .whereType<String>()
+                                .where((group) => group.isNotEmpty)
+                                .toSet()
+                                .toList()
+                              ..sort(),
+                        initialBlockedContent:
+                            ref
+                                .watch(
+                                  userOverlaysControllerProvider(
+                                    widget.profileId,
+                                  ),
+                                )
+                                .asData
+                                ?.value
+                                .parentalPolicy
+                                ?.blockedContent ??
+                            const {'adult'},
+                        onSaveParentalPin: widget.onSaveParentalPin,
+                        onUnlockParental: widget.onUnlockParental,
                       ),
                     ),
-                    _CatalogDestination.live => _pagedCatalog(_destination),
-                    _CatalogDestination.movies => _pagedCatalog(_destination),
-                    _CatalogDestination.shows => _pagedCatalog(_destination),
-                  },
-                ),
+                    onProfileChanged: widget.onProfileChanged,
+                    onSourcesRemoved: widget.onSourcesRemoved,
+                  ),
+                  if (_searching && _destination != _CatalogDestination.home)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        TviumSpacing.lg,
+                        0,
+                        TviumSpacing.lg,
+                        TviumSpacing.sm,
+                      ),
+                      child: TextField(
+                        key: const ValueKey('library-search'),
+                        controller: _queryController,
+                        autofocus: true,
+                        decoration: const InputDecoration(
+                          hintText: 'Search this section',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                        onChanged: (value) =>
+                            setState(() => _query = value.trim()),
+                      ),
+                    ),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 180),
+                      child: switch (_destination) {
+                        _CatalogDestination.home => _DestinationHome(
+                          key: const ValueKey('page-home'),
+                          entries: entries,
+                          profileId: widget.profileId,
+                          history: widget.history,
+                          onSelected: _selectDestination,
+                          onPlay: widget.onEntrySelected,
+                          onDetails: (entry) => _showTitleDetails(
+                            context,
+                            entry,
+                            widget.onEntrySelected,
+                            ref.read(xtreamConnectionServiceProvider),
+                          ),
+                        ),
+                        _CatalogDestination.live => _pagedCatalog(_destination),
+                        _CatalogDestination.movies => _pagedCatalog(
+                          _destination,
+                        ),
+                        _CatalogDestination.shows => _pagedCatalog(
+                          _destination,
+                        ),
+                      },
+                    ),
+                  ),
+                  if (!wide)
+                    NavigationBar(
+                      key: const ValueKey('compact-navigation'),
+                      height: MediaQuery.sizeOf(context).height < 500 ? 56 : 80,
+                      selectedIndex: _destination.index,
+                      onDestinationSelected: (index) =>
+                          _selectDestination(_CatalogDestination.values[index]),
+                      destinations: const <NavigationDestination>[
+                        NavigationDestination(
+                          icon: Icon(Icons.home_outlined),
+                          selectedIcon: Icon(Icons.home_rounded),
+                          label: 'Home',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.live_tv_outlined),
+                          selectedIcon: Icon(Icons.live_tv_rounded),
+                          label: 'Live TV',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.movie_outlined),
+                          selectedIcon: Icon(Icons.movie_rounded),
+                          label: 'Movies',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.tv_outlined),
+                          selectedIcon: Icon(Icons.tv_rounded),
+                          label: 'TV Shows',
+                        ),
+                      ],
+                    ),
+                ],
               ),
-              if (!wide)
-                NavigationBar(
-                  key: const ValueKey('compact-navigation'),
-                  height: MediaQuery.sizeOf(context).height < 500 ? 56 : 80,
-                  selectedIndex: _destination.index,
-                  onDestinationSelected: (index) =>
-                      _selectDestination(_CatalogDestination.values[index]),
-                  destinations: const <NavigationDestination>[
-                    NavigationDestination(
-                      icon: Icon(Icons.home_outlined),
-                      selectedIcon: Icon(Icons.home_rounded),
-                      label: 'Home',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.live_tv_outlined),
-                      selectedIcon: Icon(Icons.live_tv_rounded),
-                      label: 'Live TV',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.movie_outlined),
-                      selectedIcon: Icon(Icons.movie_rounded),
-                      label: 'Movies',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.tv_outlined),
-                      selectedIcon: Icon(Icons.tv_rounded),
-                      label: 'TV Shows',
-                    ),
-                  ],
-                ),
             ],
           ),
         );
@@ -3360,7 +3384,7 @@ final class _CatalogPage extends ConsumerWidget {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 if (destination != _CatalogDestination.live) return catalog;
-                if (constraints.maxWidth >= 1050 && countries.length >= 2) {
+                if (constraints.maxWidth >= 1050) {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
@@ -3558,20 +3582,7 @@ final class _CatalogPage extends ConsumerWidget {
         ],
       ),
     );
-    if (destination != _CatalogDestination.live) return pageContent;
-    return Stack(
-      children: <Widget>[
-        Positioned.fill(
-          child: Image.asset(
-            'assets/destinations/hero-live-tv.png',
-            key: const ValueKey('live-page-background'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        const Positioned.fill(child: ColoredBox(color: Color(0xB8071422))),
-        pageContent,
-      ],
-    );
+    return pageContent;
   }
 }
 

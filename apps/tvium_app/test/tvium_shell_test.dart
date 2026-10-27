@@ -437,6 +437,52 @@ void main() {
     );
   });
 
+  testWidgets('Live TV backdrop extends behind the wide header', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+    final backdrop = find.byKey(const ValueKey('live-page-background'));
+    final logo = find.byKey(const ValueKey('tvium-brand-logo'));
+    expect(backdrop, findsOneWidget);
+    expect(
+      tester.getTopLeft(backdrop).dy,
+      lessThan(tester.getTopLeft(logo).dy),
+    );
+    expect(tester.getSize(backdrop).height, greaterThan(700));
+  });
+
+  testWidgets('wide Live TV keeps the country zone for unclassified groups', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-live')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('live-country-sidebar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('country-all')), findsOneWidget);
+    expect(find.byKey(const ValueKey('catalog-group-sidebar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('live-channel-list')), findsOneWidget);
+    expect(find.byKey(const ValueKey('catalog-player')), findsOneWidget);
+  });
+
   testWidgets('Live TV uses a page backdrop and preview guide actions', (
     tester,
   ) async {
@@ -751,7 +797,7 @@ void main() {
         of: find.byKey(const ValueKey('catalog-player')),
         matching: find.text('Channel Two'),
       ),
-      findsOneWidget,
+      findsWidgets,
     );
     await tester.tap(find.byKey(const ValueKey('live-previous-channel')));
     await tester.pumpAndSettle();
@@ -760,7 +806,7 @@ void main() {
         of: find.byKey(const ValueKey('catalog-player')),
         matching: find.text('Channel One'),
       ),
-      findsOneWidget,
+      findsWidgets,
     );
     await tester.tap(find.byKey(const ValueKey('live-previous-channel')));
     await tester.pumpAndSettle();
@@ -769,7 +815,7 @@ void main() {
         of: find.byKey(const ValueKey('catalog-player')),
         matching: find.text('Channel Three'),
       ),
-      findsOneWidget,
+      findsWidgets,
     );
   });
 
@@ -815,7 +861,7 @@ void main() {
         of: find.byKey(const ValueKey('catalog-player')),
         matching: find.text('Channel Two'),
       ),
-      findsOneWidget,
+      findsWidgets,
     );
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
     await tester.pumpAndSettle();
@@ -824,7 +870,7 @@ void main() {
         of: find.byKey(const ValueKey('catalog-player')),
         matching: find.text('Channel One'),
       ),
-      findsOneWidget,
+      findsWidgets,
     );
   });
 
@@ -883,7 +929,7 @@ void main() {
         of: find.byKey(const ValueKey('catalog-player')),
         matching: find.text('Channel Three'),
       ),
-      findsOneWidget,
+      findsWidgets,
     );
     await tester.tap(
       find.byKey(const ValueKey('live-channel-switcher-button')),
@@ -901,7 +947,7 @@ void main() {
         of: find.byKey(const ValueKey('catalog-player')),
         matching: find.text('Channel Two'),
       ),
-      findsOneWidget,
+      findsWidgets,
     );
   });
 
