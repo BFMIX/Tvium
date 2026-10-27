@@ -1239,6 +1239,8 @@ void main() {
   testWidgets('movie details place the real poster beside the title', (
     tester,
   ) async {
+    metadataEnabled.value = false;
+    addTearDown(() => metadataEnabled.value = false);
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -1262,6 +1264,11 @@ void main() {
     final title = find.byKey(const ValueKey('title-details-heading'));
     expect(poster, findsOneWidget);
     expect(title, findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('title-details-backdrop')),
+      findsOneWidget,
+    );
+    expect(tester.getSize(poster).width, greaterThanOrEqualTo(200));
     expect(tester.getTopLeft(poster).dx, lessThan(tester.getTopLeft(title).dx));
     expect(find.text('Online details are off in Settings.'), findsOneWidget);
   });

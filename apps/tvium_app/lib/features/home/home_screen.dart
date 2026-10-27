@@ -4337,49 +4337,125 @@ Future<void> _showTitleDetails(
           ],
         ),
       );
-      return AlertDialog(
+      return Dialog(
         key: const ValueKey('title-details'),
-        content: SizedBox(
-          width: wide ? 680 : 320,
-          height: wide ? 320 : 410,
-          child: wide
-              ? Row(
-                  children: <Widget>[
-                    SizedBox(
-                      width: 190,
-                      child: _TitleDetailsPoster(entry: entry),
-                    ),
-                    const SizedBox(width: TviumSpacing.lg),
-                    Expanded(child: details),
-                  ],
-                )
-              : Column(
-                  children: <Widget>[
-                    SizedBox(
-                      width: 120,
-                      height: 180,
-                      child: _TitleDetailsPoster(entry: entry),
-                    ),
-                    const SizedBox(height: TviumSpacing.md),
-                    Expanded(child: details),
-                  ],
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(TviumSpacing.md),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: SizedBox(
+            width: wide ? 800 : 420,
+            height: wide
+                ? 460
+                : (MediaQuery.sizeOf(dialogContext).height * 0.78).clamp(
+                    400.0,
+                    620.0,
+                  ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                Consumer(
+                  builder: (context, ref, _) {
+                    final backdrop = ref
+                        .watch(
+                          metadataHeroOverlayProvider((
+                            sourceId: entry.sourceId,
+                            entryId: entry.id,
+                            title: entry.name,
+                            kind: entry.kind,
+                            enabled: metadataEnabled.value,
+                          )),
+                        )
+                        .value
+                        ?.backdropUri;
+                    return ImageFiltered(
+                      key: const ValueKey('title-details-backdrop'),
+                      imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                      child: backdrop == null
+                          ? Image.asset(
+                              entry.kind == MediaKind.movie
+                                  ? 'assets/destinations/hero-movies.png'
+                                  : 'assets/destinations/hero-tv-shows.png',
+                              fit: BoxFit.cover,
+                            )
+                          : ArtworkImage(
+                              sourceId: entry.sourceId,
+                              entryId: entry.id,
+                              role: 'backdrop',
+                              uri: backdrop,
+                              fit: BoxFit.cover,
+                            ),
+                    );
+                  },
                 ),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        Color(0xE9071728),
+                        Color(0xDF0B2439),
+                        Color(0xF3071728),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(TviumSpacing.lg),
+                  child: Column(
+                    children: <Widget>[
+                      Expanded(
+                        child: wide
+                            ? Row(
+                                children: <Widget>[
+                                  SizedBox(
+                                    width: 220,
+                                    child: _TitleDetailsPoster(entry: entry),
+                                  ),
+                                  const SizedBox(width: TviumSpacing.lg),
+                                  Expanded(child: details),
+                                ],
+                              )
+                            : Column(
+                                children: <Widget>[
+                                  SizedBox(
+                                    width: 140,
+                                    height: 210,
+                                    child: _TitleDetailsPoster(entry: entry),
+                                  ),
+                                  const SizedBox(height: TviumSpacing.md),
+                                  Expanded(child: details),
+                                ],
+                              ),
+                      ),
+                      const SizedBox(height: TviumSpacing.sm),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: <Widget>[
+                          TextButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                            child: const Text('Close'),
+                          ),
+                          const SizedBox(width: TviumSpacing.sm),
+                          FilledButton(
+                            onPressed: entry.isPlayable
+                                ? () {
+                                    Navigator.of(dialogContext).pop();
+                                    onPlay(entry);
+                                  }
+                                : null,
+                            child: const Text('Play now'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Close'),
-          ),
-          FilledButton(
-            onPressed: entry.isPlayable
-                ? () {
-                    Navigator.of(dialogContext).pop();
-                    onPlay(entry);
-                  }
-                : null,
-            child: const Text('Play now'),
-          ),
-        ],
       );
     },
   );
