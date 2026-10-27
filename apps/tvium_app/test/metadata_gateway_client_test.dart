@@ -8,30 +8,30 @@ import 'package:tvium_app/features/metadata/metadata_gateway_client.dart';
 import 'package:tvium_core/tvium_core.dart';
 
 void main() {
-  test('desktop builds find the local gateway without a launch flag', () {
+  test('unconfigured builds use the public metadata gateway', () {
     expect(
       resolveMetadataGatewayEndpoint(
         configuredAddress: '',
         platform: TargetPlatform.macOS,
         isWeb: false,
       )?.toString(),
-      'http://127.0.0.1:8787',
+      'https://tvium.netlify.app',
     );
     expect(
       resolveMetadataGatewayEndpoint(
         configuredAddress: '',
         platform: TargetPlatform.iOS,
         isWeb: false,
-      ),
-      isNull,
+      )?.toString(),
+      'https://tvium.netlify.app',
     );
     expect(
       resolveMetadataGatewayEndpoint(
         configuredAddress: '',
         platform: TargetPlatform.macOS,
         isWeb: true,
-      ),
-      isNull,
+      )?.toString(),
+      'https://tvium.netlify.app',
     );
   });
 

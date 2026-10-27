@@ -25,12 +25,7 @@ Uri? resolveMetadataGatewayEndpoint({
 }) {
   final address = configuredAddress.isNotEmpty
       ? configuredAddress
-      : !isWeb &&
-            (platform == TargetPlatform.macOS ||
-                platform == TargetPlatform.windows ||
-                platform == TargetPlatform.linux)
-      ? 'http://127.0.0.1:8787'
-      : '';
+      : 'https://tvium.netlify.app';
   final uri = Uri.tryParse(address);
   if (uri == null || !uri.hasAuthority || uri.userInfo.isNotEmpty) return null;
   if (uri.scheme == 'https') return uri;
