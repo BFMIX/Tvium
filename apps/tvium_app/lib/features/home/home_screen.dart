@@ -3359,7 +3359,8 @@ final class _CatalogPage extends ConsumerWidget {
             const SizedBox(height: TviumSpacing.xs),
           ],
           if (destination != _CatalogDestination.live &&
-              groups.isNotEmpty) ...<Widget>[
+              groups.isNotEmpty &&
+              MediaQuery.sizeOf(context).width < 720) ...<Widget>[
             SizedBox(
               height: shortWindow ? 44 : 56,
               child: ListView.separated(
@@ -3383,7 +3384,25 @@ final class _CatalogPage extends ConsumerWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                if (destination != _CatalogDestination.live) return catalog;
+                if (destination != _CatalogDestination.live) {
+                  if (constraints.maxWidth < 720) return catalog;
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      SizedBox(
+                        key: const ValueKey('catalog-group-sidebar'),
+                        width: constraints.maxWidth < 1050 ? 180 : 220,
+                        child: _GroupSidebar(
+                          groups: groups,
+                          selectedGroup: selectedGroup,
+                          onSelected: onGroupSelected,
+                        ),
+                      ),
+                      const SizedBox(width: TviumSpacing.md),
+                      Expanded(child: catalog),
+                    ],
+                  );
+                }
                 if (constraints.maxWidth >= 1050) {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,

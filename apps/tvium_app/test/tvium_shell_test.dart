@@ -1010,6 +1010,37 @@ void main() {
     expect(delegate.maxCrossAxisExtent, lessThanOrEqualTo(220));
   });
 
+  for (final destination in <String>['movies', 'shows']) {
+    testWidgets('wide $destination places categories beside the poster grid', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final controller = PlaylistImportController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(TviumApp(importController: controller));
+      unawaited(controller.importSource(const _DesignFixtureSource()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey('destination-$destination')));
+      await tester.pumpAndSettle();
+
+      final sidebar = find.byKey(const ValueKey('catalog-group-sidebar'));
+      final grid = find.byKey(const ValueKey('poster-grid'));
+      expect(sidebar, findsOneWidget);
+      expect(grid, findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('catalog-category-chips')),
+        findsNothing,
+      );
+      expect(
+        tester.getTopLeft(sidebar).dx,
+        lessThan(tester.getTopLeft(grid).dx),
+      );
+    });
+  }
+
   testWidgets('M3U episodes are grouped into one series with seasons', (
     tester,
   ) async {
@@ -2092,10 +2123,10 @@ void main() {
     expect(artwork.role, 'verified-poster');
   });
 
-  testWidgets('Movies show category chips above the poster grid', (
+  testWidgets('compact Movies show category chips above the poster grid', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.physicalSize = const Size(600, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
