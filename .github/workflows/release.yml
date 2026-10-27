@@ -120,13 +120,28 @@ jobs:
           echo "TVIUM_ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
       - name: Verify Android release signing gate
         run: bash scripts/release/test_android_signing_gate.sh
-      - name: Build Android ARM64 release APK
+      - name: Build Android ARM release APK
         working-directory: ${{ env.APP_DIRECTORY }}
         run: |
-          flutter build apk --release --target-platform android-arm64 \
+          flutter build apk --release --target-platform android-arm,android-arm64 \
             --build-name="${TVIUM_RELEASE_TAG#v}" \
             --build-number="$GITHUB_RUN_NUMBER" \
             --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG"
+      - name: Verify Android APK architectures
+        run: bash scripts/release/test_android_abi_configuration.sh apps/tvium_app/build/app/outputs/flutter-apk/app-release.apk
+      - name: Preserve APK for signing diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-signing-diagnostic
+          path: apps/tvium_app/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 1
+      - name: Install verified APK verifier
+        run: |
+          if [[ ! -x "$ANDROID_HOME/build-tools/34.0.0/apksigner" ]]; then
+            sdkmanager --install 'build-tools;34.0.0'
+          fi
+          bash scripts/release/select_apksigner.sh >/dev/null
       - name: Verify APK signing identity
         run: |
           set -euo pipefail
@@ -151,11 +166,11 @@ jobs:
         run: |
           mkdir -p dist
           cp apps/tvium_app/build/app/outputs/flutter-apk/app-release.apk \
-            dist/Tvium-Android-TV-arm64.apk
+            dist/Tvium-Android-TV.apk
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: tvium-android
-          path: dist/Tvium-Android-TV-arm64.apk
+          path: dist/Tvium-Android-TV.apk
           if-no-files-found: error
 
   web:
@@ -268,7 +283,7 @@ jobs:
         run: |
           assets=(
             dist/Tvium-macOS.dmg
-            dist/Tvium-Android-TV-arm64.apk
+            dist/Tvium-Android-TV.apk
             dist/Tvium-Web.zip
           )
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then

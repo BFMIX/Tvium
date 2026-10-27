@@ -63,9 +63,13 @@ jobs:
         run: flutter --disable-analytics
       - name: Install workspace dependencies
         run: dart pub get && dart run melos bootstrap
-      - name: Build Android ARM64 release APK
+      - name: Verify Android ABI configuration
+        run: bash scripts/release/test_android_abi_configuration.sh
+      - name: Build Android ARM release APK
         working-directory: apps/tvium_app
-        run: flutter build apk --release --target-platform android-arm64
+        run: flutter build apk --release --target-platform android-arm,android-arm64
+      - name: Verify Android APK architectures
+        run: bash scripts/release/test_android_abi_configuration.sh apps/tvium_app/build/app/outputs/flutter-apk/app-release.apk
       - name: Build Web app
         working-directory: apps/tvium_app
         run: flutter build web --release

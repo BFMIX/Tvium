@@ -12,7 +12,7 @@ if (
       -u TVIUM_ANDROID_KEY_ALIAS \
       -u TVIUM_ANDROID_KEY_PASSWORD \
       TVIUM_REQUIRE_ANDROID_RELEASE_SIGNING=true \
-      flutter build apk --release --target-platform android-arm64 \
+      flutter build apk --release --target-platform android-arm,android-arm64 \
       >"$output" 2>&1
 ); then
   echo 'Android release configuration accepted missing signing credentials.' >&2

@@ -3,7 +3,7 @@
 Tvium publishes three testable downloads from one GitHub Actions workflow:
 
 - `Tvium-macOS.dmg` for macOS test installs produced by the current runner.
-- `Tvium-Android-TV-arm64.apk` for 64-bit Android phones, tablets, TVs, and boxes.
+- `Tvium-Android-TV.apk` for 32-bit and 64-bit ARM Android phones, tablets, TVs, and boxes.
 - `Tvium-Web.zip` containing the static Web build.
 
 The same workflow deploys the Web build to GitHub Pages with the repository
