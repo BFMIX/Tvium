@@ -45,10 +45,16 @@ jobs:
           dart run melos bootstrap
       - name: Build macOS release
         working-directory: ${{ env.APP_DIRECTORY }}
+        env:
+          TVIUM_METADATA_GATEWAY: ${{ vars.TVIUM_METADATA_GATEWAY }}
         run: |
+          metadata_args=()
+          metadata_arg="$(bash ../../scripts/release/metadata_gateway_args.sh)"
+          if [[ -n "$metadata_arg" ]]; then metadata_args+=("$metadata_arg"); fi
           flutter build macos --release --config-only \
             --build-number="$GITHUB_RUN_NUMBER" \
-            --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG"
+            --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG" \
+            "${metadata_args[@]}"
           xcodebuild \
             -workspace macos/Runner.xcworkspace \
             -scheme Runner \
@@ -122,11 +128,17 @@ jobs:
         run: bash scripts/release/test_android_signing_gate.sh
       - name: Build Android ARM release APK
         working-directory: ${{ env.APP_DIRECTORY }}
+        env:
+          TVIUM_METADATA_GATEWAY: ${{ vars.TVIUM_METADATA_GATEWAY }}
         run: |
+          metadata_args=()
+          metadata_arg="$(bash ../../scripts/release/metadata_gateway_args.sh)"
+          if [[ -n "$metadata_arg" ]]; then metadata_args+=("$metadata_arg"); fi
           flutter build apk --release --target-platform android-arm,android-arm64 \
             --build-name="${TVIUM_RELEASE_TAG#v}" \
             --build-number="$GITHUB_RUN_NUMBER" \
-            --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG"
+            --dart-define="TVIUM_RELEASE_TAG=$TVIUM_RELEASE_TAG" \
+            "${metadata_args[@]}"
       - name: Verify Android APK architectures
         run: bash scripts/release/test_android_abi_configuration.sh apps/tvium_app/build/app/outputs/flutter-apk/app-release.apk
       - name: Preserve APK for signing diagnostics
