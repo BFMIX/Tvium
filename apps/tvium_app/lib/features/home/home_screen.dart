@@ -1967,16 +1967,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                         _CatalogDestination.home => _DestinationHome(
                           key: const ValueKey('page-home'),
                           entries: entries,
-                          profileId: widget.profileId,
-                          history: widget.history,
                           onSelected: _selectDestination,
-                          onPlay: widget.onEntrySelected,
-                          onDetails: (entry) => _showTitleDetails(
-                            context,
-                            entry,
-                            widget.onEntrySelected,
-                            ref.read(xtreamConnectionServiceProvider),
-                          ),
                         ),
                         _CatalogDestination.live => _pagedCatalog(_destination),
                         _CatalogDestination.movies => _pagedCatalog(
@@ -2248,19 +2239,11 @@ final class _DestinationHome extends StatefulWidget {
   const _DestinationHome({
     super.key,
     required this.entries,
-    required this.profileId,
-    required this.history,
     required this.onSelected,
-    required this.onPlay,
-    required this.onDetails,
   });
 
   final List<_LibraryEntry> entries;
-  final String profileId;
-  final List<PlaybackHistoryEntry> history;
   final ValueChanged<_CatalogDestination> onSelected;
-  final ValueChanged<_LibraryEntry> onPlay;
-  final ValueChanged<_LibraryEntry> onDetails;
 
   @override
   State<_DestinationHome> createState() => _DestinationHomeState();
@@ -2360,16 +2343,6 @@ final class _DestinationHomeState extends State<_DestinationHome> {
     });
   }
 
-  void _selectHero(int index) {
-    final entries = _heroEntries;
-    if (entries.isEmpty) return;
-    final selected = index % entries.length;
-    setState(
-      () => _heroIndex = selected < 0 ? selected + entries.length : selected,
-    );
-    _startHeroTimer();
-  }
-
   @override
   void dispose() {
     _heroTimer?.cancel();
@@ -2385,377 +2358,169 @@ final class _DestinationHomeState extends State<_DestinationHome> {
       _CatalogDestination.movies,
       _CatalogDestination.shows,
     ];
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(TviumSpacing.lg),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1180),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final horizontal = constraints.maxWidth >= 720;
-              final cards = <Widget>[
-                for (final destination in destinations)
-                  _DestinationCard(
-                    key: ValueKey('destination-${destination.name}'),
-                    destination: destination,
-                    count: switch (destination) {
-                      _CatalogDestination.live =>
-                        entries
-                            .where((entry) => entry.kind == MediaKind.live)
-                            .length,
-                      _CatalogDestination.movies =>
-                        entries
-                            .where((entry) => entry.kind == MediaKind.movie)
-                            .length,
-                      _CatalogDestination.shows => showCount,
-                      _CatalogDestination.home => 0,
-                    },
-                    onPressed: () => widget.onSelected(destination),
-                  ),
-              ];
-              final heroEntries = _heroEntries;
-              final hero = heroEntries.isEmpty
-                  ? null
-                  : ValueListenableBuilder<bool>(
-                      valueListenable: metadataEnabled,
-                      builder: (context, enabled, _) => _HomeHero(
-                        entry: heroEntries[_heroIndex % heroEntries.length],
-                        entries: heroEntries,
-                        selectedIndex: _heroIndex % heroEntries.length,
-                        metadataEnabled: enabled,
-                        onSelected: _selectHero,
-                        onPrevious: () => _selectHero(_heroIndex - 1),
-                        onNext: () => _selectHero(_heroIndex + 1),
-                        onPlay: widget.onPlay,
-                        onDetails: widget.onDetails,
-                      ),
-                    );
-              final destinationCards = horizontal
-                  ? SizedBox(
-                      height: 240,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          for (
-                            var index = 0;
-                            index < cards.length;
-                            index++
-                          ) ...<Widget>[
-                            Expanded(child: cards[index]),
-                            if (index != cards.length - 1)
-                              const SizedBox(width: TviumSpacing.md),
-                          ],
-                        ],
-                      ),
-                    )
-                  : Column(
-                      children: <Widget>[
-                        for (
-                          var index = 0;
-                          index < cards.length;
-                          index++
-                        ) ...<Widget>[
-                          SizedBox(height: 160, child: cards[index]),
-                          if (index != cards.length - 1)
-                            const SizedBox(height: TviumSpacing.md),
-                        ],
-                      ],
-                    );
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  destinationCards,
-                  if (hero != null) ...<Widget>[
-                    SizedBox(height: horizontal ? 48 : 28),
-                    SizedBox(
-                      height: horizontal
-                          ? MediaQuery.sizeOf(context).height >= 760
-                                ? 330
-                                : 260
-                          : 260,
-                      child: hero,
-                    ),
-                  ],
-                ],
-              );
-            },
+    final heroEntries = _heroEntries;
+    final currentEntry = heroEntries.isEmpty
+        ? null
+        : heroEntries[_heroIndex % heroEntries.length];
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        Positioned.fill(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: metadataEnabled,
+            builder: (context, enabled, _) => _HomeBackdrop(
+              entry: currentEntry,
+              metadataEnabled: enabled,
+              slideIndex: _heroIndex,
+            ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-final class _HomeHero extends ConsumerWidget {
-  const _HomeHero({
-    required this.entry,
-    required this.entries,
-    required this.selectedIndex,
-    required this.metadataEnabled,
-    required this.onSelected,
-    required this.onPrevious,
-    required this.onNext,
-    required this.onPlay,
-    required this.onDetails,
-  });
-
-  final _LibraryEntry entry;
-  final List<_LibraryEntry> entries;
-  final int selectedIndex;
-  final bool metadataEnabled;
-  final ValueChanged<int> onSelected;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-  final ValueChanged<_LibraryEntry> onPlay;
-  final ValueChanged<_LibraryEntry> onDetails;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final overlay = ref
-        .watch(
-          metadataHeroOverlayProvider((
-            sourceId: entry.sourceId,
-            entryId: entry.id,
-            title: entry.name,
-            kind: entry.kind,
-            enabled: metadataEnabled,
-          )),
-        )
-        .value;
-    final posterUri = overlay?.posterUri ?? entry.imageUri;
-    return GestureDetector(
-      key: const ValueKey('home-hero'),
-      behavior: HitTestBehavior.opaque,
-      onHorizontalDragEnd: entries.length < 2
-          ? null
-          : (details) {
-              final velocity = details.primaryVelocity ?? 0;
-              if (velocity < -120) onNext();
-              if (velocity > 120) onPrevious();
-            },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(TviumRadius.hero),
-        child: AnimatedSwitcher(
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 280),
-          child: Stack(
-            key: ValueKey('home-hero-${entry.id}'),
-            fit: StackFit.expand,
-            children: <Widget>[
-              if (overlay?.backdropUri case final backdrop?)
-                ArtworkImage(
-                  key: const ValueKey('home-hero-enriched-backdrop'),
-                  sourceId: entry.sourceId,
-                  entryId: entry.id,
-                  role: 'backdrop',
-                  uri: backdrop,
-                  fit: BoxFit.cover,
-                )
-              else
-                Image.asset(
-                  'assets/destinations/hero-home.png',
-                  key: const ValueKey('home-hero-backdrop'),
-                  fit: BoxFit.cover,
-                  alignment: Alignment.centerRight,
-                ),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.centerRight,
-                    end: Alignment.centerLeft,
-                    colors: <Color>[
-                      Color(0x22081422),
-                      Color(0xE00A1B2B),
-                      Color(0xFF06101B),
-                    ],
-                  ),
-                ),
-              ),
-              if (entry.kind == MediaKind.movie &&
-                  posterUri?.hasScheme == true &&
-                  MediaQuery.sizeOf(context).width >= 920)
-                Positioned(
-                  key: const ValueKey('home-hero-poster'),
-                  right: 84,
-                  top: 48,
-                  bottom: 30,
-                  width: 160,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: ColoredBox(
-                      color: const Color(0x99071320),
-                      child: ArtworkImage(
-                        sourceId: entry.sourceId,
-                        entryId: entry.id,
-                        role: 'poster',
-                        uri: posterUri,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                ),
-              _HomeHeroContent(
-                entry: entry,
-                entries: entries,
-                selectedIndex: selectedIndex,
-                onSelected: onSelected,
-                onPlay: onPlay,
-                onDetails: onDetails,
-              ),
-              if (entries.length > 1) ...<Widget>[
-                Positioned(
-                  right: TviumSpacing.xs,
-                  top: TviumSpacing.xs,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      IconButton.filledTonal(
-                        key: const ValueKey('home-hero-previous'),
-                        tooltip: 'Previous feature',
-                        onPressed: onPrevious,
-                        icon: const Icon(Icons.chevron_left_rounded),
-                      ),
-                      IconButton.filledTonal(
-                        key: const ValueKey('home-hero-next'),
-                        tooltip: 'Next feature',
-                        onPressed: onNext,
-                        icon: const Icon(Icons.chevron_right_rounded),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-final class _HomeHeroContent extends StatelessWidget {
-  const _HomeHeroContent({
-    required this.entry,
-    required this.entries,
-    required this.selectedIndex,
-    required this.onSelected,
-    required this.onPlay,
-    required this.onDetails,
-  });
-
-  final _LibraryEntry entry;
-  final List<_LibraryEntry> entries;
-  final int selectedIndex;
-  final ValueChanged<int> onSelected;
-  final ValueChanged<_LibraryEntry> onPlay;
-  final ValueChanged<_LibraryEntry> onDetails;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact =
-            constraints.maxHeight < 300 || constraints.maxWidth < 600;
-        return Padding(
-          padding: EdgeInsets.all(compact ? TviumSpacing.md : TviumSpacing.xl),
-          child: Align(
-            alignment: Alignment.centerLeft,
+        Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(TviumSpacing.lg),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    if (!compact) ...<Widget>[
-                      Text(
-                        entry.kind == MediaKind.movie
-                            ? 'Featured movie'
-                            : 'Featured series',
-                        style: Theme.of(context).textTheme.labelLarge
-                            ?.copyWith(color: TviumColors.accentDark),
+              constraints: const BoxConstraints(maxWidth: 1180),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final horizontal = constraints.maxWidth >= 720;
+                  final cards = <Widget>[
+                    for (final destination in destinations)
+                      _DestinationCard(
+                        key: ValueKey('destination-${destination.name}'),
+                        destination: destination,
+                        count: switch (destination) {
+                          _CatalogDestination.live =>
+                            entries
+                                .where((entry) => entry.kind == MediaKind.live)
+                                .length,
+                          _CatalogDestination.movies =>
+                            entries
+                                .where((entry) => entry.kind == MediaKind.movie)
+                                .length,
+                          _CatalogDestination.shows => showCount,
+                          _CatalogDestination.home => 0,
+                        },
+                        onPressed: () => widget.onSelected(destination),
                       ),
-                      const SizedBox(height: TviumSpacing.xs),
-                    ],
-                    Text(
-                      entry.displayName,
-                      key: const ValueKey('home-hero-title'),
-                      maxLines: compact ? 1 : 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: compact
-                          ? Theme.of(context).textTheme.headlineMedium
-                          : Theme.of(context).textTheme.displaySmall,
-                    ),
-                    if (!compact) ...<Widget>[
-                      const SizedBox(height: TviumSpacing.xs),
-                      Text(
-                        entry.kind == MediaKind.movie ? 'Movies' : 'TV Shows',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    ],
-                    SizedBox(
-                      height: compact ? TviumSpacing.sm : TviumSpacing.md,
-                    ),
-                    Wrap(
-                      spacing: TviumSpacing.sm,
-                      runSpacing: TviumSpacing.xs,
-                      children: <Widget>[
-                        FilledButton.icon(
-                          key: const ValueKey('home-hero-play'),
-                          onPressed: () => onPlay(entry),
-                          icon: const Icon(Icons.play_arrow_rounded),
-                          label: const Text('Play'),
-                        ),
-                        OutlinedButton.icon(
-                          key: const ValueKey('home-hero-details'),
-                          onPressed: () => onDetails(entry),
-                          icon: const Icon(Icons.info_outline_rounded),
-                          label: const Text('View details'),
-                        ),
-                      ],
-                    ),
-                    if (!compact) ...<Widget>[
-                      const SizedBox(height: TviumSpacing.md),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          for (var index = 0; index < entries.length; index++)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 7),
-                              child: InkWell(
-                                key: ValueKey('home-hero-page-$index'),
-                                borderRadius: BorderRadius.circular(
-                                  TviumRadius.pill,
-                                ),
-                                onTap: () => onSelected(index),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 180),
-                                  width: index == selectedIndex ? 24 : 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: index == selectedIndex
-                                        ? TviumColors.accentDark
-                                        : Colors.white38,
-                                    borderRadius: BorderRadius.circular(
-                                      TviumRadius.pill,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
+                  ];
+                  final destinationCards = horizontal
+                      ? SizedBox(
+                          height: 240,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              for (
+                                var index = 0;
+                                index < cards.length;
+                                index++
+                              ) ...<Widget>[
+                                Expanded(child: cards[index]),
+                                if (index != cards.length - 1)
+                                  const SizedBox(width: TviumSpacing.md),
+                              ],
+                            ],
+                          ),
+                        )
+                      : Column(
+                          children: <Widget>[
+                            for (
+                              var index = 0;
+                              index < cards.length;
+                              index++
+                            ) ...<Widget>[
+                              SizedBox(height: 160, child: cards[index]),
+                              if (index != cards.length - 1)
+                                const SizedBox(height: TviumSpacing.md),
+                            ],
+                          ],
+                        );
+                  return destinationCards;
+                },
               ),
             ),
           ),
-        );
-      },
+        ),
+      ],
+    );
+  }
+}
+
+final class _HomeBackdrop extends ConsumerWidget {
+  const _HomeBackdrop({
+    required this.entry,
+    required this.metadataEnabled,
+    required this.slideIndex,
+  });
+
+  final _LibraryEntry? entry;
+  final bool metadataEnabled;
+  final int slideIndex;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = entry;
+    final overlay = selected == null
+        ? null
+        : ref
+              .watch(
+                metadataHeroOverlayProvider((
+                  sourceId: selected.sourceId,
+                  entryId: selected.id,
+                  title: selected.name,
+                  kind: selected.kind,
+                  enabled: metadataEnabled,
+                )),
+              )
+              .value;
+    final backdrop = overlay?.backdropUri;
+    const fallbackArtwork = <String>[
+      'assets/destinations/hero-home.png',
+      'assets/destinations/hero-movies.png',
+      'assets/destinations/hero-tv-shows.png',
+    ];
+    return RepaintBoundary(
+      key: const ValueKey('home-page-backdrop'),
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          ImageFiltered(
+            key: const ValueKey('home-backdrop-blur'),
+            imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: AnimatedSwitcher(
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 600),
+              child: backdrop != null && selected != null
+                  ? ArtworkImage(
+                      key: ValueKey('home-backdrop-${selected.id}'),
+                      sourceId: selected.sourceId,
+                      entryId: selected.id,
+                      role: 'backdrop',
+                      uri: backdrop,
+                      fit: BoxFit.cover,
+                    )
+                  : Image.asset(
+                      fallbackArtwork[slideIndex % fallbackArtwork.length],
+                      key: const ValueKey('home-backdrop-fallback'),
+                      fit: BoxFit.cover,
+                    ),
+            ),
+          ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  Color(0xBB06111D),
+                  Color(0xD906111D),
+                  Color(0xEE06111D),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
