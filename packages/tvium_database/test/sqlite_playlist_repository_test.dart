@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:sqlite3/sqlite3.dart';
@@ -6,6 +7,52 @@ import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 
 void main() {
+  test('pages large catalogs without materializing unrelated rows', () async {
+    final directory = await Directory.systemTemp.createTemp('tvium-page-test-');
+    final repository = SqlitePlaylistRepository.open(
+      '${directory.path}/db.sqlite',
+    );
+    addTearDown(() async {
+      await repository.close();
+      await directory.delete(recursive: true);
+    });
+    final profile = await repository.ensureDefaultProfile();
+    const source = IptvSource(
+      id: 'page-source',
+      displayName: 'Fixture',
+      identityDigest: 'digest',
+      secretReference: 'secret',
+    );
+    await repository.registerSource(
+      source,
+      profile.id,
+      List.generate(
+        520,
+        (index) => PersistedMediaEntry(
+          id: 'movie:$index',
+          playlistId: source.id,
+          sourceReference: 'secret',
+          originalName: 'Movie $index',
+          displayName: 'Movie $index',
+          groupName: 'Fixture',
+          kind: MediaKind.movie,
+        ),
+      ),
+    );
+    expect(
+      await repository.countEntriesForPlaylist(source.id, MediaKind.movie),
+      520,
+    );
+    final last = await repository.entriesPageForPlaylist(
+      source.id,
+      MediaKind.movie,
+      offset: 500,
+      limit: 40,
+    );
+    expect(last, hasLength(20));
+    expect(last.first.id, 'movie:500');
+    expect(last.last.id, 'movie:519');
+  });
   late Directory temporaryDirectory;
   late String databasePath;
 
@@ -77,6 +124,37 @@ void main() {
     expect(restored.first.id, 'fixture-0');
     expect(restored.last.id, 'fixture-5020');
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test(
+    'keeps the event loop responsive while reading a large catalog',
+    () async {
+      final repository = SqlitePlaylistRepository.open(databasePath);
+      addTearDown(repository.close);
+      await repository.replaceEntries(
+        'primary',
+        List<PersistedMediaEntry>.generate(
+          12000,
+          (index) => _entry(
+            id: 'synthetic-$index',
+            playlistId: 'primary',
+            group: 'Synthetic',
+          ),
+          growable: false,
+        ),
+      );
+
+      var timerRan = false;
+      final timer = Timer(const Duration(milliseconds: 5), () {
+        timerRan = true;
+      });
+      addTearDown(timer.cancel);
+      final entries = await repository.entriesForPlaylist('primary');
+
+      expect(entries, hasLength(12000));
+      expect(timerRan, isTrue);
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 
   test('migrates a version one database without losing entries', () async {
     _createVersionOneDatabase(databasePath);

@@ -107,6 +107,10 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
   SourceRefreshRunner? _refreshRunner;
   final UpdateCheckSchedule _updateCheckSchedule = UpdateCheckSchedule();
   String? _lastAnnouncedUpdateTag;
+  _CatalogDestination _activeDestination = _CatalogDestination.home;
+  LibrarySnapshot? _mappedLibrarySnapshot;
+  LibrarySnapshot? _mappingLibrarySnapshot;
+  List<_LibraryEntry>? _mappedLibraryEntries;
 
   @override
   void initState() {
@@ -202,7 +206,26 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget build(BuildContext context) {
     final controller = ref.watch(playlistImportControllerProvider);
     final state = controller.state;
-    final persistedLibrary = ref.watch(libraryBootstrapProvider).asData?.value;
+    final libraryState = ref.watch(libraryBootstrapProvider);
+    if (libraryState.isLoading &&
+        ref.watch(libraryRepositoryProvider).asData != null &&
+        state.phase == PlaylistImportPhase.empty &&
+        _xtreamProfile == null) {
+      return _libraryLoading('library-loading', 'Opening your library…');
+    }
+    final persistedLibrary = libraryState.asData?.value;
+    if (persistedLibrary != null &&
+        persistedLibrary.sources.isNotEmpty &&
+        _xtreamProfile == null &&
+        !identical(_mappedLibrarySnapshot, persistedLibrary)) {
+      if (!identical(_mappingLibrarySnapshot, persistedLibrary)) {
+        _mappingLibrarySnapshot = persistedLibrary;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_mapSavedLibrary(persistedLibrary));
+        });
+      }
+      return _libraryLoading('library-organizing', 'Organizing your library…');
+    }
     if (persistedLibrary != null) {
       final sourceIds = persistedLibrary.sources.map((source) => source.id);
       final pending = persistedLibrary.sources
@@ -238,15 +261,17 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
         : allEntries;
     final sessionEpgEntries = _sessionEpgEntries(state);
     final epgSchedules = <String, EpgNowNext?>{};
-    final epgEntries = <PersistedMediaEntry>[
-      ...?persistedLibrary?.entries,
-      ...sessionEpgEntries,
-    ];
-    final epgSourceIds = <String>{
-      ...?persistedLibrary?.sources.map((source) => source.id),
-      if (sessionEpgEntries.isNotEmpty) 'session.m3u',
-    };
-    if (epgEntries.isNotEmpty) {
+    final epgBySource = <String, List<PersistedMediaEntry>>{};
+    for (final entry
+        in (persistedLibrary?.entries ?? const <PersistedMediaEntry>[])
+            .followedBy(sessionEpgEntries)) {
+      if (entry.kind != MediaKind.live ||
+          entry.epgChannelId?.isNotEmpty != true) {
+        continue;
+      }
+      epgBySource.putIfAbsent(entry.playlistId, () => []).add(entry);
+    }
+    if (epgBySource.isNotEmpty) {
       final now = DateTime.now().toUtc();
       final minute = DateTime.utc(
         now.year,
@@ -255,15 +280,15 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
         now.hour,
         now.minute,
       );
-      for (final sourceId in epgSourceIds) {
+      for (final sourceEntries in epgBySource.entries) {
         final snapshot = ref
             .watch(
               epgNowNextProvider(
                 EpgNowNextRequest(
                   profileId:
                       persistedLibrary?.activeProfile.id ?? 'session.profile',
-                  sourceId: sourceId,
-                  entries: epgEntries,
+                  sourceId: sourceEntries.key,
+                  entries: sourceEntries.value,
                   atUtc: minute,
                 ),
               ),
@@ -271,7 +296,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
             .asData
             ?.value;
         if (snapshot != null) {
-          for (final entry in epgEntries) {
+          for (final entry in sourceEntries.value) {
             if (snapshot.containsEntry(entry.id)) {
               epgSchedules[entry.id] = snapshot.forEntry(entry.id);
             }
@@ -309,8 +334,16 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                       favorites: overlays?.favorites ?? const {},
                       history: overlays?.history ?? const [],
                       sources: persistedLibrary?.sources ?? const [],
+                      catalogGeneration: persistedLibrary,
+                      initialDestination: _activeDestination,
+                      catalogTotals:
+                          persistedLibrary?.catalogTotals ?? const {},
+                      catalogArtwork: persistedLibrary?.artwork ?? const {},
                       onGroupSelected: (group) =>
                           setState(() => _selectedGroup = group),
+                      onDestinationSelected: (destination) => setState(() {
+                        _activeDestination = destination;
+                      }),
                       onEntrySelected: (entry) => _play(profileId, entry),
                       onFavoriteToggled: (entry) =>
                           _toggleFavorite(profileId, entry),
@@ -346,6 +379,76 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
             : _buildOnboarding(controller, state),
       ),
     );
+  }
+
+  Widget _libraryLoading(String key, String message) => Scaffold(
+    body: SafeArea(
+      child: Center(
+        child: Column(
+          key: ValueKey(key),
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const TviumBrandLogo(height: 52, semanticLabel: 'Tvium'),
+            const SizedBox(height: TviumSpacing.lg),
+            const Icon(Icons.hourglass_top_rounded, size: 32),
+            const SizedBox(height: TviumSpacing.md),
+            Text(message),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Future<void> _mapSavedLibrary(LibrarySnapshot snapshot) async {
+    // A post-frame callback paints the loading surface before conversion.
+    final mapped = <_LibraryEntry>[];
+    for (var index = 0; index < snapshot.entries.length; index++) {
+      if (!mounted || !identical(_mappingLibrarySnapshot, snapshot)) return;
+      final entry = snapshot.entries[index];
+      mapped.add(
+        _LibraryEntry.fromPersisted(
+          entry,
+          snapshot.artwork[entry.playlistId]?[entry.id],
+        ),
+      );
+      if (index % 256 == 255) await Future<void>.delayed(Duration.zero);
+    }
+    if (!mounted || !identical(_mappingLibrarySnapshot, snapshot)) return;
+    setState(() {
+      _mappedLibrarySnapshot = snapshot;
+      _mappedLibraryEntries = mapped;
+    });
+    if (snapshot.catalogTotals.values.fold<int>(0, (a, b) => a + b) > 1000) {
+      unawaited(_loadInitialArtwork(snapshot));
+    }
+  }
+
+  Future<void> _loadInitialArtwork(LibrarySnapshot snapshot) async {
+    final artwork = <String, Map<String, Uri>>{};
+    for (final source in snapshot.sources) {
+      final ids = snapshot.entries
+          .where((entry) => entry.playlistId == source.id)
+          .map((entry) => entry.id)
+          .toSet();
+      if (ids.isEmpty) continue;
+      try {
+        artwork[source.id] = await ref
+            .read(artworkReferenceStoreProvider)
+            .readSelected(source.id, ids);
+      } on Object {
+        artwork[source.id] = const {};
+      }
+    }
+    if (!mounted || !identical(_mappedLibrarySnapshot, snapshot)) return;
+    setState(() {
+      _mappedLibraryEntries = [
+        for (final entry in snapshot.entries)
+          _LibraryEntry.fromPersisted(
+            entry,
+            artwork[entry.playlistId]?[entry.id],
+          ),
+      ];
+    });
   }
 
   Widget _buildOnboarding(
@@ -1201,14 +1304,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     final xtreamProfile = _xtreamProfile;
     if (xtreamProfile == null) {
       if (persistedLibrary?.sources.isNotEmpty ?? false) {
-        return persistedLibrary!.entries
-            .map(
-              (entry) => _LibraryEntry.fromPersisted(
-                entry,
-                persistedLibrary.artwork[entry.playlistId]?[entry.id],
-              ),
-            )
-            .toList(growable: false);
+        return _mappedLibraryEntries ?? const <_LibraryEntry>[];
       }
       if (state.phase == PlaylistImportPhase.ready) {
         return state.entries.map(_LibraryEntry.fromM3u).toList(growable: false);
@@ -1543,7 +1639,12 @@ final class _LibraryView extends ConsumerStatefulWidget {
     required this.favorites,
     required this.history,
     required this.sources,
+    required this.catalogGeneration,
+    required this.initialDestination,
+    required this.catalogTotals,
+    required this.catalogArtwork,
     required this.onGroupSelected,
+    required this.onDestinationSelected,
     required this.onEntrySelected,
     required this.onFavoriteToggled,
     required this.onProfileChanged,
@@ -1573,7 +1674,12 @@ final class _LibraryView extends ConsumerStatefulWidget {
   final Set<MediaLocator> favorites;
   final List<PlaybackHistoryEntry> history;
   final List<IptvSource> sources;
+  final LibrarySnapshot? catalogGeneration;
+  final _CatalogDestination initialDestination;
+  final Map<MediaKind, int> catalogTotals;
+  final Map<String, Map<String, Uri>> catalogArtwork;
   final ValueChanged<String?> onGroupSelected;
+  final ValueChanged<_CatalogDestination> onDestinationSelected;
   final ValueChanged<_LibraryEntry> onEntrySelected;
   final ValueChanged<_LibraryEntry> onFavoriteToggled;
   final VoidCallback onProfileChanged;
@@ -1602,10 +1708,130 @@ final class _LibraryView extends ConsumerStatefulWidget {
 
 final class _LibraryViewState extends ConsumerState<_LibraryView> {
   var _destination = _CatalogDestination.home;
+  final _catalogPages = <MediaKind, List<_LibraryEntry>>{};
+  final _catalogOffsets = <MediaKind, int>{};
+  bool _catalogPageLoading = false;
   String? _selectedCountryCode;
   String _query = '';
   bool _searching = false;
   final _queryController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _destination = widget.initialDestination;
+  }
+
+  @override
+  void didUpdateWidget(covariant _LibraryView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profileId != widget.profileId ||
+        !identical(oldWidget.catalogGeneration, widget.catalogGeneration) ||
+        !listEquals(
+          oldWidget.sources.map((s) => s.id).toList(),
+          widget.sources.map((s) => s.id).toList(),
+        )) {
+      _catalogPages.clear();
+      _catalogOffsets.clear();
+    }
+  }
+
+  Future<void> _showCatalogPage(MediaKind kind, int offset) async {
+    if (_catalogPageLoading ||
+        offset < 0 ||
+        offset >= (widget.catalogTotals[kind] ?? 0)) {
+      return;
+    }
+    final repository = await ref.read(libraryRepositoryProvider.future);
+    if (repository is! PagedProfileSourceRepository) return;
+    setState(() => _catalogPageLoading = true);
+    try {
+      final rows = await readCatalogPage(
+        repository as PagedProfileSourceRepository,
+        widget.sources,
+        kind,
+        offset: offset,
+      );
+      final artwork = <String, Map<String, Uri>>{};
+      for (final source in widget.sources) {
+        final ids = rows
+            .where((entry) => entry.playlistId == source.id)
+            .map((entry) => entry.id)
+            .toSet();
+        if (ids.isEmpty) continue;
+        try {
+          artwork[source.id] = await ref
+              .read(artworkReferenceStoreProvider)
+              .readSelected(source.id, ids);
+        } on Object {
+          artwork[source.id] = const {};
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _catalogPages[kind] = rows
+            .map(
+              (entry) => _LibraryEntry.fromPersisted(
+                entry,
+                artwork[entry.playlistId]?[entry.id] ??
+                    widget.catalogArtwork[entry.playlistId]?[entry.id],
+              ),
+            )
+            .toList(growable: false);
+        _catalogOffsets[kind] = offset;
+        _selectedCountryCode = null;
+      });
+      widget.onGroupSelected(null);
+    } finally {
+      if (mounted) setState(() => _catalogPageLoading = false);
+    }
+  }
+
+  MediaKind? _kindFor(_CatalogDestination destination) => switch (destination) {
+    _CatalogDestination.live => MediaKind.live,
+    _CatalogDestination.movies => MediaKind.movie,
+    _CatalogDestination.shows => MediaKind.episode,
+    _CatalogDestination.home => null,
+  };
+
+  Widget _pagedCatalog(_CatalogDestination destination) {
+    final kind = _kindFor(destination)!;
+    return _CatalogPage(
+      key: ValueKey('page-${destination.name}'),
+      destination: destination,
+      entries: _entriesFor(destination),
+      epgSchedules: widget.epgSchedules,
+      query: _query,
+      channelSearchController: destination == _CatalogDestination.live
+          ? _queryController
+          : null,
+      onQueryChanged: destination == _CatalogDestination.live
+          ? (value) => setState(() => _query = value.trim())
+          : null,
+      showLocalChannelSearch:
+          destination == _CatalogDestination.live && !_searching,
+      selectedGroup: widget.selectedGroup,
+      selectedEntry: widget.selectedEntry,
+      playbackEngine: widget.playbackEngine,
+      onGroupSelected: widget.onGroupSelected,
+      selectedCountryCode: _selectedCountryCode,
+      onCountrySelected: destination == _CatalogDestination.live
+          ? (code) {
+              setState(() => _selectedCountryCode = code);
+              widget.onGroupSelected(null);
+            }
+          : null,
+      onPlay: widget.onEntrySelected,
+      profileId: widget.profileId,
+      favorites: widget.favorites,
+      history: widget.history,
+      onFavoriteToggled: widget.onFavoriteToggled,
+      totalEntries: widget.catalogTotals[kind] ?? 0,
+      pageOffset: _catalogOffsets[kind] ?? 0,
+      pageLoading: _catalogPageLoading,
+      onPageRequested: (offset) => _showCatalogPage(kind, offset),
+    );
+  }
 
   @override
   void dispose() {
@@ -1731,63 +1957,9 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                         ref.read(xtreamConnectionServiceProvider),
                       ),
                     ),
-                    _CatalogDestination.live => _CatalogPage(
-                      key: const ValueKey('page-live'),
-                      destination: _destination,
-                      entries: _entriesFor(_destination),
-                      epgSchedules: widget.epgSchedules,
-                      query: _query,
-                      channelSearchController: _queryController,
-                      onQueryChanged: (value) =>
-                          setState(() => _query = value.trim()),
-                      showLocalChannelSearch: !_searching,
-                      selectedGroup: widget.selectedGroup,
-                      selectedEntry: widget.selectedEntry,
-                      playbackEngine: widget.playbackEngine,
-                      onGroupSelected: widget.onGroupSelected,
-                      selectedCountryCode: _selectedCountryCode,
-                      onCountrySelected: (code) {
-                        setState(() => _selectedCountryCode = code);
-                        widget.onGroupSelected(null);
-                      },
-                      onPlay: widget.onEntrySelected,
-                      profileId: widget.profileId,
-                      favorites: widget.favorites,
-                      history: widget.history,
-                      onFavoriteToggled: widget.onFavoriteToggled,
-                    ),
-                    _CatalogDestination.movies => _CatalogPage(
-                      key: const ValueKey('page-movies'),
-                      destination: _destination,
-                      entries: _entriesFor(_destination),
-                      epgSchedules: widget.epgSchedules,
-                      query: _query,
-                      selectedGroup: widget.selectedGroup,
-                      selectedEntry: widget.selectedEntry,
-                      playbackEngine: widget.playbackEngine,
-                      onGroupSelected: widget.onGroupSelected,
-                      onPlay: widget.onEntrySelected,
-                      profileId: widget.profileId,
-                      favorites: widget.favorites,
-                      history: widget.history,
-                      onFavoriteToggled: widget.onFavoriteToggled,
-                    ),
-                    _CatalogDestination.shows => _CatalogPage(
-                      key: const ValueKey('page-shows'),
-                      destination: _destination,
-                      entries: _entriesFor(_destination),
-                      epgSchedules: widget.epgSchedules,
-                      query: _query,
-                      selectedGroup: widget.selectedGroup,
-                      selectedEntry: widget.selectedEntry,
-                      playbackEngine: widget.playbackEngine,
-                      onGroupSelected: widget.onGroupSelected,
-                      onPlay: widget.onEntrySelected,
-                      profileId: widget.profileId,
-                      favorites: widget.favorites,
-                      history: widget.history,
-                      onFavoriteToggled: widget.onFavoriteToggled,
-                    ),
+                    _CatalogDestination.live => _pagedCatalog(_destination),
+                    _CatalogDestination.movies => _pagedCatalog(_destination),
+                    _CatalogDestination.shows => _pagedCatalog(_destination),
                   },
                 ),
               ),
@@ -1828,16 +2000,18 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   }
 
   List<_LibraryEntry> _entriesFor(_CatalogDestination destination) {
-    final entries = widget.entries
-        .where(
-          (entry) => switch (destination) {
-            _CatalogDestination.live => entry.kind == MediaKind.live,
-            _CatalogDestination.movies => entry.kind == MediaKind.movie,
-            _CatalogDestination.shows => entry.kind == MediaKind.episode,
-            _CatalogDestination.home => false,
-          },
-        )
-        .toList(growable: false);
+    final kind = _kindFor(destination);
+    final entries =
+        (kind == null ? widget.entries : _catalogPages[kind] ?? widget.entries)
+            .where(
+              (entry) => switch (destination) {
+                _CatalogDestination.live => entry.kind == MediaKind.live,
+                _CatalogDestination.movies => entry.kind == MediaKind.movie,
+                _CatalogDestination.shows => entry.kind == MediaKind.episode,
+                _CatalogDestination.home => false,
+              },
+            )
+            .toList(growable: false);
     return destination == _CatalogDestination.shows
         ? _groupSeriesEntries(entries)
         : entries;
@@ -1845,6 +2019,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
 
   void _selectDestination(_CatalogDestination destination) {
     _queryController.clear();
+    widget.onDestinationSelected(destination);
     setState(() {
       _destination = destination;
       _selectedCountryCode = null;
@@ -2664,6 +2839,10 @@ final class _CatalogPage extends ConsumerWidget {
     required this.favorites,
     required this.history,
     required this.onFavoriteToggled,
+    this.totalEntries = 0,
+    this.pageOffset = 0,
+    this.pageLoading = false,
+    this.onPageRequested,
   });
 
   final _CatalogDestination destination;
@@ -2684,6 +2863,10 @@ final class _CatalogPage extends ConsumerWidget {
   final Set<MediaLocator> favorites;
   final List<PlaybackHistoryEntry> history;
   final ValueChanged<_LibraryEntry> onFavoriteToggled;
+  final int totalEntries;
+  final int pageOffset;
+  final bool pageLoading;
+  final ValueChanged<int>? onPageRequested;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -3031,6 +3214,36 @@ final class _CatalogPage extends ConsumerWidget {
               ),
             ),
           const SizedBox(height: TviumSpacing.md),
+          if (onPageRequested != null &&
+              totalEntries > libraryPageSize) ...<Widget>[
+            Row(
+              key: const ValueKey('catalog-pagination'),
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                IconButton(
+                  key: const ValueKey('catalog-previous-page'),
+                  tooltip: 'Previous titles',
+                  onPressed: pageLoading || pageOffset == 0
+                      ? null
+                      : () => onPageRequested!(pageOffset - libraryPageSize),
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
+                Text(
+                  '${pageOffset + 1}–${(pageOffset + libraryPageSize).clamp(0, totalEntries)} / $totalEntries',
+                ),
+                IconButton(
+                  key: const ValueKey('catalog-next-page'),
+                  tooltip: 'Next titles',
+                  onPressed:
+                      pageLoading ||
+                          pageOffset + libraryPageSize >= totalEntries
+                      ? null
+                      : () => onPageRequested!(pageOffset + libraryPageSize),
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+              ],
+            ),
+          ],
           if (countries.length >= 2 &&
               MediaQuery.sizeOf(context).width < 1100) ...<Widget>[
             SizedBox(

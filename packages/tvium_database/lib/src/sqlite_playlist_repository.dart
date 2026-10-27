@@ -18,13 +18,22 @@ final class SqlitePlaylistRepository
     implements
         PlaylistRepository,
         ProfileSourceRepository,
+        PagedProfileSourceRepository,
         EpgRepository,
         UserOverlayRepository {
   SqlitePlaylistRepository._(this._database);
 
   factory SqlitePlaylistRepository.open(String path) {
     return SqlitePlaylistRepository._(
-      TviumDatabase(NativeDatabase(File(path))),
+      TviumDatabase(
+        NativeDatabase.createInBackground(
+          File(path),
+          setup: (database) {
+            database.execute('PRAGMA journal_mode=WAL');
+            database.execute('PRAGMA busy_timeout=5000');
+          },
+        ),
+      ),
     );
   }
 
@@ -315,7 +324,9 @@ final class SqlitePlaylistRepository
     String playlistId,
     Iterable<PersistedMediaEntry> entries,
   ) async {
-    final replacement = entries.toList(growable: false);
+    final replacement = entries is List<PersistedMediaEntry>
+        ? entries
+        : entries.toList(growable: false);
     if (replacement.any((entry) => entry.playlistId != playlistId)) {
       throw ArgumentError.value(
         playlistId,
@@ -328,44 +339,48 @@ final class SqlitePlaylistRepository
       await (_database.delete(
         _database.mediaEntries,
       )..where((row) => row.playlistId.equals(playlistId))).go();
-      await _database.batch((batch) {
-        batch.insertAll(
-          _database.mediaEntries,
-          replacement.indexed
-              .map((indexed) {
-                final (position, entry) = indexed;
-                return MediaEntriesCompanion.insert(
-                  id: entry.id,
-                  playlistId: entry.playlistId,
-                  sourceReference: entry.sourceReference,
-                  originalName: entry.originalName,
-                  displayName: entry.displayName,
-                  groupName: Value<String?>(entry.groupName),
-                  kind: entry.kind.name,
-                  position: Value<int>(position),
-                  searchName: Value<String>(entry.displayName.toLowerCase()),
-                );
-              })
-              .toList(growable: false),
-        );
-      });
+      for (var start = 0; start < replacement.length; start += 250) {
+        final end = min(start + 250, replacement.length);
+        await _database.batch((batch) {
+          batch.insertAll(_database.mediaEntries, [
+            for (var position = start; position < end; position++)
+              MediaEntriesCompanion.insert(
+                id: replacement[position].id,
+                playlistId: replacement[position].playlistId,
+                sourceReference: replacement[position].sourceReference,
+                originalName: replacement[position].originalName,
+                displayName: replacement[position].displayName,
+                groupName: Value<String?>(replacement[position].groupName),
+                kind: replacement[position].kind.name,
+                position: Value<int>(position),
+                searchName: Value<String>(
+                  replacement[position].displayName.toLowerCase(),
+                ),
+              ),
+          ]);
+        });
+      }
       await _database.customStatement(
         'DELETE FROM catalog_details WHERE source_id=?',
         [playlistId],
       );
-      for (final entry in replacement) {
-        await _database.customStatement(
-          'INSERT INTO catalog_details('
-          'source_id,entry_id,external_id,extension,epg_channel_id) '
-          'VALUES (?,?,?,?,?)',
-          [
-            playlistId,
-            entry.id,
-            entry.externalId,
-            entry.containerExtension,
-            entry.epgChannelId,
-          ],
-        );
+      for (var start = 0; start < replacement.length; start += 250) {
+        final end = min(start + 250, replacement.length);
+        await _database.batch((batch) {
+          for (var index = start; index < end; index++) {
+            final entry = replacement[index];
+            batch.customStatement(
+              'INSERT INTO catalog_details(source_id,entry_id,external_id,extension,epg_channel_id) VALUES (?,?,?,?,?)',
+              [
+                playlistId,
+                entry.id,
+                entry.externalId,
+                entry.containerExtension,
+                entry.epgChannelId,
+              ],
+            );
+          }
+        });
       }
     });
   }
@@ -382,6 +397,59 @@ final class SqlitePlaylistRepository
       ]);
     final rows = await query.get();
     final byId = await _detailsForSource(playlistId);
+    return rows
+        .map((row) => _toDomain(row, byId[row.id]))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<int> countEntriesForPlaylist(String sourceId, MediaKind kind) async {
+    final row = await _database
+        .customSelect(
+          'SELECT COUNT(*) AS total FROM media_entries WHERE playlist_id=? AND kind=?',
+          variables: [
+            Variable.withString(sourceId),
+            Variable.withString(kind.name),
+          ],
+        )
+        .getSingle();
+    return row.read<int>('total');
+  }
+
+  @override
+  Future<List<PersistedMediaEntry>> entriesPageForPlaylist(
+    String sourceId,
+    MediaKind kind, {
+    required int offset,
+    required int limit,
+  }) async {
+    if (offset < 0 || limit < 1 || limit > 500) {
+      throw ArgumentError('Invalid catalog page.');
+    }
+    final query = _database.select(_database.mediaEntries)
+      ..where(
+        (row) => row.playlistId.equals(sourceId) & row.kind.equals(kind.name),
+      )
+      ..orderBy(<OrderingTerm Function(MediaEntries)>[
+        (row) => OrderingTerm.asc(row.position),
+        (row) => OrderingTerm.asc(row.id),
+      ])
+      ..limit(limit, offset: offset);
+    final rows = await query.get();
+    if (rows.isEmpty) return const [];
+    final marks = List.filled(rows.length, '?').join(',');
+    final details = await _database
+        .customSelect(
+          'SELECT * FROM catalog_details WHERE source_id=? AND entry_id IN ($marks)',
+          variables: [
+            Variable.withString(sourceId),
+            ...rows.map((row) => Variable.withString(row.id)),
+          ],
+        )
+        .get();
+    final byId = {
+      for (final detail in details) detail.read<String>('entry_id'): detail,
+    };
     return rows
         .map((row) => _toDomain(row, byId[row.id]))
         .toList(growable: false);

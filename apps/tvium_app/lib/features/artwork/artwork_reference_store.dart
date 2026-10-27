@@ -88,6 +88,41 @@ final class ArtworkReferenceStore {
     return references;
   }
 
+  /// Scans persisted chunks while retaining only addresses needed on screen.
+  Future<Map<String, Uri>> readSelected(
+    String sourceId,
+    Set<String> entryIds,
+  ) async {
+    if (entryIds.isEmpty) return const {};
+    final key = _key(sourceId);
+    final count = int.tryParse(await _backend.read('$key.count') ?? '') ?? 0;
+    if (count < 0 || count > 10000) return const {};
+    final references = <String, Uri>{};
+    for (
+      var chunk = 0;
+      chunk < count && references.length < entryIds.length;
+      chunk++
+    ) {
+      final payload = await _backend.read('$key.$chunk');
+      if (payload == null) continue;
+      try {
+        final decoded = jsonDecode(payload);
+        if (decoded is! Map<String, dynamic>) continue;
+        for (final id in entryIds) {
+          final value = decoded[id];
+          if (value is! String) continue;
+          final uri = Uri.tryParse(value);
+          if (uri != null && uri.hasScheme && uri.host.isNotEmpty) {
+            references[id] = uri;
+          }
+        }
+      } on FormatException {
+        continue;
+      }
+    }
+    return references;
+  }
+
   Future<void> delete(String sourceId) async {
     final key = _key(sourceId);
     final count = int.tryParse(await _backend.read('$key.count') ?? '') ?? 0;

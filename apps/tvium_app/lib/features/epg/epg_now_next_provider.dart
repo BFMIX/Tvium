@@ -19,7 +19,14 @@ final class EpgNowNextRequest {
     required this.sourceId,
     required List<PersistedMediaEntry> entries,
     required DateTime atUtc,
-  }) : entries = List<PersistedMediaEntry>.unmodifiable(entries),
+  }) : entries = List<PersistedMediaEntry>.unmodifiable(
+         entries.where(
+           (entry) =>
+               entry.playlistId == sourceId &&
+               entry.kind == MediaKind.live &&
+               entry.epgChannelId?.isNotEmpty == true,
+         ),
+       ),
        atUtc = atUtc.toUtc();
 
   final String profileId;

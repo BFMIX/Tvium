@@ -8,6 +8,41 @@ import 'package:tvium_epg/tvium_epg.dart';
 void main() {
   final instant = DateTime.utc(2026, 10, 16, 10, 30);
 
+  test('request retains only guide-linked live channels for its source', () {
+    final request = EpgNowNextRequest(
+      profileId: 'profile-home',
+      sourceId: 'source-a',
+      entries: [
+        _entry(
+          id: 'live:news',
+          sourceId: 'source-a',
+          kind: MediaKind.live,
+          epgChannelId: 'guide.news',
+        ),
+        _entry(
+          id: 'live:unmatched',
+          sourceId: 'source-a',
+          kind: MediaKind.live,
+        ),
+        _entry(
+          id: 'movie:news',
+          sourceId: 'source-a',
+          kind: MediaKind.movie,
+          epgChannelId: 'guide.news',
+        ),
+        _entry(
+          id: 'live:foreign',
+          sourceId: 'source-b',
+          kind: MediaKind.live,
+          epgChannelId: 'guide.other',
+        ),
+      ],
+      atUtc: instant,
+    );
+
+    expect(request.entries.map((entry) => entry.id), ['live:news']);
+  });
+
   test('loads schedules only for matched live entries in the source', () async {
     final repository = _RecordingEpgRepository({
       'live:news': EpgNowNext(

@@ -1,3 +1,5 @@
+import 'package:tvium_core/tvium_core.dart';
+
 import 'persisted_media_entry.dart';
 
 final class UserProfile {
@@ -39,4 +41,15 @@ abstract interface class ProfileSourceRepository {
   Future<void> renameSource(String sourceId, String name);
   Future<IptvSource?> unlinkSource(String profileId, String sourceId);
   Future<void> close();
+}
+
+/// Bounded catalog reads for devices that cannot hold an entire source in RAM.
+abstract interface class PagedProfileSourceRepository {
+  Future<int> countEntriesForPlaylist(String sourceId, MediaKind kind);
+  Future<List<PersistedMediaEntry>> entriesPageForPlaylist(
+    String sourceId,
+    MediaKind kind, {
+    required int offset,
+    required int limit,
+  });
 }

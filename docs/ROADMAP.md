@@ -118,6 +118,8 @@ Verified: durable profile-scoped parental-policy persistence, salted iterative P
 
 Performance, accessibility, security review, crash isolation, profiling, native player adapters, and real-device matrices.
 
+- In progress: saved catalogs open through bounded SQLite pages (120 entries per media kind), artwork for large sources loads after the first frame, and M3U import UI retains only a bounded preview. Synthetic tests and workspace checks pass. Low-memory Android TV startup, import, and playback still require measured device validation before this is marked verified.
+
 ## M9 — Release preparation (in progress)
 
 Verified: reproducible macOS DMG, Android TV ARM64 APK, Web archive, Apple Swift Package Manager builds, TV launcher assets, and automated prerelease workflow. Planned: Store metadata using authorized demo content, final legal/privacy review, protected signing, notarization, and production release builds.

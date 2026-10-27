@@ -63,6 +63,9 @@ final class PlaylistImportController extends ChangeNotifier {
   }) async {
     final generation = ++_generation;
     final entries = <M3uEntry>[];
+    List<M3uEntry> visibleEntries() => List<M3uEntry>.unmodifiable(
+      descriptor == null ? entries : entries.take(120),
+    );
     _setState(const PlaylistImportState(phase: PlaylistImportPhase.importing));
     try {
       await for (final event in _parser.parse(source.readLines())) {
@@ -75,7 +78,7 @@ final class PlaylistImportController extends ChangeNotifier {
             _setState(
               PlaylistImportState(
                 phase: PlaylistImportPhase.importing,
-                entries: List<M3uEntry>.unmodifiable(entries),
+                entries: visibleEntries(),
                 parsedCount: parsedCount,
                 warningCount: _state.warningCount,
               ),
@@ -87,7 +90,7 @@ final class PlaylistImportController extends ChangeNotifier {
               _setState(
                 PlaylistImportState(
                   phase: PlaylistImportPhase.saving,
-                  entries: List<M3uEntry>.unmodifiable(entries),
+                  entries: visibleEntries(),
                   parsedCount: summary.parsedEntries,
                   warningCount: summary.warningCount,
                   groupCount: summary.groupCount,
@@ -98,7 +101,7 @@ final class PlaylistImportController extends ChangeNotifier {
             _setState(
               PlaylistImportState(
                 phase: PlaylistImportPhase.ready,
-                entries: List<M3uEntry>.unmodifiable(entries),
+                entries: visibleEntries(),
                 parsedCount: summary.parsedEntries,
                 warningCount: summary.warningCount,
                 groupCount: summary.groupCount,

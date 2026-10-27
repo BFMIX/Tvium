@@ -1,3 +1,4 @@
+import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_epg/tvium_epg.dart';
 
 import 'epg_repository.dart';
@@ -10,6 +11,7 @@ final class SqlitePlaylistRepository
     implements
         PlaylistRepository,
         ProfileSourceRepository,
+        PagedProfileSourceRepository,
         EpgRepository,
         UserOverlayRepository {
   factory SqlitePlaylistRepository.open(String path) {
@@ -21,6 +23,18 @@ final class SqlitePlaylistRepository
   Never _unsupported() => throw UnsupportedError(
     'SQLite file persistence is unavailable on this platform.',
   );
+
+  @override
+  Future<int> countEntriesForPlaylist(String sourceId, MediaKind kind) =>
+      _unsupported();
+
+  @override
+  Future<List<PersistedMediaEntry>> entriesPageForPlaylist(
+    String sourceId,
+    MediaKind kind, {
+    required int offset,
+    required int limit,
+  }) => _unsupported();
 
   @override
   Future<UserProfile> activeProfile() => _unsupported();

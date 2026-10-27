@@ -21,6 +21,17 @@ import 'package:tvium_m3u/tvium_m3u.dart';
 import 'package:tvium_playback/tvium_playback.dart';
 
 void main() {
+  testWidgets('shows a loading surface before the saved library is ready', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      TviumApp(profileSourceRepository: _PendingLibraryRepository()),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('library-loading')), findsOneWidget);
+    expect(find.byKey(const ValueKey('onboarding-panel')), findsNothing);
+  });
   testWidgets('restores metadata consent on startup', (tester) async {
     metadataEnabled.value = false;
     addTearDown(() => metadataEnabled.value = false);
@@ -2385,4 +2396,14 @@ final class _CategoryFixtureSource implements M3uSource {
     '#EXTINF:-1 group-title="Comedy",Fixture Comedy',
     'https://stream.example.test/comedy.mp4',
   ]);
+}
+
+final class _PendingLibraryRepository implements ProfileSourceRepository {
+  final _pending = Completer<UserProfile>();
+
+  @override
+  Future<UserProfile> ensureDefaultProfile() => _pending.future;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

@@ -1,3 +1,4 @@
+import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_epg/tvium_epg.dart';
 
 import 'epg_repository.dart';
@@ -6,7 +7,11 @@ import 'profile_source_repository.dart';
 import 'user_overlay_repository.dart';
 
 final class InMemoryProfileSourceRepository
-    implements ProfileSourceRepository, EpgRepository, UserOverlayRepository {
+    implements
+        ProfileSourceRepository,
+        PagedProfileSourceRepository,
+        EpgRepository,
+        UserOverlayRepository {
   final _profiles = <String, UserProfile>{};
   final _sources = <String, IptvSource>{};
   final _links = <String, Set<String>>{};
@@ -104,6 +109,26 @@ final class InMemoryProfileSourceRepository
   @override
   Future<List<PersistedMediaEntry>> entriesForPlaylist(String sourceId) async =>
       List.of(_entries[sourceId] ?? []);
+  @override
+  Future<int> countEntriesForPlaylist(String sourceId, MediaKind kind) async =>
+      (_entries[sourceId] ?? []).where((entry) => entry.kind == kind).length;
+  @override
+  Future<List<PersistedMediaEntry>> entriesPageForPlaylist(
+    String sourceId,
+    MediaKind kind, {
+    required int offset,
+    required int limit,
+  }) async {
+    if (offset < 0 || limit < 1 || limit > 500) {
+      throw ArgumentError('Invalid catalog page.');
+    }
+    return (_entries[sourceId] ?? [])
+        .where((entry) => entry.kind == kind)
+        .skip(offset)
+        .take(limit)
+        .toList(growable: false);
+  }
+
   @override
   Future<void> registerSource(
     IptvSource source,
