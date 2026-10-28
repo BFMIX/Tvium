@@ -33,18 +33,14 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: production color and typography foundations, adaptive four-destination navigation shell, onboarding, Home, compact touch navigation, and wide-screen focus states.
 - Verified by widget tests: first launch uses the approved scenic artwork, a readable cinematic surface, and three prominent source choices; compact screens keep all three actions within the viewport width.
 - Verified by widget tests: first launch centers its welcome surface, keeps all three source cards equal in size, softens the backdrop, separates the centered phone pairing option, and uses a short entrance that preserves accessibility semantics.
-- Verified: the production Home screen includes a cinematic, five-second controllable feature carousel with adjacent Play and View details actions.
-- Verified by widget tests: Home shows exactly three destination cards before the carousel, with no extra history rail.
-- Verified by widget tests: the three Home cards use fixed approved artwork, the carousel is spaced below them, and its provider poster is shown at a bounded size over a stable scenic backdrop.
+- Verified by widget tests: Home shows exactly three centered destination cards with fixed approved artwork and content-specific counts. A blurred backdrop rotates independently; there is no foreground carousel or history rail.
 - Verified by widget tests: the Home TV Shows card counts grouped series titles, matching the catalog rather than raw episode entries.
-- Verified by synthetic tests: the carousel features playable titles with usable artwork first, and blank M3U logo attributes no longer create empty artwork references.
-- Verified by widget tests: Home does not present an episode still as a series poster and includes each conventionally named local series only once in the carousel.
-- Verified by widget tests: the Home carousel pauses behind an open title details dialog; its candidate list is reused between ticks until the catalog changes.
-- Verified by widget tests: the carousel uses clean Movies/TV Shows labels instead of raw source category names while preserving the original metadata.
+- Verified by widget tests: blank M3U logo attributes do not create empty artwork references; Home does not use episode stills as series posters.
 - Verified by widget tests: Live TV uses the approved scenic banner; Movies and TV Shows use a poster-left feature with real catalog artwork or a neutral fallback.
 - Verified by widget tests: M3U episode stills are not promoted to series posters in the feature or poster grid.
 - Verified by widget tests: title details place verified posters beside information and seasons on wide screens, stack on compact screens, and use neutral art for local series without a verified poster.
-- Verified by widget tests: movie and series detail dialogs expose the existing opt-in online metadata view. The public gateway is deployed with a server-side token; ordinary app builds select it by default.
+- Verified by widget tests: phone movie and series details fill the viewport, retain separate backdrop and poster media, and keep series episodes reachable. Compact Movies and TV Shows use a three-column poster grid at a standard phone width and a floating translucent navigation bar with scroll clearance.
+- Verified by widget tests: movie and series detail surfaces expose the existing opt-in online metadata view. The public gateway is deployed with a server-side token; ordinary app builds select it by default.
 - Verified by synthetic tests: opted-in movie and series details start a local-gateway lookup on open, show provider descriptions and artwork inline, and label a single yearless series result as tentative. The gateway returns localized and original TMDB titles plus poster and backdrop references; the client still preserves playlist titles and rejects unsafe artwork URLs.
 - Verified by synthetic tests: opted-in Home enriches only the displayed feature, uses a verified TMDB backdrop/poster, and stores verified public metadata under opaque keys for up to 30 days. A previously verified description remains available offline. Tentative matches and untrusted artwork addresses are never stored; consent is saved on the device.
 - Verified by synthetic tests: Movies and TV Shows grids display cached verified TMDB posters with consent, including grouped series whose source image is an episode still. Visible grid entries request verified artwork automatically after opt-in and a short scroll pause; cards removed before the pause do not start a lookup, and grid requests start at least 1.1 seconds apart. Local matching accepts explicitly separated release years, common French accent variants, and exact regional titles verified through bounded TMDB alternative-title lookups while preserving ambiguous-result safeguards. Live matching against the user's catalog still needs validation without exporting playlist data.
@@ -73,6 +69,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by widget tests: the preview offers Play, Favorite, and an honest Now/Next guide; the player has a full screen view with play, channel, and volume controls.
 - Verified by synthetic tests: Live TV derives a country rail from explicit group prefixes, starts with France when present, filters categories and channels by country, and keeps regional or ambiguous groups available through All countries.
 - Verified by widget tests: the player zaps forward and backward through the current visible playable channel list, including wraparound.
+- Verified by widget tests: the full-screen VOD player exposes a seek control and keyboard stepping, while Live TV places play/pause between previous and next and uses one translucent control surface. Casting/AirPlay remains planned until a working platform route is validated.
 - Verified by widget tests: the F shortcut and the preview full-screen button open the same single-control player view; F also closes it.
 - Verified by widget tests: full-screen controls clear after three seconds of inactivity and return on pointer or key activity, leaving the video unobstructed during viewing.
 - Verified by widget tests: focused Live TV playback responds to up/down remote keys for channel changes.
@@ -84,7 +81,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified: Xtream series details load on demand and expose ordered seasons and playable episodes without persisting stream URLs.
 - Verified: favorites and recently played history work across Live TV, Movies, and TV Shows.
 - Verified by automated coverage: movie and episode playback surfaces, local progress checkpoints, automatic resume, and Continue Watching.
-- Verified by widget tests: resumable movies appear above the movie poster catalog, keeping Home limited to destinations and carousel.
+- Verified by widget tests: resumable movies appear above the movie poster catalog, keeping Home limited to three destinations.
 - Verified by widget tests: resumable local M3U episodes appear above the TV Shows catalog with artwork and playback progress.
 - Verified by widget tests: Movies and TV Shows use horizontal category chips over the poster grid; short windows keep the header and Continue Watching compact enough for grid interaction.
 - Verified by automated coverage: M3U episode titles using common provider conventions are grouped locally into series, seasons, and episodes; native Xtream series structure remains authoritative when available.
