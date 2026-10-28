@@ -19,10 +19,6 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('xtream-action')));
     await tester.pump();
     await tester.enterText(
-      find.byKey(const ValueKey<String>('xtream-profile-name')),
-      'Fixture',
-    );
-    await tester.enterText(
       find.byKey(const ValueKey<String>('xtream-server-url')),
       'https://provider.example.test',
     );
@@ -65,10 +61,6 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('xtream-action')));
     await tester.pump();
     await tester.enterText(
-      find.byKey(const ValueKey<String>('xtream-profile-name')),
-      'Fixture',
-    );
-    await tester.enterText(
       find.byKey(const ValueKey<String>('xtream-server-url')),
       'https://provider.example.test',
     );
@@ -109,10 +101,6 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('xtream-action')));
     await tester.pump();
     await tester.enterText(
-      find.byKey(const ValueKey<String>('xtream-profile-name')),
-      'Home',
-    );
-    await tester.enterText(
       find.byKey(const ValueKey<String>('xtream-server-url')),
       'https://provider.example.test:8443',
     );
@@ -132,7 +120,7 @@ void main() {
     await tester.tap(testButton);
     await tester.pumpAndSettle();
 
-    expect(service.tested?.profileName, 'Home');
+    expect(service.tested?.profileName, 'provider.example.test');
     expect(service.tested?.serverUri.host, 'provider.example.test');
     expect(service.tested?.credentials.username, 'fixture-user');
     expect(find.text('Connection successful'), findsOneWidget);

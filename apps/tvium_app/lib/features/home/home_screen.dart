@@ -87,7 +87,6 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
   final FocusNode _xtreamActionFocus = FocusNode(debugLabel: 'Xtream action');
   var _showUrlField = false;
   var _showXtreamForm = false;
-  var _obscureUrl = true;
   String? _selectedGroup;
   XtreamAddedProfile? _xtreamProfile;
   _LibraryEntry? _selectedEntry;
@@ -704,28 +703,11 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                               controller: _urlController,
                               enabled: !importing,
                               keyboardType: TextInputType.url,
-                              obscureText: _obscureUrl,
                               enableSuggestions: false,
                               autocorrect: false,
                               decoration: InputDecoration(
                                 hintText: strings.urlHint,
                                 prefixIcon: const Icon(Icons.language_rounded),
-                                suffixIcon: IconButton(
-                                  key: const ValueKey<String>(
-                                    'url-visibility-toggle',
-                                  ),
-                                  tooltip: _obscureUrl
-                                      ? strings.showPlaylistUrl
-                                      : strings.hidePlaylistUrl,
-                                  onPressed: () => setState(
-                                    () => _obscureUrl = !_obscureUrl,
-                                  ),
-                                  icon: Icon(
-                                    _obscureUrl
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                  ),
-                                ),
                               ),
                               onSubmitted: (_) => _analyzeUrl(controller),
                             ),
@@ -1614,7 +1596,6 @@ final class _AddPlaylistDialogState extends State<_AddPlaylistDialog> {
               key: const ValueKey('add-m3u-url-field'),
               controller: _urlController,
               autofocus: true,
-              obscureText: true,
               enableSuggestions: false,
               autocorrect: false,
               decoration: InputDecoration(
@@ -2088,56 +2069,83 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                       ),
                     ),
                   Expanded(
-                    child: AnimatedSwitcher(
-                      duration: MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : const Duration(milliseconds: 180),
-                      child: switch (_destination) {
-                        _CatalogDestination.home => _DestinationHome(
-                          key: const ValueKey('page-home'),
-                          entries: entries,
-                          onSelected: _selectDestination,
+                    child: Stack(
+                      children: <Widget>[
+                        Positioned.fill(
+                          child: AnimatedSwitcher(
+                            duration: MediaQuery.disableAnimationsOf(context)
+                                ? Duration.zero
+                                : const Duration(milliseconds: 180),
+                            child: switch (_destination) {
+                              _CatalogDestination.home => _DestinationHome(
+                                key: const ValueKey('page-home'),
+                                entries: entries,
+                                onSelected: _selectDestination,
+                              ),
+                              _CatalogDestination.live => _pagedCatalog(
+                                _destination,
+                              ),
+                              _CatalogDestination.movies => _pagedCatalog(
+                                _destination,
+                              ),
+                              _CatalogDestination.shows => _pagedCatalog(
+                                _destination,
+                              ),
+                            },
+                          ),
                         ),
-                        _CatalogDestination.live => _pagedCatalog(_destination),
-                        _CatalogDestination.movies => _pagedCatalog(
-                          _destination,
-                        ),
-                        _CatalogDestination.shows => _pagedCatalog(
-                          _destination,
-                        ),
-                      },
-                    ),
-                  ),
-                  if (!wide)
-                    NavigationBar(
-                      key: const ValueKey('compact-navigation'),
-                      height: MediaQuery.sizeOf(context).height < 500 ? 56 : 64,
-                      selectedIndex: _destination.index,
-                      onDestinationSelected: (index) =>
-                          _selectDestination(_CatalogDestination.values[index]),
-                      destinations: const <NavigationDestination>[
-                        NavigationDestination(
-                          icon: Icon(Icons.home_outlined),
-                          selectedIcon: Icon(Icons.home_rounded),
-                          label: 'Home',
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.live_tv_outlined),
-                          selectedIcon: Icon(Icons.live_tv_rounded),
-                          label: 'Live TV',
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.movie_outlined),
-                          selectedIcon: Icon(Icons.movie_rounded),
-                          label: 'Movies',
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.tv_outlined),
-                          selectedIcon: Icon(Icons.tv_rounded),
-                          label: 'TV Shows',
-                        ),
+                        if (!wide)
+                          Positioned(
+                            left: TviumSpacing.md,
+                            right: TviumSpacing.md,
+                            bottom:
+                                TviumSpacing.sm +
+                                MediaQuery.paddingOf(context).bottom,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(28),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                                child: NavigationBar(
+                                  key: const ValueKey('compact-navigation'),
+                                  backgroundColor: const Color(0xD0182A3D),
+                                  height:
+                                      MediaQuery.sizeOf(context).height < 500
+                                      ? 56
+                                      : 64,
+                                  selectedIndex: _destination.index,
+                                  onDestinationSelected: (index) =>
+                                      _selectDestination(
+                                        _CatalogDestination.values[index],
+                                      ),
+                                  destinations: const <NavigationDestination>[
+                                    NavigationDestination(
+                                      icon: Icon(Icons.home_outlined),
+                                      selectedIcon: Icon(Icons.home_rounded),
+                                      label: 'Home',
+                                    ),
+                                    NavigationDestination(
+                                      icon: Icon(Icons.live_tv_outlined),
+                                      selectedIcon: Icon(Icons.live_tv_rounded),
+                                      label: 'Live TV',
+                                    ),
+                                    NavigationDestination(
+                                      icon: Icon(Icons.movie_outlined),
+                                      selectedIcon: Icon(Icons.movie_rounded),
+                                      label: 'Movies',
+                                    ),
+                                    NavigationDestination(
+                                      icon: Icon(Icons.tv_outlined),
+                                      selectedIcon: Icon(Icons.tv_rounded),
+                                      label: 'TV Shows',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
+                  ),
                 ],
               ),
             ],
@@ -3001,6 +3009,7 @@ final class _CatalogPage extends ConsumerWidget {
         : destination == _CatalogDestination.live
         ? ListView.separated(
             key: const ValueKey('live-channel-list'),
+            padding: EdgeInsets.only(bottom: compactWidth ? 92 : 0),
             itemCount: visible.length,
             separatorBuilder: (_, _) => const SizedBox(height: TviumSpacing.xs),
             itemBuilder: (context, index) {
@@ -3017,8 +3026,13 @@ final class _CatalogPage extends ConsumerWidget {
           )
         : GridView.builder(
             key: const ValueKey('poster-grid'),
+            padding: EdgeInsets.only(bottom: compactWidth ? 92 : 0),
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: shortWindow ? 150 : 210,
+              maxCrossAxisExtent: compactWidth
+                  ? 136
+                  : shortWindow
+                  ? 150
+                  : 210,
               mainAxisSpacing: TviumSpacing.sm,
               crossAxisSpacing: TviumSpacing.sm,
               childAspectRatio: shortWindow ? 0.72 : 0.62,
@@ -4540,17 +4554,15 @@ Future<void> _showTitleDetails(
       return Dialog(
         key: const ValueKey('title-details'),
         backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(TviumSpacing.md),
+        insetPadding: wide
+            ? const EdgeInsets.all(TviumSpacing.md)
+            : EdgeInsets.zero,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(wide ? 24 : 0),
           child: SizedBox(
-            width: wide ? 800 : 420,
-            height: wide
-                ? 460
-                : (MediaQuery.sizeOf(dialogContext).height * 0.78).clamp(
-                    400.0,
-                    620.0,
-                  ),
+            key: const ValueKey('title-details-surface'),
+            width: wide ? 800 : double.infinity,
+            height: wide ? 460 : MediaQuery.sizeOf(dialogContext).height,
             child: Stack(
               fit: StackFit.expand,
               children: <Widget>[
@@ -4605,6 +4617,16 @@ Future<void> _showTitleDetails(
                   padding: const EdgeInsets.all(TviumSpacing.lg),
                   child: Column(
                     children: <Widget>[
+                      if (!wide)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: IconButton(
+                            key: const ValueKey('title-details-back'),
+                            tooltip: 'Back to catalog',
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                            icon: const Icon(Icons.arrow_back_rounded),
+                          ),
+                        ),
                       Expanded(
                         child: wide
                             ? Row(
@@ -4690,6 +4712,112 @@ final class _TitleDetailsPoster extends StatelessWidget {
   }
 }
 
+final class _SeriesDetailsDialog extends StatelessWidget {
+  const _SeriesDetailsDialog({
+    required this.entry,
+    required this.child,
+    required this.actions,
+  });
+
+  final _LibraryEntry entry;
+  final Widget child;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= 720;
+    return Dialog(
+      key: const ValueKey('title-details'),
+      backgroundColor: Colors.transparent,
+      insetPadding: wide
+          ? const EdgeInsets.all(TviumSpacing.md)
+          : EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(wide ? 24 : 0),
+        child: SizedBox(
+          key: const ValueKey('title-details-surface'),
+          width: wide ? 800 : double.infinity,
+          height: wide ? 540 : MediaQuery.sizeOf(context).height,
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Consumer(
+                builder: (context, ref, _) {
+                  final backdrop = ref
+                      .watch(
+                        metadataHeroOverlayProvider((
+                          sourceId: entry.sourceId,
+                          entryId: entry.id,
+                          title: entry.name,
+                          kind: entry.kind,
+                          enabled: metadataEnabled.value,
+                        )),
+                      )
+                      .value
+                      ?.backdropUri;
+                  return ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                    child: backdrop == null
+                        ? Image.asset(
+                            'assets/destinations/hero-tv-shows.png',
+                            fit: BoxFit.cover,
+                          )
+                        : ArtworkImage(
+                            sourceId: entry.sourceId,
+                            entryId: entry.id,
+                            role: 'backdrop',
+                            uri: backdrop,
+                            fit: BoxFit.cover,
+                          ),
+                  );
+                },
+              ),
+              const DecoratedBox(
+                decoration: BoxDecoration(color: Color(0xE90B1C2B)),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(TviumSpacing.lg),
+                child: Column(
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        IconButton(
+                          key: const ValueKey('title-details-back'),
+                          tooltip: 'Back to catalog',
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                        ),
+                        const SizedBox(width: TviumSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            entry.displayName,
+                            style: Theme.of(context).textTheme.headlineMedium,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: TviumSpacing.md),
+                    Expanded(
+                      child: _SeriesDetailsBody(entry: entry, child: child),
+                    ),
+                    const SizedBox(height: TviumSpacing.sm),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: actions,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 final class _SeriesDetailsBody extends StatelessWidget {
   const _SeriesDetailsBody({required this.entry, required this.child});
 
@@ -4757,60 +4885,56 @@ Future<void> _showLocalSeriesDetails(
   final firstEpisode = seasons[seasonNumbers.first]!.first;
   return showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      key: const ValueKey('title-details'),
-      title: Text(entry.displayName),
-      content: _SeriesDetailsBody(
-        entry: entry,
-        child: ListView(
-          children: <Widget>[
-            OnlineMetadataSummary(
-              originalTitle: entry.name,
-              kind: entry.kind,
-              sourceId: entry.sourceId,
-              entryId: entry.id,
-            ),
-            const SizedBox(height: TviumSpacing.sm),
-            for (final seasonNumber in seasonNumbers)
-              ExpansionTile(
-                key: ValueKey('season-$seasonNumber'),
-                initiallyExpanded: seasonNumber == seasonNumbers.first,
-                title: Text(
-                  seasonNumber == 0 ? 'Specials' : 'Season $seasonNumber',
-                ),
-                subtitle: Text(
-                  '${seasons[seasonNumber]!.length} '
-                  '${seasons[seasonNumber]!.length == 1 ? 'episode' : 'episodes'}',
-                ),
-                children: <Widget>[
-                  for (final episode in seasons[seasonNumber]!)
-                    Builder(
-                      builder: (context) {
-                        final metadata = normalizer.normalize(
-                          episode.name,
-                          kind: episode.kind,
-                        );
-                        return ListTile(
-                          key: ValueKey('local-episode-${episode.id}'),
-                          leading: Text('${metadata.episode ?? '–'}'),
-                          title: Text('Episode ${metadata.episode ?? '–'}'),
-                          subtitle: Text(
-                            episode.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: const Icon(Icons.play_arrow_rounded),
-                          onTap: () {
-                            Navigator.of(dialogContext).pop();
-                            onPlay(episode);
-                          },
-                        );
-                      },
-                    ),
-                ],
+    builder: (dialogContext) => _SeriesDetailsDialog(
+      entry: entry,
+      child: ListView(
+        children: <Widget>[
+          OnlineMetadataSummary(
+            originalTitle: entry.name,
+            kind: entry.kind,
+            sourceId: entry.sourceId,
+            entryId: entry.id,
+          ),
+          const SizedBox(height: TviumSpacing.sm),
+          for (final seasonNumber in seasonNumbers)
+            ExpansionTile(
+              key: ValueKey('season-$seasonNumber'),
+              initiallyExpanded: seasonNumber == seasonNumbers.first,
+              title: Text(
+                seasonNumber == 0 ? 'Specials' : 'Season $seasonNumber',
               ),
-          ],
-        ),
+              subtitle: Text(
+                '${seasons[seasonNumber]!.length} '
+                '${seasons[seasonNumber]!.length == 1 ? 'episode' : 'episodes'}',
+              ),
+              children: <Widget>[
+                for (final episode in seasons[seasonNumber]!)
+                  Builder(
+                    builder: (context) {
+                      final metadata = normalizer.normalize(
+                        episode.name,
+                        kind: episode.kind,
+                      );
+                      return ListTile(
+                        key: ValueKey('local-episode-${episode.id}'),
+                        leading: Text('${metadata.episode ?? '–'}'),
+                        title: Text('Episode ${metadata.episode ?? '–'}'),
+                        subtitle: Text(
+                          episode.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: const Icon(Icons.play_arrow_rounded),
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          onPlay(episode);
+                        },
+                      );
+                    },
+                  ),
+              ],
+            ),
+        ],
       ),
       actions: <Widget>[
         TextButton(
@@ -4840,72 +4964,68 @@ Future<void> _showSeriesDetails(
   final details = service.loadSeriesDetails(profileId, seriesId);
   return showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      key: const ValueKey('title-details'),
-      title: Text(entry.displayName),
-      content: _SeriesDetailsBody(
-        entry: entry,
-        child: FutureBuilder<XtreamSeriesDetails>(
-          future: details,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final series = snapshot.data;
-            if (series == null) {
-              return const Center(
-                child: Text('Episodes are temporarily unavailable.'),
-              );
-            }
-            return ListView(
-              children: <Widget>[
-                OnlineMetadataSummary(
-                  originalTitle: entry.name,
-                  kind: entry.kind,
-                  sourceId: entry.sourceId,
-                  entryId: entry.id,
-                ),
-                const SizedBox(height: TviumSpacing.sm),
-                if (series.plot case final plot?) ...<Widget>[
-                  Text(plot),
-                  const SizedBox(height: TviumSpacing.sm),
-                ],
-                for (final season in series.seasons)
-                  ExpansionTile(
-                    key: ValueKey('season-${season.number}'),
-                    initiallyExpanded: season == series.seasons.first,
-                    title: Text(season.name),
-                    subtitle: Text(
-                      '${season.episodes.length} ${season.episodes.length == 1 ? 'episode' : 'episodes'}',
-                    ),
-                    children: <Widget>[
-                      for (final episode in season.episodes)
-                        ListTile(
-                          key: ValueKey('episode-${episode.id}'),
-                          leading: Text('${episode.number}'),
-                          title: Text(episode.title),
-                          subtitle: episode.duration == null
-                              ? null
-                              : Text('${episode.duration!.inMinutes} min'),
-                          trailing: const Icon(Icons.play_arrow_rounded),
-                          onTap: () {
-                            Navigator.of(dialogContext).pop();
-                            onPlay(
-                              _LibraryEntry.fromEpisode(
-                                profileId: profileId,
-                                seriesId: seriesId,
-                                seriesName: series.name,
-                                episode: episode,
-                              ),
-                            );
-                          },
-                        ),
-                    ],
-                  ),
-              ],
+    builder: (dialogContext) => _SeriesDetailsDialog(
+      entry: entry,
+      child: FutureBuilder<XtreamSeriesDetails>(
+        future: details,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final series = snapshot.data;
+          if (series == null) {
+            return const Center(
+              child: Text('Episodes are temporarily unavailable.'),
             );
-          },
-        ),
+          }
+          return ListView(
+            children: <Widget>[
+              OnlineMetadataSummary(
+                originalTitle: entry.name,
+                kind: entry.kind,
+                sourceId: entry.sourceId,
+                entryId: entry.id,
+              ),
+              const SizedBox(height: TviumSpacing.sm),
+              if (series.plot case final plot?) ...<Widget>[
+                Text(plot),
+                const SizedBox(height: TviumSpacing.sm),
+              ],
+              for (final season in series.seasons)
+                ExpansionTile(
+                  key: ValueKey('season-${season.number}'),
+                  initiallyExpanded: season == series.seasons.first,
+                  title: Text(season.name),
+                  subtitle: Text(
+                    '${season.episodes.length} ${season.episodes.length == 1 ? 'episode' : 'episodes'}',
+                  ),
+                  children: <Widget>[
+                    for (final episode in season.episodes)
+                      ListTile(
+                        key: ValueKey('episode-${episode.id}'),
+                        leading: Text('${episode.number}'),
+                        title: Text(episode.title),
+                        subtitle: episode.duration == null
+                            ? null
+                            : Text('${episode.duration!.inMinutes} min'),
+                        trailing: const Icon(Icons.play_arrow_rounded),
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          onPlay(
+                            _LibraryEntry.fromEpisode(
+                              profileId: profileId,
+                              seriesId: seriesId,
+                              seriesName: series.name,
+                              episode: episode,
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+            ],
+          );
+        },
       ),
       actions: <Widget>[
         TextButton(
@@ -5205,130 +5325,176 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
       key: ValueKey(
         fullScreen ? 'live-fullscreen-controls' : 'live-preview-controls',
       ),
-      height: seekable ? 90 : 56,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: TviumSpacing.sm),
-        color: Colors.black.withValues(alpha: 0.72),
-        child: StreamBuilder<PlaybackState>(
-          stream: engine.state,
-          initialData: engine.currentState,
-          builder: (context, snapshot) {
-            final playing = snapshot.data?.phase == PlaybackPhase.playing;
-            final duration = snapshot.data?.duration ?? Duration.zero;
-            final position = snapshot.data?.position ?? Duration.zero;
-            final leading = Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                IconButton(
-                  key: ValueKey(
-                    fullScreen ? 'live-fullscreen-play' : 'live-player-play',
-                  ),
-                  tooltip: playing ? 'Pause' : 'Play',
-                  onPressed: () => playing ? engine.pause() : engine.play(),
-                  icon: Icon(
-                    playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  ),
-                ),
-                if (fullScreen) ...<Widget>[
-                  const Icon(Icons.volume_up_rounded, size: 18),
-                  SizedBox(
-                    width: 110,
-                    child: Slider(
-                      key: const ValueKey('live-fullscreen-volume'),
-                      value: _volume,
-                      onChanged: onVolumeChanged,
-                    ),
-                  ),
-                ] else if (widget.onOpenChannelSwitcher != null)
-                  IconButton(
-                    key: const ValueKey('live-channel-switcher-button'),
-                    tooltip: 'Switch channel',
-                    onPressed: widget.onOpenChannelSwitcher,
-                    icon: const Icon(Icons.search_rounded),
-                  ),
-              ],
-            );
-            final channelControls = Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                if (widget.onPreviousChannel != null) ...<Widget>[
-                  IconButton(
-                    key: const ValueKey('live-previous-channel'),
-                    tooltip: 'Previous channel',
-                    onPressed: widget.onPreviousChannel,
-                    icon: const Icon(Icons.skip_previous_rounded),
-                  ),
-                  IconButton(
-                    key: const ValueKey('live-next-channel'),
-                    tooltip: 'Next channel',
-                    onPressed: widget.onNextChannel,
-                    icon: const Icon(Icons.skip_next_rounded),
-                  ),
-                ],
-              ],
-            );
-            final fullScreenButton = !fullScreen
-                ? IconButton(
-                    key: const ValueKey('live-player-fullscreen'),
-                    tooltip: 'Full screen',
-                    onPressed: _openFullScreen,
-                    icon: const Icon(Icons.fullscreen_rounded),
-                  )
-                : IconButton(
-                    key: const ValueKey('live-fullscreen-exit'),
-                    tooltip: 'Exit full screen',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.fullscreen_exit_rounded),
-                  );
-            final controlRow = LayoutBuilder(
-              builder: (context, constraints) {
-                // Equal side slots keep the channel buttons at the actual
-                // center, regardless of the wider volume controls on the left.
-                if (constraints.maxWidth < (fullScreen ? 450 : 300)) {
-                  return Row(
-                    children: <Widget>[
-                      leading,
-                      const Spacer(),
-                      channelControls,
-                      fullScreenButton,
-                    ],
-                  );
-                }
-                return Row(
+      height: seekable ? 104 : 64,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(TviumRadius.surface),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: TviumSpacing.sm),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.36),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.13)),
+              borderRadius: BorderRadius.circular(TviumRadius.surface),
+            ),
+            child: StreamBuilder<PlaybackState>(
+              stream: engine.state,
+              initialData: engine.currentState,
+              builder: (context, snapshot) {
+                final playing = snapshot.data?.phase == PlaybackPhase.playing;
+                final duration = snapshot.data?.duration ?? Duration.zero;
+                final position = snapshot.data?.position ?? Duration.zero;
+                final leading = Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: leading,
+                    if (fullScreen) ...<Widget>[
+                      const Icon(Icons.volume_up_rounded, size: 18),
+                      SizedBox(
+                        width: 110,
+                        child: Slider(
+                          key: const ValueKey('live-fullscreen-volume'),
+                          value: _volume,
+                          onChanged: onVolumeChanged,
+                        ),
+                      ),
+                    ] else if (widget.onOpenChannelSwitcher != null)
+                      IconButton(
+                        key: const ValueKey('live-channel-switcher-button'),
+                        tooltip: 'Switch channel',
+                        onPressed: widget.onOpenChannelSwitcher,
+                        icon: const Icon(Icons.search_rounded),
+                      ),
+                  ],
+                );
+                final channelControls = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    if (widget.onPreviousChannel != null) ...<Widget>[
+                      IconButton(
+                        key: const ValueKey('live-previous-channel'),
+                        tooltip: 'Previous channel',
+                        onPressed: widget.onPreviousChannel,
+                        icon: const Icon(Icons.skip_previous_rounded),
+                      ),
+                    ] else if (seekable)
+                      IconButton(
+                        key: const ValueKey('vod-skip-back'),
+                        tooltip: 'Back 10 seconds',
+                        onPressed: duration > Duration.zero
+                            ? () => engine.seek(
+                                position - const Duration(seconds: 10),
+                              )
+                            : null,
+                        icon: const Icon(Icons.replay_10_rounded),
+                      ),
+                    IconButton(
+                      key: ValueKey(
+                        fullScreen
+                            ? 'live-fullscreen-play'
+                            : 'live-player-play',
+                      ),
+                      tooltip: playing ? 'Pause' : 'Play',
+                      onPressed: () => playing ? engine.pause() : engine.play(),
+                      icon: Icon(
+                        playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
                       ),
                     ),
-                    channelControls,
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: fullScreenButton,
+                    if (widget.onPreviousChannel != null)
+                      IconButton(
+                        key: const ValueKey('live-next-channel'),
+                        tooltip: 'Next channel',
+                        onPressed: widget.onNextChannel,
+                        icon: const Icon(Icons.skip_next_rounded),
                       ),
+                    if (widget.onPreviousChannel == null && seekable)
+                      IconButton(
+                        key: const ValueKey('vod-skip-forward'),
+                        tooltip: 'Forward 10 seconds',
+                        onPressed: duration > Duration.zero
+                            ? () => engine.seek(
+                                position + const Duration(seconds: 10),
+                              )
+                            : null,
+                        icon: const Icon(Icons.forward_10_rounded),
+                      ),
+                  ],
+                );
+                final fullScreenButton = !fullScreen
+                    ? IconButton(
+                        key: const ValueKey('live-player-fullscreen'),
+                        tooltip: 'Full screen',
+                        onPressed: _openFullScreen,
+                        icon: const Icon(Icons.fullscreen_rounded),
+                      )
+                    : IconButton(
+                        key: const ValueKey('live-fullscreen-exit'),
+                        tooltip: 'Exit full screen',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.fullscreen_exit_rounded),
+                      );
+                final controlRow = LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Equal side slots keep the channel buttons at the actual
+                    // center, regardless of the wider volume controls on the left.
+                    if (constraints.maxWidth < (fullScreen ? 450 : 300)) {
+                      return Row(
+                        children: <Widget>[
+                          leading,
+                          const Spacer(),
+                          channelControls,
+                          fullScreenButton,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: leading,
+                          ),
+                        ),
+                        channelControls,
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: fullScreenButton,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+                if (!seekable) return controlRow;
+                return Column(
+                  children: <Widget>[
+                    Slider(
+                      key: const ValueKey('fullscreen-seek'),
+                      value: position.inMilliseconds
+                          .clamp(
+                            0,
+                            duration.inMilliseconds > 0
+                                ? duration.inMilliseconds
+                                : 1,
+                          )
+                          .toDouble(),
+                      max: duration.inMilliseconds > 0
+                          ? duration.inMilliseconds.toDouble()
+                          : 1,
+                      onChanged: duration > Duration.zero
+                          ? (value) => engine.seek(
+                              Duration(milliseconds: value.round()),
+                            )
+                          : null,
                     ),
+                    Expanded(child: controlRow),
                   ],
                 );
               },
-            );
-            if (!seekable || duration <= Duration.zero) return controlRow;
-            return Column(
-              children: <Widget>[
-                Slider(
-                  key: const ValueKey('fullscreen-seek'),
-                  value: position.inMilliseconds
-                      .clamp(0, duration.inMilliseconds)
-                      .toDouble(),
-                  max: duration.inMilliseconds.toDouble(),
-                  onChanged: (value) =>
-                      engine.seek(Duration(milliseconds: value.round())),
-                ),
-                Expanded(child: controlRow),
-              ],
-            );
-          },
+            ),
+          ),
         ),
       ),
     );

@@ -20,11 +20,9 @@ final class XtreamConnectionForm extends ConsumerStatefulWidget {
 
 final class _XtreamConnectionFormState
     extends ConsumerState<XtreamConnectionForm> {
-  final _profileController = TextEditingController();
   final _serverController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  var _obscureServer = true;
   var _obscurePassword = true;
   var _processing = false;
   String? _status;
@@ -33,7 +31,6 @@ final class _XtreamConnectionFormState
 
   @override
   void dispose() {
-    _profileController.dispose();
     _serverController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -48,36 +45,13 @@ final class _XtreamConnectionFormState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           TextField(
-            key: const ValueKey<String>('xtream-profile-name'),
-            controller: _profileController,
-            enabled: !_processing,
-            decoration: InputDecoration(labelText: strings.profileName),
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: TviumSpacing.sm),
-          TextField(
             key: const ValueKey<String>('xtream-server-url'),
             controller: _serverController,
             enabled: !_processing,
             keyboardType: TextInputType.url,
-            obscureText: _obscureServer,
             enableSuggestions: false,
             autocorrect: false,
-            decoration: InputDecoration(
-              labelText: strings.serverUrl,
-              suffixIcon: IconButton(
-                tooltip: _obscureServer
-                    ? strings.showServerUrl
-                    : strings.hideServerUrl,
-                onPressed: () =>
-                    setState(() => _obscureServer = !_obscureServer),
-                icon: Icon(
-                  _obscureServer
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                ),
-              ),
-            ),
+            decoration: InputDecoration(labelText: strings.serverUrl),
             textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: TviumSpacing.sm),
@@ -273,12 +247,10 @@ final class _XtreamConnectionFormState
       };
 
   XtreamConnectionInput? _readInput() {
-    final profileName = _profileController.text.trim();
     final serverUri = Uri.tryParse(_serverController.text.trim());
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
-    if (profileName.isEmpty ||
-        serverUri == null ||
+    if (serverUri == null ||
         !serverUri.hasAuthority ||
         (serverUri.scheme != 'http' && serverUri.scheme != 'https') ||
         username.isEmpty ||
@@ -286,7 +258,7 @@ final class _XtreamConnectionFormState
       return null;
     }
     return XtreamConnectionInput(
-      profileName: profileName,
+      profileName: serverUri.host,
       serverUri: serverUri,
       credentials: XtreamCredentials(username: username, password: password),
     );

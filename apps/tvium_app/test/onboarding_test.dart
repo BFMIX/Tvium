@@ -194,6 +194,10 @@ void main() {
     await tester.pump();
 
     expect(find.byType(TextField), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).obscureText,
+      isFalse,
+    );
   });
 
   testWidgets('keeps every source action visible on a compact phone', (
@@ -223,7 +227,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('xtream-action')));
     await tester.pump();
 
-    expect(find.text('Profile name'), findsOneWidget);
+    expect(find.byKey(const ValueKey('xtream-profile-name')), findsNothing);
     expect(find.text('Server URL'), findsOneWidget);
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
@@ -236,7 +240,7 @@ void main() {
     final passwordField = tester.widget<TextField>(
       find.byKey(const ValueKey<String>('xtream-password')),
     );
-    expect(serverField.obscureText, isTrue);
+    expect(serverField.obscureText, isFalse);
     expect(serverField.enableSuggestions, isFalse);
     expect(passwordField.obscureText, isTrue);
     expect(passwordField.enableSuggestions, isFalse);

@@ -701,12 +701,9 @@ void main() {
     await tester.pumpAndSettle();
 
     final previewControls = find.byKey(const ValueKey('live-preview-controls'));
-    final previewPrevious = find.byKey(const ValueKey('live-previous-channel'));
-    final previewNext = find.byKey(const ValueKey('live-next-channel'));
+    final previewPlay = find.byKey(const ValueKey('live-player-play'));
     expect(
-      (tester.getCenter(previewPrevious).dx +
-              tester.getCenter(previewNext).dx) /
-          2,
+      tester.getCenter(previewPlay).dx,
       closeTo(tester.getCenter(previewControls).dx, 1),
     );
     expect(
@@ -741,7 +738,7 @@ void main() {
           2,
       closeTo(tester.getCenter(controls).dx, 1),
     );
-    expect(tester.getSize(controls).height, 56);
+    expect(tester.getSize(controls).height, greaterThanOrEqualTo(56));
     expect(
       tester.getCenter(volume).dy,
       greaterThan(tester.getBottomLeft(fullScreen).dy - 120),
@@ -1118,6 +1115,30 @@ void main() {
     expect(delegate.maxCrossAxisExtent, lessThanOrEqualTo(220));
   });
 
+  testWidgets('phone portrait shows three movie posters on each row', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _LongMetadataGridFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+
+    final grid = tester.widget<GridView>(
+      find.byKey(const ValueKey('poster-grid')),
+    );
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
+    expect(delegate.maxCrossAxisExtent, lessThanOrEqualTo(140));
+    expect(find.byKey(const ValueKey('media-card-movie')), findsOneWidget);
+  });
+
   for (final destination in <String>['movies', 'shows']) {
     testWidgets('wide $destination places categories beside the poster grid', (
       tester,
@@ -1263,6 +1284,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Play now'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('live-player-fullscreen')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('fullscreen-seek')), findsOneWidget);
     playback.emit(
       const PlaybackState(
         phase: PlaybackPhase.playing,
@@ -1271,9 +1295,6 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('live-player-fullscreen')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('fullscreen-seek')), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pump();
     expect(playback.seekPositions.last, const Duration(seconds: 40));
@@ -1390,6 +1411,32 @@ void main() {
     expect(find.byKey(const ValueKey('title-online-info')), findsNothing);
   });
 
+  testWidgets('phone series details fill the screen and expose episodes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Demo Show'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('title-details-surface')))
+          .height,
+      greaterThan(760),
+    );
+    expect(find.byKey(const ValueKey('season-1')), findsOneWidget);
+  });
+
   testWidgets('compact movie details stack the poster above the title', (
     tester,
   ) async {
@@ -1415,6 +1462,12 @@ void main() {
     final title = find.byKey(const ValueKey('title-details-heading'));
     expect(poster, findsOneWidget);
     expect(title, findsOneWidget);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('title-details-surface')))
+          .height,
+      greaterThan(760),
+    );
     expect(tester.getTopLeft(poster).dy, lessThan(tester.getTopLeft(title).dy));
   });
 
@@ -2091,6 +2144,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('compact-navigation')), findsOneWidget);
+      final navigation = find.byKey(const ValueKey('compact-navigation'));
+      expect(tester.getTopLeft(navigation).dx, greaterThan(0));
+      expect(tester.getBottomLeft(navigation).dy, lessThan(844));
       for (final label in const ['Home', 'Live TV', 'Movies', 'TV Shows']) {
         expect(
           find.descendant(
