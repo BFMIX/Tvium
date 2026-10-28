@@ -4512,7 +4512,7 @@ Future<void> _showAdaptiveTitleDetails(
   BuildContext context,
   WidgetBuilder builder,
 ) {
-  if (MediaQuery.sizeOf(context).width < 720) {
+  if (_compactTitlePage(MediaQuery.sizeOf(context))) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (pageContext) => Scaffold(
@@ -4524,6 +4524,8 @@ Future<void> _showAdaptiveTitleDetails(
   }
   return showDialog<void>(context: context, builder: builder);
 }
+
+bool _compactTitlePage(Size size) => size.width < 720 || size.height < 500;
 
 Future<void> _showTitleDetails(
   BuildContext context,
@@ -4560,7 +4562,9 @@ Future<void> _showTitleDetails(
     );
   }
   return _showAdaptiveTitleDetails(context, (dialogContext) {
-    final wide = MediaQuery.sizeOf(dialogContext).width >= 720;
+    final size = MediaQuery.sizeOf(dialogContext);
+    final wide = !_compactTitlePage(size);
+    final horizontal = size.width >= 720;
     final details = SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4670,11 +4674,11 @@ Future<void> _showTitleDetails(
                         ),
                       ),
                     Expanded(
-                      child: wide
+                      child: horizontal
                           ? Row(
                               children: <Widget>[
                                 SizedBox(
-                                  width: 220,
+                                  width: wide ? 220 : 120,
                                   child: _TitleDetailsPoster(entry: entry),
                                 ),
                                 const SizedBox(width: TviumSpacing.lg),
@@ -4807,7 +4811,7 @@ final class _SeriesDetailsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.sizeOf(context).width >= 720;
+    final wide = !_compactTitlePage(MediaQuery.sizeOf(context));
     return Dialog(
       key: const ValueKey('title-details'),
       backgroundColor: Colors.transparent,

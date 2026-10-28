@@ -1552,6 +1552,68 @@ void main() {
     );
   });
 
+  testWidgets('phone landscape opens a full movie page with a side poster', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(844, 390);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _HeroArtworkFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('media-card-entry-2')),
+    );
+    await tester.tap(find.byKey(const ValueKey('media-card-entry-2')));
+    await tester.pumpAndSettle();
+
+    final surface = find.byKey(const ValueKey('title-details-surface'));
+    expect(
+      ModalRoute.of(tester.element(surface)),
+      isA<MaterialPageRoute<void>>(),
+    );
+    expect(tester.getSize(surface).height, lessThanOrEqualTo(390));
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('title-details-poster'))).dx,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('title-details-heading')))
+            .dx,
+      ),
+    );
+  });
+
+  testWidgets('phone landscape keeps series seasons on a full page', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(844, 390);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-shows')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Demo Show'));
+    await tester.pumpAndSettle();
+
+    final surface = find.byKey(const ValueKey('title-details-surface'));
+    expect(
+      ModalRoute.of(tester.element(surface)),
+      isA<MaterialPageRoute<void>>(),
+    );
+    expect(tester.getSize(surface).height, lessThanOrEqualTo(390));
+    expect(find.byKey(const ValueKey('season-1')), findsOneWidget);
+  });
+
   testWidgets('TV show Play now opens a visible playback surface', (
     tester,
   ) async {
