@@ -1395,6 +1395,29 @@ void main() {
     expect(find.byKey(const ValueKey('title-online-info')), findsNothing);
   });
 
+  testWidgets('movie details can toggle the title favorite', (tester) async {
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(TviumApp(importController: controller));
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('media-card-movie')));
+    await tester.tap(find.byKey(const ValueKey('media-card-movie')));
+    await tester.pumpAndSettle();
+
+    final favorite = find.byKey(const ValueKey('title-details-favorite'));
+    expect(favorite, findsOneWidget);
+    expect(tester.widget<IconButton>(favorite).tooltip, 'Add to favorites');
+    await tester.tap(favorite);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<IconButton>(favorite).tooltip,
+      'Remove from favorites',
+    );
+  });
+
   testWidgets('local series details use a neutral poster beside seasons', (
     tester,
   ) async {
@@ -1478,6 +1501,14 @@ void main() {
         tester.element(find.byKey(const ValueKey('title-details-surface'))),
       ),
       isA<MaterialPageRoute<void>>(),
+    );
+    final favorite = find.byKey(const ValueKey('title-details-favorite'));
+    expect(favorite, findsOneWidget);
+    await tester.tap(favorite);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<IconButton>(favorite).tooltip,
+      'Remove from favorites',
     );
   });
 

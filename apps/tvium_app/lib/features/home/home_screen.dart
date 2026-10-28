@@ -3056,6 +3056,8 @@ final class _CatalogPage extends ConsumerWidget {
                   entry,
                   onPlay,
                   ref.read(xtreamConnectionServiceProvider),
+                  favorite: favorites.contains(entry.locator(profileId)),
+                  onFavoriteToggled: () => onFavoriteToggled(entry),
                 ),
               );
             },
@@ -3279,6 +3281,11 @@ final class _CatalogPage extends ConsumerWidget {
                         featureEntry,
                         onPlay,
                         ref.read(xtreamConnectionServiceProvider),
+                        favorite: favorites.contains(
+                          featureEntry.locator(profileId),
+                        ),
+                        onFavoriteToggled: () =>
+                            onFavoriteToggled(featureEntry),
                       ),
               ),
             ),
@@ -4522,10 +4529,18 @@ Future<void> _showTitleDetails(
   BuildContext context,
   _LibraryEntry entry,
   ValueChanged<_LibraryEntry> onPlay,
-  XtreamConnectionService service,
-) {
+  XtreamConnectionService service, {
+  required bool favorite,
+  required VoidCallback onFavoriteToggled,
+}) {
   if (entry.seriesEpisodes.isNotEmpty) {
-    return _showLocalSeriesDetails(context, entry, onPlay);
+    return _showLocalSeriesDetails(
+      context,
+      entry,
+      onPlay,
+      favorite: favorite,
+      onFavoriteToggled: onFavoriteToggled,
+    );
   }
   final XtreamSeriesService? seriesService = service is XtreamSeriesService
       ? service as XtreamSeriesService
@@ -4534,7 +4549,15 @@ Future<void> _showTitleDetails(
   if (seriesId != null &&
       entry.xtreamProfileId != null &&
       seriesService != null) {
-    return _showSeriesDetails(context, entry, onPlay, seriesService, seriesId);
+    return _showSeriesDetails(
+      context,
+      entry,
+      onPlay,
+      seriesService,
+      seriesId,
+      favorite: favorite,
+      onFavoriteToggled: onFavoriteToggled,
+    );
   }
   return _showAdaptiveTitleDetails(context, (dialogContext) {
     final wide = MediaQuery.sizeOf(dialogContext).width >= 720;
@@ -4674,6 +4697,11 @@ Future<void> _showTitleDetails(
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: <Widget>[
+                        _TitleDetailsFavoriteButton(
+                          favorite: favorite,
+                          onToggled: onFavoriteToggled,
+                        ),
+                        const Spacer(),
                         TextButton(
                           onPressed: () => Navigator.of(dialogContext).pop(),
                           child: const Text('Close'),
@@ -4699,6 +4727,38 @@ Future<void> _showTitleDetails(
       ),
     );
   });
+}
+
+final class _TitleDetailsFavoriteButton extends StatefulWidget {
+  const _TitleDetailsFavoriteButton({
+    required this.favorite,
+    required this.onToggled,
+  });
+
+  final bool favorite;
+  final VoidCallback onToggled;
+
+  @override
+  State<_TitleDetailsFavoriteButton> createState() =>
+      _TitleDetailsFavoriteButtonState();
+}
+
+final class _TitleDetailsFavoriteButtonState
+    extends State<_TitleDetailsFavoriteButton> {
+  late bool _favorite = widget.favorite;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    key: const ValueKey('title-details-favorite'),
+    tooltip: _favorite ? 'Remove from favorites' : 'Add to favorites',
+    icon: Icon(
+      _favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+    ),
+    onPressed: () {
+      setState(() => _favorite = !_favorite);
+      widget.onToggled();
+    },
+  );
 }
 
 final class _TitleDetailsPoster extends StatelessWidget {
@@ -4735,11 +4795,15 @@ final class _SeriesDetailsDialog extends StatelessWidget {
     required this.entry,
     required this.child,
     required this.actions,
+    required this.favorite,
+    required this.onFavoriteToggled,
   });
 
   final _LibraryEntry entry;
   final Widget child;
   final List<Widget> actions;
+  final bool favorite;
+  final VoidCallback onFavoriteToggled;
 
   @override
   Widget build(BuildContext context) {
@@ -4826,7 +4890,14 @@ final class _SeriesDetailsDialog extends StatelessWidget {
                     const SizedBox(height: TviumSpacing.sm),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
-                      children: actions,
+                      children: <Widget>[
+                        _TitleDetailsFavoriteButton(
+                          favorite: favorite,
+                          onToggled: onFavoriteToggled,
+                        ),
+                        const Spacer(),
+                        ...actions,
+                      ],
                     ),
                   ],
                 ),
@@ -4881,8 +4952,10 @@ final class _SeriesDetailsBody extends StatelessWidget {
 Future<void> _showLocalSeriesDetails(
   BuildContext context,
   _LibraryEntry entry,
-  ValueChanged<_LibraryEntry> onPlay,
-) {
+  ValueChanged<_LibraryEntry> onPlay, {
+  required bool favorite,
+  required VoidCallback onFavoriteToggled,
+}) {
   final seasons = <int, List<_LibraryEntry>>{};
   const normalizer = PlaylistTitleNormalizer();
   for (final episode in entry.seriesEpisodes) {
@@ -4908,6 +4981,8 @@ Future<void> _showLocalSeriesDetails(
     context,
     (dialogContext) => _SeriesDetailsDialog(
       entry: entry,
+      favorite: favorite,
+      onFavoriteToggled: onFavoriteToggled,
       child: ListView(
         children: <Widget>[
           OnlineMetadataSummary(
@@ -4979,14 +5054,18 @@ Future<void> _showSeriesDetails(
   _LibraryEntry entry,
   ValueChanged<_LibraryEntry> onPlay,
   XtreamSeriesService service,
-  String seriesId,
-) {
+  String seriesId, {
+  required bool favorite,
+  required VoidCallback onFavoriteToggled,
+}) {
   final profileId = entry.xtreamProfileId!;
   final details = service.loadSeriesDetails(profileId, seriesId);
   return _showAdaptiveTitleDetails(
     context,
     (dialogContext) => _SeriesDetailsDialog(
       entry: entry,
+      favorite: favorite,
+      onFavoriteToggled: onFavoriteToggled,
       child: FutureBuilder<XtreamSeriesDetails>(
         future: details,
         builder: (context, snapshot) {
