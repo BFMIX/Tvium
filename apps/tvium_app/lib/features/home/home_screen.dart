@@ -460,6 +460,8 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     final importing =
         state.phase == PlaylistImportPhase.importing ||
         state.phase == PlaylistImportPhase.saving;
+    final viewport = MediaQuery.sizeOf(context);
+    final shortViewport = viewport.height < 700 && viewport.width >= 900;
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
@@ -506,7 +508,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
               child: Container(
                 key: const ValueKey('onboarding-panel'),
                 constraints: const BoxConstraints(maxWidth: 900),
-                padding: const EdgeInsets.all(TviumSpacing.xl),
+                padding: EdgeInsets.all(
+                  shortViewport ? TviumSpacing.md : TviumSpacing.xl,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xB8081A2B),
                   border: Border.all(
@@ -531,7 +535,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                         ),
                       ],
                     ),
-                    const SizedBox(height: TviumSpacing.xl),
+                    SizedBox(
+                      height: shortViewport ? TviumSpacing.sm : TviumSpacing.xl,
+                    ),
                     Container(
                       width: 48,
                       height: 3,
@@ -559,7 +565,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                       strings.disclaimer,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                    const SizedBox(height: TviumSpacing.xl),
+                    SizedBox(
+                      height: shortViewport ? TviumSpacing.sm : TviumSpacing.xl,
+                    ),
                     FocusTraversalGroup(
                       policy: OrderedTraversalPolicy(),
                       child: LayoutBuilder(
@@ -576,6 +584,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                               autofocus: !compact,
                               width: cardWidth,
                               compact: compact,
+                              short: shortViewport,
                               onActivate: () {
                                 setState(() {
                                   _showUrlField = true;
@@ -592,6 +601,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                               focusNode: _fileActionFocus,
                               width: cardWidth,
                               compact: compact,
+                              short: shortViewport,
                               onActivate: () =>
                                   unawaited(_pickLocalFile(controller)),
                             ),
@@ -603,6 +613,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                               focusNode: _xtreamActionFocus,
                               width: cardWidth,
                               compact: compact,
+                              short: shortViewport,
                               onActivate: () {
                                 setState(() {
                                   _showUrlField = false;
@@ -629,7 +640,11 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                       ),
                     ),
                     if (!kIsWeb) ...<Widget>[
-                      const SizedBox(height: TviumSpacing.lg),
+                      SizedBox(
+                        height: shortViewport
+                            ? TviumSpacing.sm
+                            : TviumSpacing.lg,
+                      ),
                       Row(
                         key: const ValueKey('qr-pairing-separator'),
                         children: <Widget>[

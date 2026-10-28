@@ -65,6 +65,28 @@ void main() {
     expect(rect.bottom, lessThanOrEqualTo(720));
   });
 
+  testWidgets('all onboarding choices fit inside a short TV safe area', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(960, 540);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const TviumApp());
+
+    for (final key in const <String>[
+      'tvium-brand-logo',
+      'm3u-url-action',
+      'm3u-file-action',
+      'xtream-action',
+      'qr-pairing-action',
+    ]) {
+      final rect = tester.getRect(find.byKey(ValueKey<String>(key)));
+      expect(rect.top, greaterThanOrEqualTo(12), reason: key);
+      expect(rect.bottom, lessThanOrEqualTo(528), reason: key);
+    }
+  });
+
   testWidgets('welcome surface settles into view with a short entrance', (
     tester,
   ) async {
