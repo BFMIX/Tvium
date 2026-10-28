@@ -74,6 +74,55 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const TviumApp());
 
+    final panel = tester.getRect(
+      find.byKey(const ValueKey('onboarding-panel')),
+    );
+    final centerX = panel.center.dx;
+    for (final finder in <Finder>[
+      find.byKey(const ValueKey<String>('tvium-brand-logo')),
+      find.text('Welcome to Tvium'),
+      find.byKey(const ValueKey('qr-pairing-separator')),
+      find.byKey(const ValueKey('qr-pairing-action')),
+    ]) {
+      expect((tester.getRect(finder).center.dx - centerX).abs(), lessThan(8));
+    }
+
+    final url = tester.getRect(find.byKey(const ValueKey('m3u-url-action')));
+    final file = tester.getRect(find.byKey(const ValueKey('m3u-file-action')));
+    final xtream = tester.getRect(find.byKey(const ValueKey('xtream-action')));
+    expect(((url.left + xtream.right) / 2 - centerX).abs(), lessThan(8));
+    expect(url.size, file.size);
+    expect(file.size, xtream.size);
+    for (final (cardKey, icon, title) in <(String, IconData, String)>[
+      ('m3u-url-action', Icons.link_rounded, 'M3U URL'),
+      ('m3u-file-action', Icons.folder_open_rounded, 'Import local M3U'),
+      ('xtream-action', Icons.dns_outlined, 'Xtream Codes'),
+    ]) {
+      final cardFinder = find.byKey(ValueKey<String>(cardKey));
+      final cardCenter = tester.getRect(cardFinder).center.dx;
+      final iconFinder = find.descendant(
+        of: cardFinder,
+        matching: find.byIcon(icon),
+      );
+      final titleFinder = find.descendant(
+        of: cardFinder,
+        matching: find.text(title),
+      );
+      expect(
+        (tester.getRect(iconFinder).center.dx - cardCenter).abs(),
+        lessThan(8),
+      );
+      expect(
+        (tester.getRect(titleFinder).center.dx - cardCenter).abs(),
+        lessThan(8),
+      );
+    }
+    expect(
+      (tester.getRect(find.text('Or use your phone')).center.dx - centerX)
+          .abs(),
+      lessThan(8),
+    );
+
     for (final key in const <String>[
       'tvium-brand-logo',
       'm3u-url-action',

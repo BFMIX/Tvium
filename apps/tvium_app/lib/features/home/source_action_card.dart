@@ -70,25 +70,36 @@ final class SourceActionCard extends StatelessWidget {
                       const Icon(Icons.arrow_forward_rounded, size: 20),
                     ],
                   )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                : Stack(
+                    alignment: Alignment.center,
                     children: <Widget>[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
                           _SourceIcon(
                             icon: icon,
                             color: theme.colorScheme.primary,
+                            size: short ? 40 : 48,
                           ),
-                          Icon(
-                            Icons.arrow_outward_rounded,
-                            color: theme.colorScheme.primary,
-                            size: 22,
+                          SizedBox(
+                            height: short ? TviumSpacing.xxs : TviumSpacing.md,
+                          ),
+                          _SourceCopy(
+                            title,
+                            description,
+                            centered: true,
+                            singleLine: short,
                           ),
                         ],
                       ),
-                      const SizedBox(height: TviumSpacing.md),
-                      _SourceCopy(title, description),
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Icon(
+                          Icons.arrow_outward_rounded,
+                          color: theme.colorScheme.primary,
+                          size: short ? 18 : 22,
+                        ),
+                      ),
                     ],
                   ),
           ),
@@ -99,37 +110,48 @@ final class SourceActionCard extends StatelessWidget {
 }
 
 final class _SourceIcon extends StatelessWidget {
-  const _SourceIcon({required this.icon, required this.color});
+  const _SourceIcon({required this.icon, required this.color, this.size = 48});
 
   final IconData icon;
   final Color color;
+  final double size;
 
   @override
   Widget build(BuildContext context) => Container(
-    width: 48,
-    height: 48,
+    width: size,
+    height: size,
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.14),
       borderRadius: BorderRadius.circular(TviumRadius.control),
     ),
-    child: Icon(icon, color: color, size: 26),
+    child: Icon(icon, color: color, size: size * 0.54),
   );
 }
 
 final class _SourceCopy extends StatelessWidget {
-  const _SourceCopy(this.title, this.description);
+  const _SourceCopy(
+    this.title,
+    this.description, {
+    this.centered = false,
+    this.singleLine = false,
+  });
 
   final String title;
   final String description;
+  final bool centered;
+  final bool singleLine;
 
   @override
   Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
+    crossAxisAlignment: centered
+        ? CrossAxisAlignment.center
+        : CrossAxisAlignment.start,
     mainAxisSize: MainAxisSize.min,
     children: <Widget>[
       Text(
         title,
-        maxLines: 2,
+        maxLines: singleLine ? 1 : 2,
+        textAlign: centered ? TextAlign.center : TextAlign.start,
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.titleMedium
             ?.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
@@ -137,7 +159,8 @@ final class _SourceCopy extends StatelessWidget {
       const SizedBox(height: TviumSpacing.xxs),
       Text(
         description,
-        maxLines: 2,
+        maxLines: singleLine ? 1 : 2,
+        textAlign: centered ? TextAlign.center : TextAlign.start,
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodyMedium
             ?.copyWith(color: const Color(0xFFBED0DF)),

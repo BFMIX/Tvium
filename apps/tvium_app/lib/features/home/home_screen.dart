@@ -519,21 +519,28 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                   borderRadius: BorderRadius.circular(TviumRadius.surface),
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        TviumBrandLogo(
-                          key: const ValueKey<String>('tvium-brand-logo'),
-                          semanticLabel: strings.appTitle,
-                          height: 36,
-                        ),
-                        const Spacer(),
-                        ProfileSwitcher(
-                          onProfileChanged: _resetProfileSession,
-                          onSourcesRemoved: _removeOrphanedSources,
-                        ),
-                      ],
+                    SizedBox(
+                      width: double.infinity,
+                      height: shortViewport ? 44 : 54,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: <Widget>[
+                          TviumBrandLogo(
+                            key: const ValueKey<String>('tvium-brand-logo'),
+                            semanticLabel: strings.appTitle,
+                            height: shortViewport ? 42 : 50,
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: ProfileSwitcher(
+                              onProfileChanged: _resetProfileSession,
+                              onSourcesRemoved: _removeOrphanedSources,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     SizedBox(
                       height: shortViewport ? TviumSpacing.sm : TviumSpacing.xl,
@@ -549,6 +556,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                     const SizedBox(height: TviumSpacing.md),
                     Text(
                       strings.welcomeTitle,
+                      textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.displayMedium
                           ?.copyWith(
                             color: Colors.white,
@@ -558,11 +566,13 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                     const SizedBox(height: TviumSpacing.sm),
                     Text(
                       strings.welcomeBody,
+                      textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     const SizedBox(height: TviumSpacing.xs),
                     Text(
                       strings.disclaimer,
+                      textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     SizedBox(
@@ -629,11 +639,14 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                               children: cards,
                             );
                           }
-                          return SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              spacing: TviumSpacing.sm,
-                              children: cards,
+                          return Center(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                spacing: TviumSpacing.sm,
+                                children: cards,
+                              ),
                             ),
                           );
                         },
@@ -645,24 +658,29 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                             ? TviumSpacing.sm
                             : TviumSpacing.lg,
                       ),
-                      Row(
-                        key: const ValueKey('qr-pairing-separator'),
-                        children: <Widget>[
-                          const Expanded(child: Divider()),
-                          Flexible(
-                            flex: 4,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: TviumSpacing.sm,
-                              ),
-                              child: Text(
-                                strings.orAddWithPhone,
-                                textAlign: TextAlign.center,
+                      SizedBox(
+                        width: double.infinity,
+                        child: Row(
+                          key: const ValueKey('qr-pairing-separator'),
+                          children: <Widget>[
+                            const Expanded(child: Divider()),
+                            Flexible(
+                              flex: 4,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: TviumSpacing.sm,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    strings.orAddWithPhone,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                          const Expanded(child: Divider()),
-                        ],
+                            const Expanded(child: Divider()),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: TviumSpacing.sm),
                       Center(
