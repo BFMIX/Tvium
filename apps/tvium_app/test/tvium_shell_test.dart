@@ -1801,6 +1801,13 @@ void main() {
       find.byKey(const ValueKey('catalog-feature-backdrop')),
       findsOneWidget,
     );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('catalog-page-background')),
+        matching: find.byType(ArtworkImage),
+      ),
+      findsOneWidget,
+    );
     final poster = tester.widget<ArtworkImage>(
       find.byKey(const ValueKey('catalog-feature-poster')),
     );

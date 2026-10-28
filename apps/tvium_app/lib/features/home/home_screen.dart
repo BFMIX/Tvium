@@ -1712,6 +1712,8 @@ final class _LibraryView extends ConsumerStatefulWidget {
 
 final class _LibraryViewState extends ConsumerState<_LibraryView> {
   var _destination = _CatalogDestination.home;
+  var _catalogBackdropIndex = 0;
+  Timer? _catalogBackdropTimer;
   final _catalogPages = <MediaKind, List<_LibraryEntry>>{};
   final _catalogOffsets = <MediaKind, int>{};
   bool _catalogPageLoading = false;
@@ -1726,6 +1728,13 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   void initState() {
     super.initState();
     _destination = widget.initialDestination;
+    _catalogBackdropTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+      if (mounted &&
+          (_destination == _CatalogDestination.movies ||
+              _destination == _CatalogDestination.shows)) {
+        setState(() => _catalogBackdropIndex++);
+      }
+    });
   }
 
   @override
@@ -1904,6 +1913,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
 
   @override
   void dispose() {
+    _catalogBackdropTimer?.cancel();
     _searchDebounce?.cancel();
     _queryController.dispose();
     super.dispose();
@@ -1946,11 +1956,14 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                   child: ImageFiltered(
                     key: const ValueKey('catalog-page-background'),
                     imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                    child: Image.asset(
-                      _destination == _CatalogDestination.movies
-                          ? 'assets/destinations/hero-movies.png'
-                          : 'assets/destinations/hero-tv-shows.png',
-                      fit: BoxFit.cover,
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: metadataEnabled,
+                      builder: (context, enabled, _) => _CatalogBackdrop(
+                        destination: _destination,
+                        entries: _entriesFor(_destination),
+                        index: _catalogBackdropIndex,
+                        metadataEnabled: enabled,
+                      ),
                     ),
                   ),
                 ),
@@ -2629,6 +2642,72 @@ final class _HomeBackdrop extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+final class _CatalogBackdrop extends ConsumerWidget {
+  const _CatalogBackdrop({
+    required this.destination,
+    required this.entries,
+    required this.index,
+    required this.metadataEnabled,
+  });
+
+  final _CatalogDestination destination;
+  final List<_LibraryEntry> entries;
+  final int index;
+  final bool metadataEnabled;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final candidates = entries
+        .where(
+          (entry) =>
+              entry.kind ==
+              (destination == _CatalogDestination.movies
+                  ? MediaKind.movie
+                  : MediaKind.episode),
+        )
+        .take(3)
+        .toList(growable: false);
+    final entry = candidates.isEmpty
+        ? null
+        : candidates[index % candidates.length];
+    final overlay = entry == null
+        ? null
+        : ref
+              .watch(
+                metadataHeroOverlayProvider((
+                  sourceId: entry.sourceId,
+                  entryId: entry.id,
+                  title: entry.name,
+                  kind: entry.kind,
+                  enabled: metadataEnabled,
+                )),
+              )
+              .value;
+    final backdrop = overlay?.backdropUri;
+    return AnimatedSwitcher(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 600),
+      child: backdrop != null && entry != null
+          ? ArtworkImage(
+              key: ValueKey('catalog-backdrop-${entry.id}'),
+              sourceId: entry.sourceId,
+              entryId: entry.id,
+              role: 'backdrop',
+              uri: backdrop,
+              fit: BoxFit.cover,
+            )
+          : Image.asset(
+              destination == _CatalogDestination.movies
+                  ? 'assets/destinations/hero-movies.png'
+                  : 'assets/destinations/hero-tv-shows.png',
+              key: ValueKey('catalog-backdrop-fallback-${destination.name}'),
+              fit: BoxFit.cover,
+            ),
     );
   }
 }
