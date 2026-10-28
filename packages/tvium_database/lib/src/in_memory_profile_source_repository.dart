@@ -10,6 +10,7 @@ final class InMemoryProfileSourceRepository
     implements
         ProfileSourceRepository,
         PagedProfileSourceRepository,
+        SearchableProfileSourceRepository,
         EpgRepository,
         UserOverlayRepository {
   final _profiles = <String, UserProfile>{};
@@ -127,6 +128,35 @@ final class InMemoryProfileSourceRepository
         .skip(offset)
         .take(limit)
         .toList(growable: false);
+  }
+
+  @override
+  Future<List<PersistedMediaEntry>> searchEntriesForPlaylist(
+    String sourceId,
+    MediaKind kind,
+    String query, {
+    int limit = 500,
+  }) async {
+    final prefix = query
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .split(' ')
+        .first;
+    if (prefix.isEmpty) return const [];
+    List<PersistedMediaEntry> candidates(String seed) =>
+        (_entries[sourceId] ?? const [])
+            .where(
+              (entry) =>
+                  entry.kind == kind &&
+                  entry.displayName.toLowerCase().contains(seed),
+            )
+            .take(limit)
+            .toList(growable: false);
+    final exact = candidates(prefix);
+    return exact.isNotEmpty || prefix.length <= 2
+        ? exact
+        : candidates(prefix.substring(0, 2));
   }
 
   @override

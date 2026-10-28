@@ -47,6 +47,7 @@ import '../updates/update_checker.dart';
 import '../xtream/secure_xtream_profile_store.dart';
 import '../xtream/xtream_connection_form.dart';
 import '../xtream/xtream_connection_service.dart';
+import 'catalog_search.dart';
 import 'source_action_card.dart';
 
 typedef PlaybackEngineFactory = PlaybackEngine Function();
@@ -1716,6 +1717,8 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   bool _catalogPageLoading = false;
   String? _selectedCountryCode;
   String _query = '';
+  List<_LibraryEntry>? _searchResults;
+  Timer? _searchDebounce;
   bool _searching = false;
   final _queryController = TextEditingController();
 
@@ -1736,6 +1739,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
         )) {
       _catalogPages.clear();
       _catalogOffsets.clear();
+      _searchResults = null;
     }
   }
 
@@ -1790,6 +1794,66 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
     }
   }
 
+  void _updateSearch(String value) {
+    final query = value.trim();
+    _searchDebounce?.cancel();
+    setState(() {
+      _query = query;
+      _searchResults = null;
+      _selectedCountryCode = 'ALL';
+    });
+    if (query.isNotEmpty) widget.onGroupSelected(null);
+    if (query.isEmpty) return;
+    final kind = _kindFor(_destination);
+    if (kind == null) return;
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () async {
+      final repository = await ref.read(libraryRepositoryProvider.future);
+      if (repository is! SearchableProfileSourceRepository) return;
+      final searchable = repository as SearchableProfileSourceRepository;
+      final batches = await Future.wait<List<PersistedMediaEntry>>(
+        widget.sources.map(
+          (source) => searchable.searchEntriesForPlaylist(
+            source.id,
+            kind,
+            normalizeCatalogSearch(query),
+          ),
+        ),
+      );
+      if (!mounted || _query != query || _kindFor(_destination) != kind) return;
+      final matches = batches
+          .expand((batch) => batch)
+          .where((entry) => catalogTitleMatches(entry.displayName, query))
+          .take(120)
+          .toList(growable: false);
+      final artwork = <String, Map<String, Uri>>{};
+      for (final source in widget.sources) {
+        final ids = matches
+            .where((entry) => entry.playlistId == source.id)
+            .map((entry) => entry.id)
+            .toSet();
+        if (ids.isEmpty) continue;
+        try {
+          artwork[source.id] = await ref
+              .read(artworkReferenceStoreProvider)
+              .readSelected(source.id, ids);
+        } on Object {
+          artwork[source.id] = const {};
+        }
+      }
+      if (!mounted || _query != query || _kindFor(_destination) != kind) return;
+      final rows = matches
+          .map(
+            (entry) => _LibraryEntry.fromPersisted(
+              entry,
+              artwork[entry.playlistId]?[entry.id] ??
+                  widget.catalogArtwork[entry.playlistId]?[entry.id],
+            ),
+          )
+          .toList(growable: false);
+      setState(() => _searchResults = rows);
+    });
+  }
+
   MediaKind? _kindFor(_CatalogDestination destination) => switch (destination) {
     _CatalogDestination.live => MediaKind.live,
     _CatalogDestination.movies => MediaKind.movie,
@@ -1802,14 +1866,16 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
     return _CatalogPage(
       key: ValueKey('page-${destination.name}'),
       destination: destination,
-      entries: _entriesFor(destination),
+      entries: _query.isNotEmpty && _searchResults != null
+          ? _searchResults!
+          : _entriesFor(destination),
       epgSchedules: widget.epgSchedules,
       query: _query,
       channelSearchController: destination == _CatalogDestination.live
           ? _queryController
           : null,
       onQueryChanged: destination == _CatalogDestination.live
-          ? (value) => setState(() => _query = value.trim())
+          ? _updateSearch
           : null,
       showLocalChannelSearch:
           destination == _CatalogDestination.live && !_searching,
@@ -1838,6 +1904,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _queryController.dispose();
     super.dispose();
   }
@@ -1971,8 +2038,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                           hintText: 'Search this section',
                           prefixIcon: Icon(Icons.search_rounded),
                         ),
-                        onChanged: (value) =>
-                            setState(() => _query = value.trim()),
+                        onChanged: _updateSearch,
                       ),
                     ),
                   Expanded(
@@ -2054,12 +2120,14 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   }
 
   void _selectDestination(_CatalogDestination destination) {
+    _searchDebounce?.cancel();
     _queryController.clear();
     widget.onDestinationSelected(destination);
     setState(() {
       _destination = destination;
       _selectedCountryCode = null;
       _query = '';
+      _searchResults = null;
       _searching = false;
     });
     widget.onGroupSelected(null);
@@ -2744,10 +2812,7 @@ final class _CatalogPage extends ConsumerWidget {
           final inGroup =
               selectedGroup == null ||
               (entry.group ?? unknownGroup) == selectedGroup;
-          final normalizedQuery = query.toLowerCase();
-          return inGroup &&
-              (normalizedQuery.isEmpty ||
-                  entry.displayName.toLowerCase().contains(normalizedQuery));
+          return inGroup && catalogTitleMatches(entry.displayName, query);
         })
         .toList(growable: false);
     final featureEntry = destination == _CatalogDestination.live
@@ -4868,6 +4933,74 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
   bool _fullScreen = false;
   double _volume = 1;
 
+  KeyEventResult _handlePlaybackKey(
+    LogicalKeyboardKey key,
+    PlaybackEngine engine, {
+    required bool fullScreen,
+    VoidCallback? exitFullScreen,
+  }) {
+    if (key == LogicalKeyboardKey.keyF) {
+      if (fullScreen) {
+        exitFullScreen?.call();
+      } else {
+        unawaited(_openFullScreen());
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.space ||
+        key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.mediaPlayPause) {
+      unawaited(
+        engine.currentState.phase == PlaybackPhase.playing
+            ? engine.pause()
+            : engine.play(),
+      );
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowRight) {
+      final state = engine.currentState;
+      if (state.duration > Duration.zero &&
+          widget.selectedEntry?.kind != MediaKind.live) {
+        final delta = key == LogicalKeyboardKey.arrowRight ? 10 : -10;
+        final target = (state.position.inSeconds + delta).clamp(
+          0,
+          state.duration.inSeconds,
+        );
+        unawaited(engine.seek(Duration(seconds: target)));
+        return KeyEventResult.handled;
+      }
+    }
+    if (key == LogicalKeyboardKey.audioVolumeUp ||
+        key == LogicalKeyboardKey.audioVolumeDown ||
+        key == LogicalKeyboardKey.equal ||
+        key == LogicalKeyboardKey.minus) {
+      final increase =
+          key == LogicalKeyboardKey.audioVolumeUp ||
+          key == LogicalKeyboardKey.equal;
+      setState(() => _volume = (_volume + (increase ? 0.1 : -0.1)).clamp(0, 1));
+      unawaited(engine.setVolume(_volume));
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp ||
+        key == LogicalKeyboardKey.pageUp ||
+        key == LogicalKeyboardKey.mediaTrackPrevious) {
+      widget.onPreviousChannel?.call();
+      return widget.onPreviousChannel == null
+          ? KeyEventResult.ignored
+          : KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.pageDown ||
+        key == LogicalKeyboardKey.mediaTrackNext) {
+      widget.onNextChannel?.call();
+      return widget.onNextChannel == null
+          ? KeyEventResult.ignored
+          : KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   Future<void> _openFullScreen() async {
     final engine = widget.engine;
     if (engine == null) return;
@@ -4901,13 +5034,14 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
             return Focus(
               autofocus: true,
               onKeyEvent: (node, event) {
-                if (event is KeyDownEvent &&
-                    event.logicalKey == LogicalKeyboardKey.keyF) {
-                  Navigator.of(dialogContext).pop();
-                  return KeyEventResult.handled;
-                }
-                if (event is KeyDownEvent) revealControls();
-                return KeyEventResult.ignored;
+                if (event is! KeyDownEvent) return KeyEventResult.ignored;
+                revealControls();
+                return _handlePlaybackKey(
+                  event.logicalKey,
+                  engine,
+                  fullScreen: true,
+                  exitFullScreen: () => Navigator.of(dialogContext).pop(),
+                );
               },
               child: Dialog.fullscreen(
                 child: Listener(
@@ -4954,11 +5088,12 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
     required bool fullScreen,
     ValueChanged<double>? onVolumeChanged,
   }) {
+    final seekable = fullScreen && widget.selectedEntry?.kind != MediaKind.live;
     return SizedBox(
       key: ValueKey(
         fullScreen ? 'live-fullscreen-controls' : 'live-preview-controls',
       ),
-      height: 56,
+      height: seekable ? 90 : 56,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: TviumSpacing.sm),
         color: Colors.black.withValues(alpha: 0.72),
@@ -4967,6 +5102,8 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
           initialData: engine.currentState,
           builder: (context, snapshot) {
             final playing = snapshot.data?.phase == PlaybackPhase.playing;
+            final duration = snapshot.data?.duration ?? Duration.zero;
+            final position = snapshot.data?.position ?? Duration.zero;
             final leading = Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -5031,7 +5168,7 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.fullscreen_exit_rounded),
                   );
-            return LayoutBuilder(
+            final controlRow = LayoutBuilder(
               builder: (context, constraints) {
                 // Equal side slots keep the channel buttons at the actual
                 // center, regardless of the wider volume controls on the left.
@@ -5064,6 +5201,21 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
                 );
               },
             );
+            if (!seekable || duration <= Duration.zero) return controlRow;
+            return Column(
+              children: <Widget>[
+                Slider(
+                  key: const ValueKey('fullscreen-seek'),
+                  value: position.inMilliseconds
+                      .clamp(0, duration.inMilliseconds)
+                      .toDouble(),
+                  max: duration.inMilliseconds.toDouble(),
+                  onChanged: (value) =>
+                      engine.seek(Duration(milliseconds: value.round())),
+                ),
+                Expanded(child: controlRow),
+              ],
+            );
           },
         ),
       ),
@@ -5080,23 +5232,12 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
         if (event is! KeyDownEvent) {
           return KeyEventResult.ignored;
         }
-        if (event.logicalKey == LogicalKeyboardKey.keyF &&
-            playbackEngine != null) {
-          unawaited(_openFullScreen());
-          return KeyEventResult.handled;
-        }
-        if (widget.onNextChannel == null) return KeyEventResult.ignored;
-        if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
-            event.logicalKey == LogicalKeyboardKey.pageUp) {
-          widget.onPreviousChannel?.call();
-          return KeyEventResult.handled;
-        }
-        if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
-            event.logicalKey == LogicalKeyboardKey.pageDown) {
-          widget.onNextChannel?.call();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
+        if (playbackEngine == null) return KeyEventResult.ignored;
+        return _handlePlaybackKey(
+          event.logicalKey,
+          playbackEngine,
+          fullScreen: false,
+        );
       },
       child: Container(
         decoration: BoxDecoration(

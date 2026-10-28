@@ -19,6 +19,7 @@ final class SqlitePlaylistRepository
         PlaylistRepository,
         ProfileSourceRepository,
         PagedProfileSourceRepository,
+        SearchableProfileSourceRepository,
         EpgRepository,
         UserOverlayRepository {
   SqlitePlaylistRepository._(this._database);
@@ -452,6 +453,61 @@ final class SqlitePlaylistRepository
     };
     return rows
         .map((row) => _toDomain(row, byId[row.id]))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<PersistedMediaEntry>> searchEntriesForPlaylist(
+    String sourceId,
+    MediaKind kind,
+    String query, {
+    int limit = 500,
+  }) async {
+    if (limit < 1 || limit > 1000) throw ArgumentError('Invalid search limit.');
+    final token = query
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .trim()
+        .split(' ')
+        .first;
+    if (token.isEmpty) return const [];
+    Future<List<QueryRow>> candidates(String seed) => _database
+        .customSelect(
+          'SELECT * FROM media_entries WHERE playlist_id=? AND kind=? '
+          'AND search_name LIKE ? ORDER BY position, id LIMIT ?',
+          variables: [
+            Variable.withString(sourceId),
+            Variable.withString(kind.name),
+            Variable.withString('%$seed%'),
+            Variable.withInt(limit),
+          ],
+        )
+        .get();
+    var rows = await candidates(token);
+    if (rows.isEmpty && token.length > 2) {
+      rows = await candidates(token.substring(0, 2));
+    }
+    if (rows.isEmpty) return const [];
+    final marks = List.filled(rows.length, '?').join(',');
+    final details = await _database
+        .customSelect(
+          'SELECT * FROM catalog_details WHERE source_id=? AND entry_id IN ($marks)',
+          variables: [
+            Variable.withString(sourceId),
+            ...rows.map((row) => Variable.withString(row.read<String>('id'))),
+          ],
+        )
+        .get();
+    final byId = {
+      for (final detail in details) detail.read<String>('entry_id'): detail,
+    };
+    return rows
+        .map(
+          (row) => _toDomain(
+            _database.mediaEntries.map(row.data),
+            byId[row.read<String>('id')],
+          ),
+        )
         .toList(growable: false);
   }
 

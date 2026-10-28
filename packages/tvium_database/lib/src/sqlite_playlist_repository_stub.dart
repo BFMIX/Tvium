@@ -12,6 +12,7 @@ final class SqlitePlaylistRepository
         PlaylistRepository,
         ProfileSourceRepository,
         PagedProfileSourceRepository,
+        SearchableProfileSourceRepository,
         EpgRepository,
         UserOverlayRepository {
   factory SqlitePlaylistRepository.open(String path) {
@@ -34,6 +35,14 @@ final class SqlitePlaylistRepository
     MediaKind kind, {
     required int offset,
     required int limit,
+  }) => _unsupported();
+
+  @override
+  Future<List<PersistedMediaEntry>> searchEntriesForPlaylist(
+    String sourceId,
+    MediaKind kind,
+    String query, {
+    int limit = 500,
   }) => _unsupported();
 
   @override

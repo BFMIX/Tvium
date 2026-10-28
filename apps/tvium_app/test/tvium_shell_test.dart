@@ -1236,6 +1236,51 @@ void main() {
     expect(find.byKey(const ValueKey('test-playback-view')), findsOneWidget);
   });
 
+  testWidgets('movie full screen exposes seek and keyboard stepping', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = PlaylistImportController();
+    addTearDown(controller.dispose);
+    final playback = _FakePlaybackEngine();
+    await tester.pumpWidget(
+      TviumApp(
+        importController: controller,
+        profileSourceRepository: InMemoryProfileSourceRepository(),
+        playbackEngineFactory: () => playback,
+        playbackViewBuilder: (_) => const SizedBox(),
+      ),
+    );
+    unawaited(controller.importSource(const _DesignFixtureSource()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination-movies')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('media-card-movie')));
+    await tester.tap(find.byKey(const ValueKey('media-card-movie')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Play now'));
+    await tester.pumpAndSettle();
+    playback.emit(
+      const PlaybackState(
+        phase: PlaybackPhase.playing,
+        position: Duration(seconds: 30),
+        duration: Duration(minutes: 2),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('live-player-fullscreen')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('fullscreen-seek')), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(playback.seekPositions.last, const Duration(seconds: 40));
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('movie details place the real poster beside the title', (
     tester,
   ) async {

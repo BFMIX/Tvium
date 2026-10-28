@@ -53,3 +53,13 @@ abstract interface class PagedProfileSourceRepository {
     required int limit,
   });
 }
+
+/// Bounded candidate search over a complete source, including unloaded pages.
+abstract interface class SearchableProfileSourceRepository {
+  Future<List<PersistedMediaEntry>> searchEntriesForPlaylist(
+    String sourceId,
+    MediaKind kind,
+    String query, {
+    int limit = 500,
+  });
+}

@@ -58,6 +58,36 @@ void main() {
 void _sharedSourceContract(
   Future<ProfileSourceRepository> Function() createRepository,
 ) {
+  test('searches candidates beyond the first catalog page', () async {
+    final repository = await createRepository();
+    addTearDown(repository.close);
+    final profile = await repository.ensureDefaultProfile();
+    final movies = List<PersistedMediaEntry>.generate(
+      130,
+      (index) => PersistedMediaEntry(
+        id: 'movie-$index',
+        playlistId: 'source-1',
+        sourceReference: 'secret-reference',
+        originalName: 'Film $index',
+        displayName: index == 129 ? 'Spider-Man' : 'Film $index',
+        groupName: 'Movies',
+        kind: MediaKind.movie,
+      ),
+    );
+    await repository.registerSource(
+      _source(id: 'source-1', digest: 'digest-1'),
+      profile.id,
+      movies,
+    );
+    final searchable = repository as SearchableProfileSourceRepository;
+    final results = await searchable.searchEntriesForPlaylist(
+      'source-1',
+      MediaKind.movie,
+      'spider man',
+    );
+    expect(results.map((entry) => entry.displayName), contains('Spider-Man'));
+  });
+
   test(
     'shares one canonical source between profiles without duplication',
     () async {
