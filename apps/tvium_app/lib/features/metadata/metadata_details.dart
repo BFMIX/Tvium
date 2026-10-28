@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 
+import '../artwork/artwork_cache_budget.dart';
 import '../artwork/artwork_image.dart';
 import '../library/source_refresh_schedule.dart';
 import '../updates/update_checker.dart';
@@ -32,7 +34,23 @@ Future<bool> _persistMetadataConsent(
   }
 }
 
-enum SettingsSection { playlists, metadata, parental, guide, updates, about }
+enum SettingsSection {
+  playlists,
+  metadata,
+  parental,
+  guide,
+  storage,
+  updates,
+  about,
+}
+
+String _artworkStorageLabel(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) {
+    return '${(bytes / 1024).toStringAsFixed(1)} KiB';
+  }
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MiB';
+}
 
 Future<void> showSettingsPages(
   BuildContext context, {
@@ -65,6 +83,7 @@ Future<void> showSettingsPages(
                   'Programme guide',
                   Icons.calendar_month_outlined,
                 ),
+                (SettingsSection.storage, 'Storage', Icons.storage_outlined),
                 (
                   SettingsSection.updates,
                   'Updates',
@@ -183,6 +202,8 @@ Future<void> showLibrarySettings(
   required bool configured,
   MetadataConsentStore? metadataConsentStore,
   SettingsSection? section,
+  Future<ArtworkCacheStorage?> Function()? onReadArtworkStorage,
+  Future<void> Function()? onClearArtworkCache,
   Future<String> Function()? onImportEpgFile,
   Future<String> Function(Uri uri)? onImportEpgUrl,
   Future<String> Function()? onRefreshSources,
@@ -212,6 +233,12 @@ Future<void> showLibrarySettings(
   var checkingUpdates = false;
   var importingEpg = false;
   var savingMetadata = false;
+  var clearingArtwork = false;
+  String? artworkStorageStatus;
+  Future<ArtworkCacheStorage?>? artworkStorageFuture =
+      section == SettingsSection.storage
+      ? (onReadArtworkStorage ?? readArtworkCacheStorage)()
+      : null;
   String? refreshingSourceId;
   var dialogParentalConfigured = parentalConfigured;
   var dialogParentalUnlocked = parentalUnlocked;
@@ -225,6 +252,7 @@ Future<void> showLibrarySettings(
     SettingsSection.metadata => 'Metadata',
     SettingsSection.parental => 'Parental controls',
     SettingsSection.guide => 'Programme guide',
+    SettingsSection.storage => 'Storage',
     SettingsSection.updates => 'Updates',
     SettingsSection.about => 'About and licenses',
     null => 'Settings',
@@ -754,6 +782,97 @@ Future<void> showLibrarySettings(
                   'TVmaze: CC BY-SA. Wikidata structured data: CC0. IPTV-org channel reference: Unlicense.\n'
                   'Artwork may have separate rights. Source and licensing information accompany each result.',
                 ),
+              ],
+              if (section == SettingsSection.storage) ...<Widget>[
+                const Text(
+                  'Downloaded images',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Logos, posters, and backdrops are stored on this device for faster browsing. Clearing them keeps your playlists and saved metadata.',
+                ),
+                const SizedBox(height: 16),
+                FutureBuilder<ArtworkCacheStorage?>(
+                  future: artworkStorageFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const LinearProgressIndicator();
+                    }
+                    if (snapshot.hasError) {
+                      return const Text('Could not read image storage.');
+                    }
+                    final storage = snapshot.data;
+                    if (storage == null) {
+                      return const Text(
+                        'Image storage is managed by your browser.',
+                      );
+                    }
+                    return Text(
+                      '${_artworkStorageLabel(storage.bytes)} across ${storage.entryCount} images',
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (!kIsWeb || onClearArtworkCache != null)
+                  OutlinedButton.icon(
+                    key: const ValueKey('clear-artwork-cache'),
+                    onPressed: clearingArtwork
+                        ? null
+                        : () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (dialogContext) => AlertDialog(
+                                title: const Text('Clear downloaded images?'),
+                                content: const Text(
+                                  'Images will download again when available. Playlists and saved metadata will remain.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, true),
+                                    child: const Text('Clear images'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed != true || !context.mounted) return;
+                            setDialogState(() {
+                              clearingArtwork = true;
+                              artworkStorageStatus = null;
+                            });
+                            try {
+                              await (onClearArtworkCache ??
+                                  clearArtworkCache)();
+                              if (!context.mounted) return;
+                              setDialogState(() {
+                                artworkStorageFuture =
+                                    (onReadArtworkStorage ??
+                                    readArtworkCacheStorage)();
+                                artworkStorageStatus =
+                                    'Downloaded images cleared.';
+                              });
+                            } on Object {
+                              if (!context.mounted) return;
+                              setDialogState(
+                                () => artworkStorageStatus =
+                                    'Could not clear downloaded images.',
+                              );
+                            } finally {
+                              if (context.mounted) {
+                                setDialogState(() => clearingArtwork = false);
+                              }
+                            }
+                          },
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    label: const Text('Clear downloaded images'),
+                  ),
+                if (artworkStorageStatus != null) Text(artworkStorageStatus!),
               ],
             ],
           ),
