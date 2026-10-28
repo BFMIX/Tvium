@@ -66,6 +66,7 @@ dependencies:
   qr_flutter: ^4.1.0
 
 dev_dependencies:
+  file: ^7.0.1
   flutter_test:
     sdk: flutter
 
