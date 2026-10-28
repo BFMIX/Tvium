@@ -1136,7 +1136,20 @@ void main() {
     final delegate =
         grid.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
     expect(delegate.maxCrossAxisExtent, lessThanOrEqualTo(140));
-    expect(find.byKey(const ValueKey('media-card-movie')), findsOneWidget);
+    final first = find.byKey(const ValueKey('media-card-movie'));
+    final second = find.byKey(const ValueKey('media-card-entry-2'));
+    final third = find.byKey(const ValueKey('media-card-entry-3'));
+    expect(first, findsOneWidget);
+    expect(second, findsOneWidget);
+    expect(third, findsOneWidget);
+    expect(
+      tester.getTopLeft(second).dy,
+      closeTo(tester.getTopLeft(first).dy, 1),
+    );
+    expect(
+      tester.getTopLeft(third).dy,
+      closeTo(tester.getTopLeft(first).dy, 1),
+    );
   });
 
   for (final destination in <String>['movies', 'shows']) {
