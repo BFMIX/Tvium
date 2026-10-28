@@ -2898,6 +2898,7 @@ final class _CatalogPage extends ConsumerWidget {
     final unknownGroup = AppLocalizations.of(context).unknownGroup;
     final shortWindow = MediaQuery.sizeOf(context).height < 700;
     final compactWidth = MediaQuery.sizeOf(context).width < 720;
+    final floatingNavigation = MediaQuery.sizeOf(context).width < 900;
     final countryByGroup = destination == _CatalogDestination.live
         ? <String?, LiveCountry?>{
             for (final group in entries.map((entry) => entry.group).toSet())
@@ -3009,7 +3010,7 @@ final class _CatalogPage extends ConsumerWidget {
         : destination == _CatalogDestination.live
         ? ListView.separated(
             key: const ValueKey('live-channel-list'),
-            padding: EdgeInsets.only(bottom: compactWidth ? 92 : 0),
+            padding: EdgeInsets.only(bottom: floatingNavigation ? 92 : 0),
             itemCount: visible.length,
             separatorBuilder: (_, _) => const SizedBox(height: TviumSpacing.xs),
             itemBuilder: (context, index) {
@@ -3026,12 +3027,12 @@ final class _CatalogPage extends ConsumerWidget {
           )
         : GridView.builder(
             key: const ValueKey('poster-grid'),
-            padding: EdgeInsets.only(bottom: compactWidth ? 92 : 0),
+            padding: EdgeInsets.only(bottom: floatingNavigation ? 92 : 0),
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: compactWidth
                   ? 136
                   : shortWindow
-                  ? 150
+                  ? 116
                   : 210,
               mainAxisSpacing: TviumSpacing.sm,
               crossAxisSpacing: TviumSpacing.sm,
@@ -4500,6 +4501,23 @@ final class _CatalogArtwork extends ConsumerWidget {
   }
 }
 
+Future<void> _showAdaptiveTitleDetails(
+  BuildContext context,
+  WidgetBuilder builder,
+) {
+  if (MediaQuery.sizeOf(context).width < 720) {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (pageContext) => Scaffold(
+          backgroundColor: const Color(0xFF071728),
+          body: SafeArea(child: builder(pageContext)),
+        ),
+      ),
+    );
+  }
+  return showDialog<void>(context: context, builder: builder);
+}
+
 Future<void> _showTitleDetails(
   BuildContext context,
   _LibraryEntry entry,
@@ -4518,169 +4536,169 @@ Future<void> _showTitleDetails(
       seriesService != null) {
     return _showSeriesDetails(context, entry, onPlay, seriesService, seriesId);
   }
-  return showDialog<void>(
-    context: context,
-    builder: (dialogContext) {
-      final wide = MediaQuery.sizeOf(dialogContext).width >= 720;
-      final details = SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              entry.kind == MediaKind.movie ? 'MOVIE' : 'TV SHOW',
-              style: Theme.of(dialogContext).textTheme.labelLarge
-                  ?.copyWith(color: TviumColors.accentDark),
-            ),
+  return _showAdaptiveTitleDetails(context, (dialogContext) {
+    final wide = MediaQuery.sizeOf(dialogContext).width >= 720;
+    final details = SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            entry.kind == MediaKind.movie ? 'MOVIE' : 'TV SHOW',
+            style: Theme.of(dialogContext).textTheme.labelLarge
+                ?.copyWith(color: TviumColors.accentDark),
+          ),
+          const SizedBox(height: TviumSpacing.sm),
+          Text(
+            entry.displayName,
+            key: const ValueKey('title-details-heading'),
+            style: Theme.of(dialogContext).textTheme.headlineMedium,
+          ),
+          if (entry.group != null) ...<Widget>[
             const SizedBox(height: TviumSpacing.sm),
-            Text(
-              entry.displayName,
-              key: const ValueKey('title-details-heading'),
-              style: Theme.of(dialogContext).textTheme.headlineMedium,
-            ),
-            if (entry.group != null) ...<Widget>[
-              const SizedBox(height: TviumSpacing.sm),
-              Text(entry.group!),
-            ],
-            const SizedBox(height: TviumSpacing.md),
-            OnlineMetadataSummary(
-              originalTitle: entry.name,
-              kind: entry.kind,
-              sourceId: entry.sourceId,
-              entryId: entry.id,
-            ),
+            Text(entry.group!),
           ],
-        ),
-      );
-      return Dialog(
-        key: const ValueKey('title-details'),
-        backgroundColor: Colors.transparent,
-        insetPadding: wide
-            ? const EdgeInsets.all(TviumSpacing.md)
-            : EdgeInsets.zero,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(wide ? 24 : 0),
-          child: SizedBox(
-            key: const ValueKey('title-details-surface'),
-            width: wide ? 800 : double.infinity,
-            height: wide ? 460 : MediaQuery.sizeOf(dialogContext).height,
-            child: Stack(
-              fit: StackFit.expand,
-              children: <Widget>[
-                Consumer(
-                  builder: (context, ref, _) {
-                    final backdrop = ref
-                        .watch(
-                          metadataHeroOverlayProvider((
+          const SizedBox(height: TviumSpacing.md),
+          OnlineMetadataSummary(
+            originalTitle: entry.name,
+            kind: entry.kind,
+            sourceId: entry.sourceId,
+            entryId: entry.id,
+          ),
+        ],
+      ),
+    );
+    return Dialog(
+      key: const ValueKey('title-details'),
+      backgroundColor: Colors.transparent,
+      insetPadding: wide
+          ? const EdgeInsets.all(TviumSpacing.md)
+          : EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(wide ? 24 : 0),
+        child: SizedBox(
+          key: const ValueKey('title-details-surface'),
+          width: wide ? 800 : double.infinity,
+          height: wide
+              ? 460
+              : MediaQuery.sizeOf(dialogContext).height -
+                    MediaQuery.paddingOf(dialogContext).vertical,
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Consumer(
+                builder: (context, ref, _) {
+                  final backdrop = ref
+                      .watch(
+                        metadataHeroOverlayProvider((
+                          sourceId: entry.sourceId,
+                          entryId: entry.id,
+                          title: entry.name,
+                          kind: entry.kind,
+                          enabled: metadataEnabled.value,
+                        )),
+                      )
+                      .value
+                      ?.backdropUri;
+                  return ImageFiltered(
+                    key: const ValueKey('title-details-backdrop'),
+                    imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                    child: backdrop == null
+                        ? Image.asset(
+                            entry.kind == MediaKind.movie
+                                ? 'assets/destinations/hero-movies.png'
+                                : 'assets/destinations/hero-tv-shows.png',
+                            fit: BoxFit.cover,
+                          )
+                        : ArtworkImage(
                             sourceId: entry.sourceId,
                             entryId: entry.id,
-                            title: entry.name,
-                            kind: entry.kind,
-                            enabled: metadataEnabled.value,
-                          )),
-                        )
-                        .value
-                        ?.backdropUri;
-                    return ImageFiltered(
-                      key: const ValueKey('title-details-backdrop'),
-                      imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                      child: backdrop == null
-                          ? Image.asset(
-                              entry.kind == MediaKind.movie
-                                  ? 'assets/destinations/hero-movies.png'
-                                  : 'assets/destinations/hero-tv-shows.png',
-                              fit: BoxFit.cover,
-                            )
-                          : ArtworkImage(
-                              sourceId: entry.sourceId,
-                              entryId: entry.id,
-                              role: 'backdrop',
-                              uri: backdrop,
-                              fit: BoxFit.cover,
-                            ),
-                    );
-                  },
-                ),
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: <Color>[
-                        Color(0xE9071728),
-                        Color(0xDF0B2439),
-                        Color(0xF3071728),
-                      ],
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(TviumSpacing.lg),
-                  child: Column(
-                    children: <Widget>[
-                      if (!wide)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: IconButton(
-                            key: const ValueKey('title-details-back'),
-                            tooltip: 'Back to catalog',
-                            onPressed: () => Navigator.of(dialogContext).pop(),
-                            icon: const Icon(Icons.arrow_back_rounded),
+                            role: 'backdrop',
+                            uri: backdrop,
+                            fit: BoxFit.cover,
                           ),
-                        ),
-                      Expanded(
-                        child: wide
-                            ? Row(
-                                children: <Widget>[
-                                  SizedBox(
-                                    width: 220,
-                                    child: _TitleDetailsPoster(entry: entry),
-                                  ),
-                                  const SizedBox(width: TviumSpacing.lg),
-                                  Expanded(child: details),
-                                ],
-                              )
-                            : Column(
-                                children: <Widget>[
-                                  SizedBox(
-                                    width: 140,
-                                    height: 210,
-                                    child: _TitleDetailsPoster(entry: entry),
-                                  ),
-                                  const SizedBox(height: TviumSpacing.md),
-                                  Expanded(child: details),
-                                ],
-                              ),
-                      ),
-                      const SizedBox(height: TviumSpacing.sm),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: <Widget>[
-                          TextButton(
-                            onPressed: () => Navigator.of(dialogContext).pop(),
-                            child: const Text('Close'),
-                          ),
-                          const SizedBox(width: TviumSpacing.sm),
-                          FilledButton(
-                            onPressed: entry.isPlayable
-                                ? () {
-                                    Navigator.of(dialogContext).pop();
-                                    onPlay(entry);
-                                  }
-                                : null,
-                            child: const Text('Play now'),
-                          ),
-                        ],
-                      ),
+                  );
+                },
+              ),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: <Color>[
+                      Color(0xE9071728),
+                      Color(0xDF0B2439),
+                      Color(0xF3071728),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(TviumSpacing.lg),
+                child: Column(
+                  children: <Widget>[
+                    if (!wide)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          key: const ValueKey('title-details-back'),
+                          tooltip: 'Back to catalog',
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                        ),
+                      ),
+                    Expanded(
+                      child: wide
+                          ? Row(
+                              children: <Widget>[
+                                SizedBox(
+                                  width: 220,
+                                  child: _TitleDetailsPoster(entry: entry),
+                                ),
+                                const SizedBox(width: TviumSpacing.lg),
+                                Expanded(child: details),
+                              ],
+                            )
+                          : Column(
+                              children: <Widget>[
+                                SizedBox(
+                                  width: 140,
+                                  height: 210,
+                                  child: _TitleDetailsPoster(entry: entry),
+                                ),
+                                const SizedBox(height: TviumSpacing.md),
+                                Expanded(child: details),
+                              ],
+                            ),
+                    ),
+                    const SizedBox(height: TviumSpacing.sm),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: <Widget>[
+                        TextButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          child: const Text('Close'),
+                        ),
+                        const SizedBox(width: TviumSpacing.sm),
+                        FilledButton(
+                          onPressed: entry.isPlayable
+                              ? () {
+                                  Navigator.of(dialogContext).pop();
+                                  onPlay(entry);
+                                }
+                              : null,
+                          child: const Text('Play now'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-      );
-    },
-  );
+      ),
+    );
+  });
 }
 
 final class _TitleDetailsPoster extends StatelessWidget {
@@ -4737,7 +4755,10 @@ final class _SeriesDetailsDialog extends StatelessWidget {
         child: SizedBox(
           key: const ValueKey('title-details-surface'),
           width: wide ? 800 : double.infinity,
-          height: wide ? 540 : MediaQuery.sizeOf(context).height,
+          height: wide
+              ? 540
+              : MediaQuery.sizeOf(context).height -
+                    MediaQuery.paddingOf(context).vertical,
           child: Stack(
             fit: StackFit.expand,
             children: <Widget>[
@@ -4883,9 +4904,9 @@ Future<void> _showLocalSeriesDetails(
     });
   }
   final firstEpisode = seasons[seasonNumbers.first]!.first;
-  return showDialog<void>(
-    context: context,
-    builder: (dialogContext) => _SeriesDetailsDialog(
+  return _showAdaptiveTitleDetails(
+    context,
+    (dialogContext) => _SeriesDetailsDialog(
       entry: entry,
       child: ListView(
         children: <Widget>[
@@ -4962,9 +4983,9 @@ Future<void> _showSeriesDetails(
 ) {
   final profileId = entry.xtreamProfileId!;
   final details = service.loadSeriesDetails(profileId, seriesId);
-  return showDialog<void>(
-    context: context,
-    builder: (dialogContext) => _SeriesDetailsDialog(
+  return _showAdaptiveTitleDetails(
+    context,
+    (dialogContext) => _SeriesDetailsDialog(
       entry: entry,
       child: FutureBuilder<XtreamSeriesDetails>(
         future: details,
