@@ -1573,6 +1573,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final surface = find.byKey(const ValueKey('title-details-surface'));
+    expect(find.byType(Dialog), findsNothing);
     expect(
       ModalRoute.of(tester.element(surface)),
       isA<MaterialPageRoute<void>>(),
@@ -1606,6 +1607,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final surface = find.byKey(const ValueKey('title-details-surface'));
+    expect(find.byType(Dialog), findsNothing);
     expect(
       ModalRoute.of(tester.element(surface)),
       isA<MaterialPageRoute<void>>(),

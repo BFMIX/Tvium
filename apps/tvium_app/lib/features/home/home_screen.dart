@@ -4594,141 +4594,141 @@ Future<void> _showTitleDetails(
         ],
       ),
     );
-    return Dialog(
-      key: const ValueKey('title-details'),
-      backgroundColor: Colors.transparent,
-      insetPadding: wide
-          ? const EdgeInsets.all(TviumSpacing.md)
-          : EdgeInsets.zero,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(wide ? 24 : 0),
-        child: SizedBox(
-          key: const ValueKey('title-details-surface'),
-          width: wide ? 800 : double.infinity,
-          height: wide
-              ? 460
-              : MediaQuery.sizeOf(dialogContext).height -
-                    MediaQuery.paddingOf(dialogContext).vertical,
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              Consumer(
-                builder: (context, ref, _) {
-                  final backdrop = ref
-                      .watch(
-                        metadataHeroOverlayProvider((
+    final surface = ClipRRect(
+      borderRadius: BorderRadius.circular(wide ? 24 : 0),
+      child: SizedBox(
+        key: const ValueKey('title-details-surface'),
+        width: wide ? 800 : double.infinity,
+        height: wide
+            ? 460
+            : MediaQuery.sizeOf(dialogContext).height -
+                  MediaQuery.paddingOf(dialogContext).vertical,
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Consumer(
+              builder: (context, ref, _) {
+                final backdrop = ref
+                    .watch(
+                      metadataHeroOverlayProvider((
+                        sourceId: entry.sourceId,
+                        entryId: entry.id,
+                        title: entry.name,
+                        kind: entry.kind,
+                        enabled: metadataEnabled.value,
+                      )),
+                    )
+                    .value
+                    ?.backdropUri;
+                return ImageFiltered(
+                  key: const ValueKey('title-details-backdrop'),
+                  imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                  child: backdrop == null
+                      ? Image.asset(
+                          entry.kind == MediaKind.movie
+                              ? 'assets/destinations/hero-movies.png'
+                              : 'assets/destinations/hero-tv-shows.png',
+                          fit: BoxFit.cover,
+                        )
+                      : ArtworkImage(
                           sourceId: entry.sourceId,
                           entryId: entry.id,
-                          title: entry.name,
-                          kind: entry.kind,
-                          enabled: metadataEnabled.value,
-                        )),
-                      )
-                      .value
-                      ?.backdropUri;
-                  return ImageFiltered(
-                    key: const ValueKey('title-details-backdrop'),
-                    imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                    child: backdrop == null
-                        ? Image.asset(
-                            entry.kind == MediaKind.movie
-                                ? 'assets/destinations/hero-movies.png'
-                                : 'assets/destinations/hero-tv-shows.png',
-                            fit: BoxFit.cover,
-                          )
-                        : ArtworkImage(
-                            sourceId: entry.sourceId,
-                            entryId: entry.id,
-                            role: 'backdrop',
-                            uri: backdrop,
-                            fit: BoxFit.cover,
-                          ),
-                  );
-                },
-              ),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: <Color>[
-                      Color(0xE9071728),
-                      Color(0xDF0B2439),
-                      Color(0xF3071728),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(TviumSpacing.lg),
-                child: Column(
-                  children: <Widget>[
-                    if (!wide)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          key: const ValueKey('title-details-back'),
-                          tooltip: 'Back to catalog',
-                          onPressed: () => Navigator.of(dialogContext).pop(),
-                          icon: const Icon(Icons.arrow_back_rounded),
+                          role: 'backdrop',
+                          uri: backdrop,
+                          fit: BoxFit.cover,
                         ),
-                      ),
-                    Expanded(
-                      child: horizontal
-                          ? Row(
-                              children: <Widget>[
-                                SizedBox(
-                                  width: wide ? 220 : 120,
-                                  child: _TitleDetailsPoster(entry: entry),
-                                ),
-                                const SizedBox(width: TviumSpacing.lg),
-                                Expanded(child: details),
-                              ],
-                            )
-                          : Column(
-                              children: <Widget>[
-                                SizedBox(
-                                  width: 140,
-                                  height: 210,
-                                  child: _TitleDetailsPoster(entry: entry),
-                                ),
-                                const SizedBox(height: TviumSpacing.md),
-                                Expanded(child: details),
-                              ],
-                            ),
-                    ),
-                    const SizedBox(height: TviumSpacing.sm),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: <Widget>[
-                        _TitleDetailsFavoriteButton(
-                          favorite: favorite,
-                          onToggled: onFavoriteToggled,
-                        ),
-                        const Spacer(),
-                        TextButton(
-                          onPressed: () => Navigator.of(dialogContext).pop(),
-                          child: const Text('Close'),
-                        ),
-                        const SizedBox(width: TviumSpacing.sm),
-                        FilledButton(
-                          onPressed: entry.isPlayable
-                              ? () {
-                                  Navigator.of(dialogContext).pop();
-                                  onPlay(entry);
-                                }
-                              : null,
-                          child: const Text('Play now'),
-                        ),
-                      ],
-                    ),
+                );
+              },
+            ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[
+                    Color(0xE9071728),
+                    Color(0xDF0B2439),
+                    Color(0xF3071728),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(TviumSpacing.lg),
+              child: Column(
+                children: <Widget>[
+                  if (!wide)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton(
+                        key: const ValueKey('title-details-back'),
+                        tooltip: 'Back to catalog',
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
+                    ),
+                  Expanded(
+                    child: horizontal
+                        ? Row(
+                            children: <Widget>[
+                              SizedBox(
+                                width: wide ? 220 : 120,
+                                child: _TitleDetailsPoster(entry: entry),
+                              ),
+                              const SizedBox(width: TviumSpacing.lg),
+                              Expanded(child: details),
+                            ],
+                          )
+                        : Column(
+                            children: <Widget>[
+                              SizedBox(
+                                width: 140,
+                                height: 210,
+                                child: _TitleDetailsPoster(entry: entry),
+                              ),
+                              const SizedBox(height: TviumSpacing.md),
+                              Expanded(child: details),
+                            ],
+                          ),
+                  ),
+                  const SizedBox(height: TviumSpacing.sm),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      _TitleDetailsFavoriteButton(
+                        favorite: favorite,
+                        onToggled: onFavoriteToggled,
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Close'),
+                      ),
+                      const SizedBox(width: TviumSpacing.sm),
+                      FilledButton(
+                        onPressed: entry.isPlayable
+                            ? () {
+                                Navigator.of(dialogContext).pop();
+                                onPlay(entry);
+                              }
+                            : null,
+                        child: const Text('Play now'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
+    );
+    if (!wide) return surface;
+    return Dialog(
+      key: const ValueKey('title-details'),
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(TviumSpacing.md),
+      child: surface,
     );
   });
 }
@@ -4812,104 +4812,104 @@ final class _SeriesDetailsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final wide = !_compactTitlePage(MediaQuery.sizeOf(context));
+    final surface = ClipRRect(
+      borderRadius: BorderRadius.circular(wide ? 24 : 0),
+      child: SizedBox(
+        key: const ValueKey('title-details-surface'),
+        width: wide ? 800 : double.infinity,
+        height: wide
+            ? 540
+            : MediaQuery.sizeOf(context).height -
+                  MediaQuery.paddingOf(context).vertical,
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Consumer(
+              builder: (context, ref, _) {
+                final backdrop = ref
+                    .watch(
+                      metadataHeroOverlayProvider((
+                        sourceId: entry.sourceId,
+                        entryId: entry.id,
+                        title: entry.name,
+                        kind: entry.kind,
+                        enabled: metadataEnabled.value,
+                      )),
+                    )
+                    .value
+                    ?.backdropUri;
+                return ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                  child: backdrop == null
+                      ? Image.asset(
+                          'assets/destinations/hero-tv-shows.png',
+                          fit: BoxFit.cover,
+                        )
+                      : ArtworkImage(
+                          sourceId: entry.sourceId,
+                          entryId: entry.id,
+                          role: 'backdrop',
+                          uri: backdrop,
+                          fit: BoxFit.cover,
+                        ),
+                );
+              },
+            ),
+            const DecoratedBox(
+              decoration: BoxDecoration(color: Color(0xE90B1C2B)),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(TviumSpacing.lg),
+              child: Column(
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      IconButton(
+                        key: const ValueKey('title-details-back'),
+                        tooltip: 'Back to catalog',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
+                      const SizedBox(width: TviumSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          entry.displayName,
+                          style: Theme.of(context).textTheme.headlineMedium,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: TviumSpacing.md),
+                  Expanded(
+                    child: _SeriesDetailsBody(entry: entry, child: child),
+                  ),
+                  const SizedBox(height: TviumSpacing.sm),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      _TitleDetailsFavoriteButton(
+                        favorite: favorite,
+                        onToggled: onFavoriteToggled,
+                      ),
+                      const Spacer(),
+                      ...actions,
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!wide) return surface;
     return Dialog(
       key: const ValueKey('title-details'),
       backgroundColor: Colors.transparent,
-      insetPadding: wide
-          ? const EdgeInsets.all(TviumSpacing.md)
-          : EdgeInsets.zero,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(wide ? 24 : 0),
-        child: SizedBox(
-          key: const ValueKey('title-details-surface'),
-          width: wide ? 800 : double.infinity,
-          height: wide
-              ? 540
-              : MediaQuery.sizeOf(context).height -
-                    MediaQuery.paddingOf(context).vertical,
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              Consumer(
-                builder: (context, ref, _) {
-                  final backdrop = ref
-                      .watch(
-                        metadataHeroOverlayProvider((
-                          sourceId: entry.sourceId,
-                          entryId: entry.id,
-                          title: entry.name,
-                          kind: entry.kind,
-                          enabled: metadataEnabled.value,
-                        )),
-                      )
-                      .value
-                      ?.backdropUri;
-                  return ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                    child: backdrop == null
-                        ? Image.asset(
-                            'assets/destinations/hero-tv-shows.png',
-                            fit: BoxFit.cover,
-                          )
-                        : ArtworkImage(
-                            sourceId: entry.sourceId,
-                            entryId: entry.id,
-                            role: 'backdrop',
-                            uri: backdrop,
-                            fit: BoxFit.cover,
-                          ),
-                  );
-                },
-              ),
-              const DecoratedBox(
-                decoration: BoxDecoration(color: Color(0xE90B1C2B)),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(TviumSpacing.lg),
-                child: Column(
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        IconButton(
-                          key: const ValueKey('title-details-back'),
-                          tooltip: 'Back to catalog',
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                        ),
-                        const SizedBox(width: TviumSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            entry.displayName,
-                            style: Theme.of(context).textTheme.headlineMedium,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: TviumSpacing.md),
-                    Expanded(
-                      child: _SeriesDetailsBody(entry: entry, child: child),
-                    ),
-                    const SizedBox(height: TviumSpacing.sm),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: <Widget>[
-                        _TitleDetailsFavoriteButton(
-                          favorite: favorite,
-                          onToggled: onFavoriteToggled,
-                        ),
-                        const Spacer(),
-                        ...actions,
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      insetPadding: const EdgeInsets.all(TviumSpacing.md),
+      child: surface,
     );
   }
 }
