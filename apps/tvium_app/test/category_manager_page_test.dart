@@ -93,4 +93,21 @@ final class _CategoryRepository implements CategoryVisibilityRepository {
       visible: visible,
     );
   }
+
+  @override
+  Future<void> setCategoriesVisible({
+    required String profileId,
+    required List<CatalogCategory> categories,
+    required bool visible,
+  }) async {
+    for (final category in categories) {
+      await setCategoryVisible(
+        profileId: profileId,
+        sourceId: category.sourceId,
+        kind: category.kind,
+        groupName: category.groupName,
+        visible: visible,
+      );
+    }
+  }
 }

@@ -275,6 +275,47 @@ final class SqlitePlaylistRepository
   }
 
   @override
+  Future<void> setCategoriesVisible({
+    required String profileId,
+    required List<CatalogCategory> categories,
+    required bool visible,
+  }) async {
+    if (categories.isEmpty) return;
+    final sourceIds = categories.map((category) => category.sourceId).toSet();
+    for (final sourceId in sourceIds) {
+      final linked = await _database
+          .customSelect(
+            'SELECT 1 FROM profile_sources WHERE profile_id=? AND source_id=? LIMIT 1',
+            variables: [
+              Variable.withString(profileId),
+              Variable.withString(sourceId),
+            ],
+          )
+          .getSingleOrNull();
+      if (linked == null) throw ArgumentError('Unknown profile source.');
+    }
+    await _database.transaction(() async {
+      await _database.batch((batch) {
+        for (final category in categories) {
+          batch.customStatement(
+            'INSERT OR REPLACE INTO category_visibility '
+            '(profile_id, source_id, kind, group_name, is_ungrouped, visible) '
+            'VALUES (?, ?, ?, ?, ?, ?)',
+            [
+              profileId,
+              category.sourceId,
+              category.kind.name,
+              category.groupName ?? '',
+              category.groupName == null ? 1 : 0,
+              visible ? 1 : 0,
+            ],
+          );
+        }
+      });
+    });
+  }
+
+  @override
   Future<void> linkSource(String profileId, String sourceId) async {
     final profile = await _database
         .customSelect(

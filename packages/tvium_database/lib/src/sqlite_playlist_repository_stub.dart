@@ -95,6 +95,13 @@ final class SqlitePlaylistRepository
   }) => _unsupported();
 
   @override
+  Future<void> setCategoriesVisible({
+    required String profileId,
+    required List<CatalogCategory> categories,
+    required bool visible,
+  }) => _unsupported();
+
+  @override
   Future<void> registerSource(
     IptvSource source,
     String profileId,

@@ -91,6 +91,55 @@ void main() {
 void _sharedSourceContract(
   Future<ProfileSourceRepository> Function() createRepository,
 ) {
+  test('bulk visibility is atomic when a source is not linked', () async {
+    final repository = await createRepository();
+    addTearDown(repository.close);
+    final profile = await repository.ensureDefaultProfile();
+    await repository.registerSource(
+      _source(id: 'source-1', digest: 'digest-1'),
+      profile.id,
+      <PersistedMediaEntry>[_entry(sourceId: 'source-1')],
+    );
+    final visibility = repository as CategoryVisibilityRepository;
+    final valid = (await visibility.categoriesForProfile(
+      profile.id,
+      MediaKind.live,
+    )).single;
+    final invalid = CatalogCategory(
+      sourceId: 'unlinked',
+      kind: MediaKind.live,
+      groupName: 'Other',
+      count: 1,
+      visible: true,
+    );
+    await expectLater(
+      visibility.setCategoriesVisible(
+        profileId: profile.id,
+        categories: [valid, invalid],
+        visible: false,
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      (await visibility.categoriesForProfile(
+        profile.id,
+        MediaKind.live,
+      )).single.visible,
+      isTrue,
+    );
+    await visibility.setCategoriesVisible(
+      profileId: profile.id,
+      categories: [valid],
+      visible: false,
+    );
+    expect(
+      (await visibility.categoriesForProfile(
+        profile.id,
+        MediaKind.live,
+      )).single.visible,
+      isFalse,
+    );
+  });
   test(
     'category visibility is scoped to profile, source, and media kind',
     () async {

@@ -155,6 +155,27 @@ final class InMemoryProfileSourceRepository
   }
 
   @override
+  Future<void> setCategoriesVisible({
+    required String profileId,
+    required List<CatalogCategory> categories,
+    required bool visible,
+  }) async {
+    final linked = _links[profileId] ?? const <String>{};
+    if (categories.any((category) => !linked.contains(category.sourceId))) {
+      throw ArgumentError('Unknown profile source.');
+    }
+    for (final category in categories) {
+      _categoryVisibility[(
+            profileId,
+            category.sourceId,
+            category.kind,
+            category.groupName,
+          )] =
+          visible;
+    }
+  }
+
+  @override
   Future<List<PersistedMediaEntry>> entriesForPlaylist(String sourceId) async =>
       List.of(_entries[sourceId] ?? []);
   @override

@@ -77,15 +77,11 @@ final class _CategoryManagerPageState extends State<CategoryManagerPage> {
     if (changed.isEmpty) return;
     setState(() => _busy = true);
     try {
-      for (final category in changed) {
-        await widget.repository.setCategoryVisible(
-          profileId: widget.profileId,
-          sourceId: category.sourceId,
-          kind: category.kind,
-          groupName: category.groupName,
-          visible: visible,
-        );
-      }
+      await widget.repository.setCategoriesVisible(
+        profileId: widget.profileId,
+        categories: changed,
+        visible: visible,
+      );
       await _load();
       widget.onChanged();
       if (!mounted) return;

@@ -1,6 +1,6 @@
 # Tvium development handoff
 
-Updated: 2026-10-28. Read `AGENTS.md` and `docs/ROADMAP.md` before changing code.
+Updated: 2026-10-29. Read `AGENTS.md` and `docs/ROADMAP.md` before changing code.
 
 ## Product and privacy
 
@@ -19,7 +19,7 @@ Tvium is a local-first Flutter IPTV player. Users bring their own M3U or Xtream 
 - Large Xtream imports have separate catalog timeouts, progress reporting, and bounded partial recovery. Library startup uses bounded SQLite pages. Search tolerates punctuation and spelling variation across unloaded pages. These behaviors have automated coverage, but real low-memory TV import and playback still need measurement.
 - Native artwork has a 256 MiB disk-cache budget, and Settings has a Storage page to inspect and clear downloaded images. The current branch passes full workspace formatting, analysis, tests, and a Flutter Web release build. The latest navigation safe-area adjustment also passed focused widget coverage and analysis.
 - Compact navigation now floats above scrollable catalog content, with bottom scroll clearance and three movie posters per row at a 390 px viewport. Narrow landscape uses smaller posters and leaves scroll clearance under the floating navigation. Movie and local/Xtream series details open as full-page routes without nested dialogs in portrait and short landscape viewports, retain distinct backdrop/poster media, and expose a favorite toggle; larger screens keep dialogs. Source URLs are visible while passwords remain masked; Xtream derives its display name from the host. Full-screen VOD controls expose a seekbar, and Live TV controls place play/pause between previous and next.
-- Category visibility persists by profile, source, and media kind. Settings exposes a manager with search, per-category visibility, Hide all, Show matching, and Undo. Native paging, counts, startup snapshots, and search exclude hidden groups inside the repository before applying page/search limits. Pinning, renaming, and per-category parental locks remain pending.
+- Category visibility persists by profile, source, and media kind. Settings exposes a manager with search, per-category visibility, Hide all, Show matching, and Undo. Bulk changes run atomically and avoid one transaction per group. Native paging, counts, startup snapshots, and search exclude hidden groups inside the repository before applying page/search limits. Pinning, renaming, and per-category parental locks remain pending.
 - Onboarding centers the logo, title, body, three action cards and their contents, and phone pairing separator. A 960×540 widget test checks geometry and screen bounds. Full format, analysis, and test checks passed, and build 16 was visually checked on the physical TV. The user's own viewing remains the final product check.
 
 ## Next work

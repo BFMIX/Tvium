@@ -100,4 +100,11 @@ abstract interface class CategoryVisibilityRepository {
     required String? groupName,
     required bool visible,
   });
+
+  /// Applies a bulk action atomically across linked sources.
+  Future<void> setCategoriesVisible({
+    required String profileId,
+    required List<CatalogCategory> categories,
+    required bool visible,
+  });
 }
