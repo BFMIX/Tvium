@@ -20,6 +20,7 @@ final class SqlitePlaylistRepository
         ProfileSourceRepository,
         PagedProfileSourceRepository,
         SearchableProfileSourceRepository,
+        CategoryVisibilityRepository,
         EpgRepository,
         UserOverlayRepository {
   SqlitePlaylistRepository._(this._database);
@@ -138,6 +139,10 @@ final class SqlitePlaylistRepository
         [id],
       );
       await _database.customStatement(
+        'DELETE FROM category_visibility WHERE profile_id=?',
+        [id],
+      );
+      await _database.customStatement(
         'DELETE FROM profile_sources WHERE profile_id=?',
         [id],
       );
@@ -196,6 +201,80 @@ final class SqlitePlaylistRepository
           .toList();
 
   @override
+  Future<List<CatalogCategory>> categoriesForProfile(
+    String profileId,
+    MediaKind kind,
+  ) async {
+    final rows = await _database
+        .customSelect(
+          '''
+      SELECT m.playlist_id AS source_id, m.group_name AS group_name,
+             COUNT(*) AS entry_count, COALESCE(v.visible, 1) AS visible
+      FROM media_entries m
+      JOIN profile_sources p ON p.source_id=m.playlist_id
+      LEFT JOIN category_visibility v
+        ON v.profile_id=p.profile_id AND v.source_id=m.playlist_id
+        AND v.kind=m.kind AND v.group_name=COALESCE(m.group_name, '')
+        AND v.is_ungrouped=CASE WHEN m.group_name IS NULL THEN 1 ELSE 0 END
+      WHERE p.profile_id=? AND m.kind=?
+      GROUP BY m.playlist_id, m.group_name, v.visible
+      ORDER BY m.playlist_id, m.group_name
+    ''',
+          variables: [
+            Variable.withString(profileId),
+            Variable.withString(kind.name),
+          ],
+        )
+        .get();
+    return rows
+        .map(
+          (row) => CatalogCategory(
+            sourceId: row.read<String>('source_id'),
+            kind: kind,
+            groupName: row.readNullable<String>('group_name'),
+            count: row.read<int>('entry_count'),
+            visible: row.read<int>('visible') != 0,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> setCategoryVisible({
+    required String profileId,
+    required String sourceId,
+    required MediaKind kind,
+    required String? groupName,
+    required bool visible,
+  }) async {
+    final linked = await _database
+        .customSelect(
+          'SELECT 1 FROM profile_sources WHERE profile_id=? AND source_id=? LIMIT 1',
+          variables: [
+            Variable.withString(profileId),
+            Variable.withString(sourceId),
+          ],
+        )
+        .getSingleOrNull();
+    if (linked == null) throw ArgumentError('Unknown profile source.');
+    await _database.customStatement(
+      '''
+      INSERT OR REPLACE INTO category_visibility
+      (profile_id, source_id, kind, group_name, is_ungrouped, visible)
+      VALUES (?, ?, ?, ?, ?, ?)
+    ''',
+      [
+        profileId,
+        sourceId,
+        kind.name,
+        groupName ?? '',
+        groupName == null ? 1 : 0,
+        visible ? 1 : 0,
+      ],
+    );
+  }
+
+  @override
   Future<void> linkSource(String profileId, String sourceId) async {
     final profile = await _database
         .customSelect(
@@ -244,6 +323,10 @@ final class SqlitePlaylistRepository
           updates: const {},
         );
         if (removed == 0) throw ArgumentError('Unknown profile source.');
+        await _database.customStatement(
+          'DELETE FROM category_visibility WHERE profile_id=? AND source_id=?',
+          [profileId, sourceId],
+        );
         return _deleteSourceIfOrphan(sourceId);
       });
 
@@ -268,6 +351,10 @@ final class SqlitePlaylistRepository
     ]);
     await _database.customStatement(
       'DELETE FROM playback_history WHERE source_id=?',
+      [sourceId],
+    );
+    await _database.customStatement(
+      'DELETE FROM category_visibility WHERE source_id=?',
       [sourceId],
     );
     await _database.customStatement(

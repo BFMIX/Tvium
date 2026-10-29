@@ -30,7 +30,7 @@ final class TviumDatabase extends _$TviumDatabase {
   TviumDatabase(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -40,6 +40,7 @@ final class TviumDatabase extends _$TviumDatabase {
       await _createProfiles();
       await _createEpg();
       await _createUserOverlays();
+      await _createCategoryVisibility();
     },
     onUpgrade: (migrator, from, to) async {
       if (from < 3) await _createProfiles();
@@ -50,6 +51,7 @@ final class TviumDatabase extends _$TviumDatabase {
       }
       if (from < 4) await _createEpg();
       if (from < 5) await _createUserOverlays();
+      if (from < 6) await _createCategoryVisibility();
       if (from < 2) {
         await migrator.addColumn(mediaEntries, mediaEntries.position);
         await migrator.addColumn(mediaEntries, mediaEntries.searchName);
@@ -161,6 +163,20 @@ final class TviumDatabase extends _$TviumDatabase {
         profile_id TEXT PRIMARY KEY,
         pin_digest TEXT NOT NULL,
         blocked_content_json TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createCategoryVisibility() async {
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS category_visibility (
+        profile_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        group_name TEXT NOT NULL,
+        is_ungrouped INTEGER NOT NULL,
+        visible INTEGER NOT NULL,
+        PRIMARY KEY(profile_id, source_id, kind, group_name, is_ungrouped)
       )
     ''');
   }

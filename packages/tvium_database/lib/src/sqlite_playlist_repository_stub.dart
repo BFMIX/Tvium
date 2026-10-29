@@ -13,6 +13,7 @@ final class SqlitePlaylistRepository
         ProfileSourceRepository,
         PagedProfileSourceRepository,
         SearchableProfileSourceRepository,
+        CategoryVisibilityRepository,
         EpgRepository,
         UserOverlayRepository {
   factory SqlitePlaylistRepository.open(String path) {
@@ -72,6 +73,21 @@ final class SqlitePlaylistRepository
   @override
   Future<List<IptvSource>> sourcesForProfile(String profileId) =>
       _unsupported();
+
+  @override
+  Future<List<CatalogCategory>> categoriesForProfile(
+    String profileId,
+    MediaKind kind,
+  ) => _unsupported();
+
+  @override
+  Future<void> setCategoryVisible({
+    required String profileId,
+    required String sourceId,
+    required MediaKind kind,
+    required String? groupName,
+    required bool visible,
+  }) => _unsupported();
 
   @override
   Future<void> registerSource(

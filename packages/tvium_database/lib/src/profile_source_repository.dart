@@ -63,3 +63,35 @@ abstract interface class SearchableProfileSourceRepository {
     int limit = 500,
   });
 }
+
+final class CatalogCategory {
+  const CatalogCategory({
+    required this.sourceId,
+    required this.kind,
+    required this.groupName,
+    required this.count,
+    required this.visible,
+  });
+
+  final String sourceId;
+  final MediaKind kind;
+  final String? groupName;
+  final int count;
+  final bool visible;
+}
+
+/// Per-profile catalog preferences without changing provider metadata.
+abstract interface class CategoryVisibilityRepository {
+  Future<List<CatalogCategory>> categoriesForProfile(
+    String profileId,
+    MediaKind kind,
+  );
+
+  Future<void> setCategoryVisible({
+    required String profileId,
+    required String sourceId,
+    required MediaKind kind,
+    required String? groupName,
+    required bool visible,
+  });
+}

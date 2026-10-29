@@ -168,9 +168,15 @@ void main() {
 
     final migrated = sqlite3.open(databasePath);
     addTearDown(migrated.close);
-    expect(migrated.userVersion, 5);
+    expect(migrated.userVersion, 6);
     final columns = migrated.select('PRAGMA table_info(media_entries)');
     expect(columns.map((row) => row['name']), contains('search_name'));
+    expect(
+      migrated.select(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='category_visibility'",
+      ),
+      hasLength(1),
+    );
   });
 }
 

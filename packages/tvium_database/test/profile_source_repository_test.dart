@@ -52,12 +52,101 @@ void main() {
         expect(await reopened.entriesForPlaylist('source-1'), hasLength(1));
       },
     );
+
+    test('keeps category visibility after reopening', () async {
+      final path = '${temporaryDirectory.path}/library.sqlite';
+      final repository = SqlitePlaylistRepository.open(path);
+      final profile = await repository.ensureDefaultProfile();
+      await repository.registerSource(
+        _source(id: 'source-1', digest: 'digest-1'),
+        profile.id,
+        <PersistedMediaEntry>[_entry(sourceId: 'source-1')],
+      );
+      final category = (await repository.categoriesForProfile(
+        profile.id,
+        MediaKind.live,
+      )).single;
+      await repository.setCategoryVisible(
+        profileId: profile.id,
+        sourceId: category.sourceId,
+        kind: category.kind,
+        groupName: category.groupName,
+        visible: false,
+      );
+      await repository.close();
+
+      final reopened = SqlitePlaylistRepository.open(path);
+      addTearDown(reopened.close);
+      expect(
+        (await reopened.categoriesForProfile(
+          profile.id,
+          MediaKind.live,
+        )).single.visible,
+        isFalse,
+      );
+    });
   });
 }
 
 void _sharedSourceContract(
   Future<ProfileSourceRepository> Function() createRepository,
 ) {
+  test(
+    'category visibility is scoped to profile, source, and media kind',
+    () async {
+      final repository = await createRepository();
+      addTearDown(repository.close);
+      final home = await repository.ensureDefaultProfile();
+      final kids = await repository.createProfile('Kids');
+      await repository.registerSource(
+        _source(id: 'source-1', digest: 'digest-1'),
+        home.id,
+        <PersistedMediaEntry>[
+          _entry(sourceId: 'source-1'),
+          PersistedMediaEntry(
+            id: 'movie-1',
+            playlistId: 'source-1',
+            sourceReference: 'secret-reference',
+            originalName: 'Example Movie',
+            displayName: 'Example Movie',
+            groupName: 'Movies',
+            kind: MediaKind.movie,
+          ),
+        ],
+      );
+      await repository.linkSource(kids.id, 'source-1');
+      final categories = repository as CategoryVisibilityRepository;
+      await categories.setCategoryVisible(
+        profileId: home.id,
+        sourceId: 'source-1',
+        kind: MediaKind.movie,
+        groupName: 'Movies',
+        visible: false,
+      );
+
+      expect(
+        (await categories.categoriesForProfile(
+          home.id,
+          MediaKind.movie,
+        )).single.visible,
+        isFalse,
+      );
+      expect(
+        (await categories.categoriesForProfile(
+          kids.id,
+          MediaKind.movie,
+        )).single.visible,
+        isTrue,
+      );
+      expect(
+        (await categories.categoriesForProfile(
+          home.id,
+          MediaKind.live,
+        )).single.visible,
+        isTrue,
+      );
+    },
+  );
   test('searches candidates beyond the first catalog page', () async {
     final repository = await createRepository();
     addTearDown(repository.close);

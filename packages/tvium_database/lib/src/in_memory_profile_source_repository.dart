@@ -11,6 +11,7 @@ final class InMemoryProfileSourceRepository
         ProfileSourceRepository,
         PagedProfileSourceRepository,
         SearchableProfileSourceRepository,
+        CategoryVisibilityRepository,
         EpgRepository,
         UserOverlayRepository {
   final _profiles = <String, UserProfile>{};
@@ -22,6 +23,7 @@ final class InMemoryProfileSourceRepository
   final _favorites = <MediaLocator>{};
   final _history = <MediaLocator, PlaybackHistoryEntry>{};
   final _parentalPolicies = <String, ParentalPolicy>{};
+  final _categoryVisibility = <(String, String, MediaKind, String?), bool>{};
   String? _active;
   @override
   Future<UserProfile> ensureDefaultProfile() async {
@@ -77,6 +79,7 @@ final class InMemoryProfileSourceRepository
     _favorites.removeWhere((media) => media.profileId == id);
     _history.removeWhere((media, _) => media.profileId == id);
     _parentalPolicies.remove(id);
+    _categoryVisibility.removeWhere((key, _) => key.$1 == id);
     if (_active == id) _active = _profiles.keys.first;
     final removed = <IptvSource>[];
     for (final sourceId in linked) {
@@ -107,6 +110,50 @@ final class InMemoryProfileSourceRepository
   @override
   Future<List<IptvSource>> sourcesForProfile(String profileId) async =>
       (_links[profileId] ?? {}).map((id) => _sources[id]!).toList();
+
+  @override
+  Future<List<CatalogCategory>> categoriesForProfile(
+    String profileId,
+    MediaKind kind,
+  ) async {
+    final result = <CatalogCategory>[];
+    for (final sourceId in _links[profileId] ?? const <String>{}) {
+      final counts = <String?, int>{};
+      for (final entry in _entries[sourceId] ?? const <PersistedMediaEntry>[]) {
+        if (entry.kind != kind) continue;
+        counts.update(entry.groupName, (value) => value + 1, ifAbsent: () => 1);
+      }
+      for (final group in counts.entries) {
+        result.add(
+          CatalogCategory(
+            sourceId: sourceId,
+            kind: kind,
+            groupName: group.key,
+            count: group.value,
+            visible:
+                _categoryVisibility[(profileId, sourceId, kind, group.key)] ??
+                true,
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
+  @override
+  Future<void> setCategoryVisible({
+    required String profileId,
+    required String sourceId,
+    required MediaKind kind,
+    required String? groupName,
+    required bool visible,
+  }) async {
+    if (!(_links[profileId]?.contains(sourceId) ?? false)) {
+      throw ArgumentError('Unknown profile source.');
+    }
+    _categoryVisibility[(profileId, sourceId, kind, groupName)] = visible;
+  }
+
   @override
   Future<List<PersistedMediaEntry>> entriesForPlaylist(String sourceId) async =>
       List.of(_entries[sourceId] ?? []);
@@ -210,9 +257,13 @@ final class InMemoryProfileSourceRepository
     if (links == null || !links.remove(sourceId)) {
       throw ArgumentError('Unknown profile source.');
     }
+    _categoryVisibility.removeWhere(
+      (key, _) => key.$1 == profileId && key.$2 == sourceId,
+    );
     if (_links.values.any((ids) => ids.contains(sourceId))) return null;
     final source = _sources.remove(sourceId);
     _entries.remove(sourceId);
+    _categoryVisibility.removeWhere((key, _) => key.$2 == sourceId);
     _favorites.removeWhere((media) => media.sourceId == sourceId);
     _history.removeWhere((media, _) => media.sourceId == sourceId);
     return source;
