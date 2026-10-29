@@ -5,6 +5,34 @@ import 'package:tvium_core/tvium_core.dart';
 import 'package:tvium_database/tvium_database.dart';
 
 void main() {
+  testWidgets('category manager stays compact on phone and TV viewports', (
+    tester,
+  ) async {
+    for (final size in <Size>[const Size(390, 844), const Size(960, 540)]) {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CategoryManagerPage(
+            profileId: 'home',
+            repository: _CategoryRepository(),
+            sources: const <IptvSource>[],
+            onChanged: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final content = find.byKey(const ValueKey('category-manager-content'));
+      expect(content, findsOneWidget);
+      expect(tester.getSize(content).width, lessThanOrEqualTo(900));
+      expect(find.byType(SwitchListTile), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  });
+
   testWidgets('search and bulk visibility affect only matching categories', (
     tester,
   ) async {
@@ -49,6 +77,40 @@ void main() {
     await tester.tap(find.text('Undo'));
     await tester.pumpAndSettle();
     expect(repository.categories.first.visible, isFalse);
+  });
+
+  testWidgets('clearing search restores the complete category list', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CategoryManagerPage(
+          profileId: 'home',
+          repository: _CategoryRepository(),
+          sources: const <IptvSource>[],
+          onChanged: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('category-search-live')),
+      'france',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('US | Sports'), findsNothing);
+
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pumpAndSettle();
+    expect(find.text('US | Sports'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('category-search-live')))
+          .controller
+          ?.text,
+      isEmpty,
+    );
   });
 }
 
