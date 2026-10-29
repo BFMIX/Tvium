@@ -104,6 +104,55 @@ void main() {
     expect(entries.single.epgChannelId, 'fixture.news.test');
   });
 
+  test('paged catalog query uses the source-kind ordering index', () async {
+    final repository = SqlitePlaylistRepository.open(databasePath);
+    await repository.replaceEntries('primary', <PersistedMediaEntry>[
+      _entry(id: 'news', playlistId: 'primary', group: 'News'),
+    ]);
+    await repository.close();
+    final database = sqlite3.open(databasePath);
+    addTearDown(database.close);
+    final plan = database.select(
+      "EXPLAIN QUERY PLAN SELECT * FROM media_entries "
+      "WHERE playlist_id='primary' AND kind='live' "
+      'ORDER BY position, id LIMIT 20',
+    );
+    expect(
+      plan.map((row) => row['detail'].toString()).join(' '),
+      contains('media_entries_kind_position'),
+    );
+  });
+
+  test('adds the paging index to an existing version six library', () async {
+    final repository = SqlitePlaylistRepository.open(databasePath);
+    await repository.replaceEntries('primary', <PersistedMediaEntry>[
+      _entry(id: 'news', playlistId: 'primary', group: 'News'),
+    ]);
+    await repository.close();
+    final oldDatabase = sqlite3.open(databasePath);
+    oldDatabase.execute('DROP INDEX media_entries_kind_position');
+    oldDatabase.userVersion = 6;
+    oldDatabase.close();
+
+    final reopened = SqlitePlaylistRepository.open(databasePath);
+    expect(
+      await reopened.countEntriesForPlaylist('primary', MediaKind.live),
+      1,
+    );
+    await reopened.close();
+
+    final migrated = sqlite3.open(databasePath);
+    addTearDown(migrated.close);
+    expect(migrated.userVersion, 7);
+    expect(
+      migrated.select(
+        "SELECT name FROM sqlite_master WHERE type='index' "
+        "AND name='media_entries_kind_position'",
+      ),
+      hasLength(1),
+    );
+  });
+
   test('stores and reloads a 5,021-item synthetic catalog', () async {
     final repository = SqlitePlaylistRepository.open(databasePath);
     addTearDown(repository.close);
@@ -168,7 +217,7 @@ void main() {
 
     final migrated = sqlite3.open(databasePath);
     addTearDown(migrated.close);
-    expect(migrated.userVersion, 6);
+    expect(migrated.userVersion, 7);
     final columns = migrated.select('PRAGMA table_info(media_entries)');
     expect(columns.map((row) => row['name']), contains('search_name'));
     expect(

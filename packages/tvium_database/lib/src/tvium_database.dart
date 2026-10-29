@@ -30,13 +30,14 @@ final class TviumDatabase extends _$TviumDatabase {
   TviumDatabase(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) async {
       await migrator.createAll();
       await _createSearchIndex();
+      await _createCatalogIndex();
       await _createProfiles();
       await _createEpg();
       await _createUserOverlays();
@@ -60,6 +61,7 @@ final class TviumDatabase extends _$TviumDatabase {
         );
         await _createSearchIndex();
       }
+      if (from < 7) await _createCatalogIndex();
     },
   );
 
@@ -85,6 +87,13 @@ final class TviumDatabase extends _$TviumDatabase {
     return customStatement(
       'CREATE INDEX IF NOT EXISTS media_entries_search '
       'ON media_entries (playlist_id, search_name)',
+    );
+  }
+
+  Future<void> _createCatalogIndex() {
+    return customStatement(
+      'CREATE INDEX IF NOT EXISTS media_entries_kind_position '
+      'ON media_entries (playlist_id, kind, position, id)',
     );
   }
 

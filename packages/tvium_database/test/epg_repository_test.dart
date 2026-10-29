@@ -465,7 +465,7 @@ void main() {
 
     final database = sqlite3.open(databasePath);
     addTearDown(database.close);
-    expect(database.userVersion, 6);
+    expect(database.userVersion, 7);
     expect(
       database.select(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='epg_programmes'",
