@@ -490,14 +490,36 @@ final class SqlitePlaylistRepository
         .toList(growable: false);
   }
 
+  static const _visibleProfileClause = '''
+    AND EXISTS (SELECT 1 FROM profile_sources p
+                WHERE p.profile_id=? AND p.source_id=m.playlist_id)
+    AND NOT EXISTS (
+      SELECT 1 FROM category_visibility v
+      WHERE v.profile_id=? AND v.source_id=m.playlist_id AND v.kind=m.kind
+        AND v.group_name=COALESCE(m.group_name, '')
+        AND v.is_ungrouped=CASE WHEN m.group_name IS NULL THEN 1 ELSE 0 END
+        AND v.visible=0
+    )
+  ''';
+
   @override
-  Future<int> countEntriesForPlaylist(String sourceId, MediaKind kind) async {
+  Future<int> countEntriesForPlaylist(
+    String sourceId,
+    MediaKind kind, {
+    String? profileId,
+  }) async {
     final row = await _database
         .customSelect(
-          'SELECT COUNT(*) AS total FROM media_entries WHERE playlist_id=? AND kind=?',
+          'SELECT COUNT(*) AS total FROM media_entries m '
+          'WHERE m.playlist_id=? AND m.kind=? '
+          '${profileId == null ? '' : _visibleProfileClause}',
           variables: [
             Variable.withString(sourceId),
             Variable.withString(kind.name),
+            if (profileId != null) ...[
+              Variable.withString(profileId),
+              Variable.withString(profileId),
+            ],
           ],
         )
         .getSingle();
@@ -508,22 +530,30 @@ final class SqlitePlaylistRepository
   Future<List<PersistedMediaEntry>> entriesPageForPlaylist(
     String sourceId,
     MediaKind kind, {
+    String? profileId,
     required int offset,
     required int limit,
   }) async {
     if (offset < 0 || limit < 1 || limit > 500) {
       throw ArgumentError('Invalid catalog page.');
     }
-    final query = _database.select(_database.mediaEntries)
-      ..where(
-        (row) => row.playlistId.equals(sourceId) & row.kind.equals(kind.name),
-      )
-      ..orderBy(<OrderingTerm Function(MediaEntries)>[
-        (row) => OrderingTerm.asc(row.position),
-        (row) => OrderingTerm.asc(row.id),
-      ])
-      ..limit(limit, offset: offset);
-    final rows = await query.get();
+    final rows = await _database
+        .customSelect(
+          'SELECT m.* FROM media_entries m WHERE m.playlist_id=? AND m.kind=? '
+          '${profileId == null ? '' : _visibleProfileClause} '
+          'ORDER BY m.position, m.id LIMIT ? OFFSET ?',
+          variables: [
+            Variable.withString(sourceId),
+            Variable.withString(kind.name),
+            if (profileId != null) ...[
+              Variable.withString(profileId),
+              Variable.withString(profileId),
+            ],
+            Variable.withInt(limit),
+            Variable.withInt(offset),
+          ],
+        )
+        .get();
     if (rows.isEmpty) return const [];
     final marks = List.filled(rows.length, '?').join(',');
     final details = await _database
@@ -531,7 +561,7 @@ final class SqlitePlaylistRepository
           'SELECT * FROM catalog_details WHERE source_id=? AND entry_id IN ($marks)',
           variables: [
             Variable.withString(sourceId),
-            ...rows.map((row) => Variable.withString(row.id)),
+            ...rows.map((row) => Variable.withString(row.read<String>('id'))),
           ],
         )
         .get();
@@ -539,7 +569,12 @@ final class SqlitePlaylistRepository
       for (final detail in details) detail.read<String>('entry_id'): detail,
     };
     return rows
-        .map((row) => _toDomain(row, byId[row.id]))
+        .map(
+          (row) => _toDomain(
+            _database.mediaEntries.map(row.data),
+            byId[row.read<String>('id')],
+          ),
+        )
         .toList(growable: false);
   }
 
@@ -548,6 +583,7 @@ final class SqlitePlaylistRepository
     String sourceId,
     MediaKind kind,
     String query, {
+    String? profileId,
     int limit = 500,
   }) async {
     if (limit < 1 || limit > 1000) throw ArgumentError('Invalid search limit.');
@@ -560,11 +596,16 @@ final class SqlitePlaylistRepository
     if (token.isEmpty) return const [];
     Future<List<QueryRow>> candidates(String seed) => _database
         .customSelect(
-          'SELECT * FROM media_entries WHERE playlist_id=? AND kind=? '
-          'AND search_name LIKE ? ORDER BY position, id LIMIT ?',
+          'SELECT m.* FROM media_entries m WHERE m.playlist_id=? AND m.kind=? '
+          '${profileId == null ? '' : _visibleProfileClause} '
+          'AND m.search_name LIKE ? ORDER BY m.position, m.id LIMIT ?',
           variables: [
             Variable.withString(sourceId),
             Variable.withString(kind.name),
+            if (profileId != null) ...[
+              Variable.withString(profileId),
+              Variable.withString(profileId),
+            ],
             Variable.withString('%$seed%'),
             Variable.withInt(limit),
           ],

@@ -27,13 +27,17 @@ final class SqlitePlaylistRepository
   );
 
   @override
-  Future<int> countEntriesForPlaylist(String sourceId, MediaKind kind) =>
-      _unsupported();
+  Future<int> countEntriesForPlaylist(
+    String sourceId,
+    MediaKind kind, {
+    String? profileId,
+  }) => _unsupported();
 
   @override
   Future<List<PersistedMediaEntry>> entriesPageForPlaylist(
     String sourceId,
     MediaKind kind, {
+    String? profileId,
     required int offset,
     required int limit,
   }) => _unsupported();
@@ -43,6 +47,7 @@ final class SqlitePlaylistRepository
     String sourceId,
     MediaKind kind,
     String query, {
+    String? profileId,
     int limit = 500,
   }) => _unsupported();
 

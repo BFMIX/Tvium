@@ -178,6 +178,87 @@ void _sharedSourceContract(
   });
 
   test(
+    'visible paging and search skip hidden groups before applying limits',
+    () async {
+      final repository = await createRepository();
+      addTearDown(repository.close);
+      final home = await repository.ensureDefaultProfile();
+      final kids = await repository.createProfile('Kids');
+      await repository.registerSource(
+        _source(id: 'source-1', digest: 'digest-1'),
+        home.id,
+        <PersistedMediaEntry>[
+          for (var index = 0; index < 12; index++)
+            PersistedMediaEntry(
+              id: 'hidden-$index',
+              playlistId: 'source-1',
+              sourceReference: 'test-reference',
+              originalName: 'News $index',
+              displayName: 'News $index',
+              groupName: 'Hidden',
+              kind: MediaKind.live,
+            ),
+          PersistedMediaEntry(
+            id: 'visible',
+            playlistId: 'source-1',
+            sourceReference: 'test-reference',
+            originalName: 'News Visible',
+            displayName: 'News Visible',
+            groupName: 'Visible',
+            kind: MediaKind.live,
+          ),
+        ],
+      );
+      await repository.linkSource(kids.id, 'source-1');
+      await (repository as CategoryVisibilityRepository).setCategoryVisible(
+        profileId: home.id,
+        sourceId: 'source-1',
+        kind: MediaKind.live,
+        groupName: 'Hidden',
+        visible: false,
+      );
+      final paged = repository as PagedProfileSourceRepository;
+      final searchable = repository as SearchableProfileSourceRepository;
+      expect(
+        await paged.countEntriesForPlaylist(
+          'source-1',
+          MediaKind.live,
+          profileId: home.id,
+        ),
+        1,
+      );
+      expect(
+        (await paged.entriesPageForPlaylist(
+          'source-1',
+          MediaKind.live,
+          profileId: home.id,
+          offset: 0,
+          limit: 1,
+        )).single.id,
+        'visible',
+      );
+      expect(
+        (await searchable.searchEntriesForPlaylist(
+          'source-1',
+          MediaKind.live,
+          'News',
+          profileId: home.id,
+          limit: 1,
+        )).single.id,
+        'visible',
+      );
+      expect(
+        await paged.countEntriesForPlaylist(
+          'source-1',
+          MediaKind.live,
+          profileId: kids.id,
+        ),
+        13,
+      );
+    },
+  );
+
+  test(
     'shares one canonical source between profiles without duplication',
     () async {
       final repository = await createRepository();

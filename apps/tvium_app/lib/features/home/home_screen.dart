@@ -1735,6 +1735,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   CategoryVisibilityIndex _categoryVisibility = CategoryVisibilityIndex(
     const [],
   );
+  final _visibleTotals = <MediaKind, int>{};
   var _categoryVisibilityGeneration = 0;
   bool _catalogPageLoading = false;
   String? _selectedCountryCode;
@@ -1771,6 +1772,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
       _catalogOffsets.clear();
       _searchResults = null;
       _categoryVisibility = CategoryVisibilityIndex(const []);
+      _visibleTotals.clear();
       unawaited(_reloadCategoryVisibility());
     }
   }
@@ -1782,22 +1784,34 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
       final repository = await ref.read(libraryRepositoryProvider.future);
       if (repository is! CategoryVisibilityRepository) return;
       final categories = <CatalogCategory>[];
+      final totals = <MediaKind, int>{};
       for (final kind in <MediaKind>[
         MediaKind.live,
         MediaKind.movie,
         MediaKind.episode,
       ]) {
-        categories.addAll(
-          await (repository as CategoryVisibilityRepository)
-              .categoriesForProfile(profileId, kind),
-        );
+        final rows = await (repository as CategoryVisibilityRepository)
+            .categoriesForProfile(profileId, kind);
+        categories.addAll(rows);
+        totals[kind] = rows
+            .where((category) => category.visible)
+            .fold(0, (sum, category) => sum + category.count);
       }
       if (!mounted ||
           generation != _categoryVisibilityGeneration ||
           profileId != widget.profileId) {
         return;
       }
-      setState(() => _categoryVisibility = CategoryVisibilityIndex(categories));
+      setState(() {
+        _categoryVisibility = CategoryVisibilityIndex(categories);
+        _visibleTotals
+          ..clear()
+          ..addAll(totals);
+        _catalogPages.clear();
+        _catalogOffsets.clear();
+        _searchResults = null;
+      });
+      if (_query.isNotEmpty) _updateSearch(_query);
     } on Object {
       // A failed preference read must not block the local catalog.
     }
@@ -1822,7 +1836,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   Future<void> _showCatalogPage(MediaKind kind, int offset) async {
     if (_catalogPageLoading ||
         offset < 0 ||
-        offset >= (widget.catalogTotals[kind] ?? 0)) {
+        offset >= (_visibleTotals[kind] ?? widget.catalogTotals[kind] ?? 0)) {
       return;
     }
     final repository = await ref.read(libraryRepositoryProvider.future);
@@ -1833,6 +1847,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
         repository as PagedProfileSourceRepository,
         widget.sources,
         kind,
+        profileId: widget.profileId,
         offset: offset,
       );
       final artwork = <String, Map<String, Uri>>{};
@@ -1892,6 +1907,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
             source.id,
             kind,
             normalizeCatalogSearch(query),
+            profileId: widget.profileId,
           ),
         ),
       );
@@ -1976,7 +1992,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
       favorites: widget.favorites,
       history: widget.history,
       onFavoriteToggled: widget.onFavoriteToggled,
-      totalEntries: widget.catalogTotals[kind] ?? 0,
+      totalEntries: _visibleTotals[kind] ?? widget.catalogTotals[kind] ?? 0,
       pageOffset: _catalogOffsets[kind] ?? 0,
       pageLoading: _catalogPageLoading,
       onPageRequested: (offset) => _showCatalogPage(kind, offset),

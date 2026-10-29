@@ -98,6 +98,69 @@ void main() {
     expect(snapshot.entries.last.id, 'movie:119');
     expect(snapshot.artwork[source.id], isEmpty);
   });
+  test('bootstrap and later pages count only visible categories', () async {
+    final repository = InMemoryProfileSourceRepository();
+    final profile = await repository.ensureDefaultProfile();
+    const source = IptvSource(
+      id: 'visible-source',
+      displayName: 'Fixture',
+      identityDigest: 'visible-digest',
+      secretReference: 'fixture-secret',
+    );
+    await repository.registerSource(source, profile.id, [
+      for (var index = 0; index < 121; index++)
+        PersistedMediaEntry(
+          id: 'hidden:$index',
+          playlistId: source.id,
+          sourceReference: 'fixture-secret',
+          originalName: 'Hidden $index',
+          displayName: 'Hidden $index',
+          groupName: 'Hidden',
+          kind: MediaKind.movie,
+        ),
+      for (var index = 0; index < 2; index++)
+        PersistedMediaEntry(
+          id: 'visible:$index',
+          playlistId: source.id,
+          sourceReference: 'fixture-secret',
+          originalName: 'Visible $index',
+          displayName: 'Visible $index',
+          groupName: 'Visible',
+          kind: MediaKind.movie,
+        ),
+    ]);
+    await repository.setCategoryVisible(
+      profileId: profile.id,
+      sourceId: source.id,
+      kind: MediaKind.movie,
+      groupName: 'Hidden',
+      visible: false,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        libraryRepositoryProvider.overrideWith((ref) async => repository),
+        artworkReferenceStoreProvider.overrideWithValue(
+          ArtworkReferenceStore(MemoryArtworkKeyValueStore()),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final snapshot = await container.read(libraryBootstrapProvider.future);
+    expect(snapshot.catalogTotals[MediaKind.movie], 2);
+    expect(snapshot.entries.map((entry) => entry.id), [
+      'visible:0',
+      'visible:1',
+    ]);
+    final later = await readCatalogPage(
+      repository,
+      [source],
+      MediaKind.movie,
+      profileId: profile.id,
+      offset: 1,
+      limit: 1,
+    );
+    expect(later.single.id, 'visible:1');
+  });
   test('reads only selected artwork references from a large source', () async {
     final store = ArtworkReferenceStore(MemoryArtworkKeyValueStore());
     await store.write('source', {

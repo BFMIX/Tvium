@@ -158,23 +158,52 @@ final class InMemoryProfileSourceRepository
   Future<List<PersistedMediaEntry>> entriesForPlaylist(String sourceId) async =>
       List.of(_entries[sourceId] ?? []);
   @override
-  Future<int> countEntriesForPlaylist(String sourceId, MediaKind kind) async =>
-      (_entries[sourceId] ?? []).where((entry) => entry.kind == kind).length;
+  Future<int> countEntriesForPlaylist(
+    String sourceId,
+    MediaKind kind, {
+    String? profileId,
+  }) async => _visibleEntries(sourceId, kind, profileId).length;
+
+  Iterable<PersistedMediaEntry> _visibleEntries(
+    String sourceId,
+    MediaKind kind,
+    String? profileId,
+  ) sync* {
+    if (profileId != null &&
+        !(_links[profileId]?.contains(sourceId) ?? false)) {
+      return;
+    }
+    for (final entry in _entries[sourceId] ?? const <PersistedMediaEntry>[]) {
+      if (entry.kind == kind &&
+          (profileId == null ||
+              (_categoryVisibility[(
+                    profileId,
+                    sourceId,
+                    kind,
+                    entry.groupName,
+                  )] ??
+                  true))) {
+        yield entry;
+      }
+    }
+  }
+
   @override
   Future<List<PersistedMediaEntry>> entriesPageForPlaylist(
     String sourceId,
     MediaKind kind, {
+    String? profileId,
     required int offset,
     required int limit,
   }) async {
     if (offset < 0 || limit < 1 || limit > 500) {
       throw ArgumentError('Invalid catalog page.');
     }
-    return (_entries[sourceId] ?? [])
-        .where((entry) => entry.kind == kind)
-        .skip(offset)
-        .take(limit)
-        .toList(growable: false);
+    return _visibleEntries(
+      sourceId,
+      kind,
+      profileId,
+    ).skip(offset).take(limit).toList(growable: false);
   }
 
   @override
@@ -182,6 +211,7 @@ final class InMemoryProfileSourceRepository
     String sourceId,
     MediaKind kind,
     String query, {
+    String? profileId,
     int limit = 500,
   }) async {
     final prefix = query
@@ -192,12 +222,8 @@ final class InMemoryProfileSourceRepository
         .first;
     if (prefix.isEmpty) return const [];
     List<PersistedMediaEntry> candidates(String seed) =>
-        (_entries[sourceId] ?? const [])
-            .where(
-              (entry) =>
-                  entry.kind == kind &&
-                  entry.displayName.toLowerCase().contains(seed),
-            )
+        _visibleEntries(sourceId, kind, profileId)
+            .where((entry) => entry.displayName.toLowerCase().contains(seed))
             .take(limit)
             .toList(growable: false);
     final exact = candidates(prefix);

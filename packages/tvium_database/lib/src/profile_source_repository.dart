@@ -45,10 +45,15 @@ abstract interface class ProfileSourceRepository {
 
 /// Bounded catalog reads for devices that cannot hold an entire source in RAM.
 abstract interface class PagedProfileSourceRepository {
-  Future<int> countEntriesForPlaylist(String sourceId, MediaKind kind);
+  Future<int> countEntriesForPlaylist(
+    String sourceId,
+    MediaKind kind, {
+    String? profileId,
+  });
   Future<List<PersistedMediaEntry>> entriesPageForPlaylist(
     String sourceId,
     MediaKind kind, {
+    String? profileId,
     required int offset,
     required int limit,
   });
@@ -60,6 +65,7 @@ abstract interface class SearchableProfileSourceRepository {
     String sourceId,
     MediaKind kind,
     String query, {
+    String? profileId,
     int limit = 500,
   });
 }

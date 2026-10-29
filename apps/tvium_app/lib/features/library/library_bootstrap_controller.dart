@@ -37,13 +37,18 @@ Future<List<PersistedMediaEntry>> readCatalogPage(
   PagedProfileSourceRepository repository,
   List<IptvSource> sources,
   MediaKind kind, {
+  String? profileId,
   required int offset,
   int limit = libraryPageSize,
 }) async {
   var remainingOffset = offset;
   final result = <PersistedMediaEntry>[];
   for (final source in sources) {
-    final count = await repository.countEntriesForPlaylist(source.id, kind);
+    final count = await repository.countEntriesForPlaylist(
+      source.id,
+      kind,
+      profileId: profileId,
+    );
     if (remainingOffset >= count) {
       remainingOffset -= count;
       continue;
@@ -51,6 +56,7 @@ Future<List<PersistedMediaEntry>> readCatalogPage(
     final batch = await repository.entriesPageForPlaylist(
       source.id,
       kind,
+      profileId: profileId,
       offset: remainingOffset,
       limit: limit - result.length,
     );
@@ -79,11 +85,21 @@ final libraryBootstrapProvider = FutureProvider<LibrarySnapshot>((ref) async {
     for (final kind in MediaKind.values) {
       var count = 0;
       for (final source in sources) {
-        count += await pagedRepository.countEntriesForPlaylist(source.id, kind);
+        count += await pagedRepository.countEntriesForPlaylist(
+          source.id,
+          kind,
+          profileId: active.id,
+        );
       }
       totals[kind] = count;
       entries.addAll(
-        await readCatalogPage(pagedRepository, sources, kind, offset: 0),
+        await readCatalogPage(
+          pagedRepository,
+          sources,
+          kind,
+          profileId: active.id,
+          offset: 0,
+        ),
       );
     }
   }
