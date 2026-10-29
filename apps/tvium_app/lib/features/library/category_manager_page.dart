@@ -132,6 +132,9 @@ final class _CategoryManagerPageState extends State<CategoryManagerPage> {
     final matching =
         categories?.where(_matches).toList(growable: false) ??
         const <CatalogCategory>[];
+    final hideCount =
+        categories?.where((category) => category.visible).length ?? 0;
+    final showCount = matching.where((category) => !category.visible).length;
     final sourceNames = {
       for (final source in widget.sources) source.id: source.displayName,
     };
@@ -181,17 +184,17 @@ final class _CategoryManagerPageState extends State<CategoryManagerPage> {
                 Text('${matching.length} matching'),
                 OutlinedButton(
                   key: const ValueKey('category-hide-all'),
-                  onPressed: _busy || categories == null
+                  onPressed: _busy || categories == null || hideCount == 0
                       ? null
                       : () => _setVisible(categories, false),
-                  child: const Text('Hide all'),
+                  child: Text('Hide all ($hideCount)'),
                 ),
                 OutlinedButton(
                   key: const ValueKey('category-show-matching'),
-                  onPressed: _busy || categories == null
+                  onPressed: _busy || categories == null || showCount == 0
                       ? null
                       : () => _setVisible(matching, true),
-                  child: const Text('Show matching'),
+                  child: Text('Show matching ($showCount)'),
                 ),
               ],
             ),

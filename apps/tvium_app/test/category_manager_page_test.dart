@@ -21,8 +21,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Hide all (2)'), findsOneWidget);
+    expect(find.text('Show matching (0)'), findsOneWidget);
+
     await tester.tap(find.byKey(const ValueKey('category-hide-all')));
     await tester.pumpAndSettle();
+    expect(find.text('Hide all (0)'), findsOneWidget);
+    expect(find.text('Show matching (2)'), findsOneWidget);
     expect(
       repository.categories.every((category) => !category.visible),
       isTrue,
@@ -35,6 +40,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('FR | News'), findsOneWidget);
     expect(find.text('US | Sports'), findsNothing);
+    expect(find.text('Show matching (1)'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('category-show-matching')));
     await tester.pumpAndSettle();
     expect(repository.categories.first.visible, isTrue);
