@@ -32,6 +32,8 @@ import '../import/qr_pairing_web.dart'
     as qr_pairing;
 import '../import/xtream_m3u_detector.dart';
 import '../import/xtream_m3u_reconciliation.dart';
+import '../library/category_manager_page.dart';
+import '../library/category_visibility.dart';
 import '../library/library_bootstrap_controller.dart';
 import '../library/live_country.dart';
 import '../library/source_refresh_schedule.dart';
@@ -1730,6 +1732,10 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   Timer? _catalogBackdropTimer;
   final _catalogPages = <MediaKind, List<_LibraryEntry>>{};
   final _catalogOffsets = <MediaKind, int>{};
+  CategoryVisibilityIndex _categoryVisibility = CategoryVisibilityIndex(
+    const [],
+  );
+  var _categoryVisibilityGeneration = 0;
   bool _catalogPageLoading = false;
   String? _selectedCountryCode;
   String _query = '';
@@ -1742,6 +1748,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
   void initState() {
     super.initState();
     _destination = widget.initialDestination;
+    unawaited(_reloadCategoryVisibility());
     _catalogBackdropTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (mounted &&
           (_destination == _CatalogDestination.movies ||
@@ -1763,7 +1770,53 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
       _catalogPages.clear();
       _catalogOffsets.clear();
       _searchResults = null;
+      _categoryVisibility = CategoryVisibilityIndex(const []);
+      unawaited(_reloadCategoryVisibility());
     }
+  }
+
+  Future<void> _reloadCategoryVisibility() async {
+    final generation = ++_categoryVisibilityGeneration;
+    final profileId = widget.profileId;
+    try {
+      final repository = await ref.read(libraryRepositoryProvider.future);
+      if (repository is! CategoryVisibilityRepository) return;
+      final categories = <CatalogCategory>[];
+      for (final kind in <MediaKind>[
+        MediaKind.live,
+        MediaKind.movie,
+        MediaKind.episode,
+      ]) {
+        categories.addAll(
+          await (repository as CategoryVisibilityRepository)
+              .categoriesForProfile(profileId, kind),
+        );
+      }
+      if (!mounted ||
+          generation != _categoryVisibilityGeneration ||
+          profileId != widget.profileId) {
+        return;
+      }
+      setState(() => _categoryVisibility = CategoryVisibilityIndex(categories));
+    } on Object {
+      // A failed preference read must not block the local catalog.
+    }
+  }
+
+  Future<void> _openCategoryManager() async {
+    final repository = await ref.read(libraryRepositoryProvider.future);
+    if (!mounted || repository is! CategoryVisibilityRepository) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => CategoryManagerPage(
+          profileId: widget.profileId,
+          repository: repository as CategoryVisibilityRepository,
+          sources: widget.sources,
+          onChanged: () => unawaited(_reloadCategoryVisibility()),
+        ),
+      ),
+    );
+    if (mounted) await _reloadCategoryVisibility();
   }
 
   Future<void> _showCatalogPage(MediaKind kind, int offset) async {
@@ -1890,7 +1943,12 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
       key: ValueKey('page-${destination.name}'),
       destination: destination,
       entries: _query.isNotEmpty && _searchResults != null
-          ? _searchResults!
+          ? _categoryVisibility.filter(
+              _searchResults!,
+              (entry) => entry.sourceId,
+              (entry) => entry.kind,
+              (entry) => entry.group,
+            )
           : _entriesFor(destination),
       epgSchedules: widget.epgSchedules,
       query: _query,
@@ -2017,6 +2075,7 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
                         onRefreshIntervalChanged:
                             widget.onRefreshIntervalChanged,
                         sources: widget.sources,
+                        onManageCategories: _openCategoryManager,
                         onAddPlaylist: widget.onAddPlaylist,
                         onRenameSource: widget.onRenameSource,
                         onRemoveSource: widget.onRemoveSource,
@@ -2168,9 +2227,15 @@ final class _LibraryViewState extends ConsumerState<_LibraryView> {
               },
             )
             .toList(growable: false);
+    final visibleEntries = _categoryVisibility.filter(
+      entries,
+      (entry) => entry.sourceId,
+      (entry) => entry.kind,
+      (entry) => entry.group,
+    );
     return destination == _CatalogDestination.shows
-        ? _groupSeriesEntries(entries)
-        : entries;
+        ? _groupSeriesEntries(visibleEntries)
+        : visibleEntries;
   }
 
   void _selectDestination(_CatalogDestination destination) {

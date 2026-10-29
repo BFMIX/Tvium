@@ -84,7 +84,7 @@ Status values are `planned`, `in progress`, `verified`, or `blocked`. A mileston
 - Verified by widget tests: resumable movies appear above the movie poster catalog, keeping Home limited to three destinations.
 - Verified by widget tests: resumable local M3U episodes appear above the TV Shows catalog with artwork and playback progress.
 - Verified by widget tests: Movies and TV Shows use horizontal category chips over the poster grid; short windows keep the header and Continue Watching compact enough for grid interaction.
-- In progress: category visibility preferences now have a per-profile, per-source, per-media-kind repository on SQLite and Web in-memory storage. Synthetic tests cover isolation and SQLite reopen. The management screen and browsing filters are still pending, so this is not yet a user-facing category control.
+- In progress: category visibility preferences persist per profile, source, and media kind on SQLite, with a Web in-memory equivalent. Settings now opens a manager for Live TV, Movies, and TV Shows with category search, Hide all, Show matching, individual visibility, and Undo. Loaded pages and search results omit hidden groups without changing provider rows. Synthetic tests cover isolation, SQLite reopen, bulk actions, and filtering. Database-level visible paging, pinning, renaming, and per-category parental locks remain pending.
 - Verified by automated coverage: M3U episode titles using common provider conventions are grouped locally into series, seasons, and episodes; native Xtream series structure remains authoritative when available.
 - In progress: physical-device playback validation. Enriched VOD details and durable episode catalogs remain planned.
 

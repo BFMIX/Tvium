@@ -36,6 +36,7 @@ Future<bool> _persistMetadataConsent(
 
 enum SettingsSection {
   playlists,
+  categories,
   metadata,
   parental,
   guide,
@@ -67,6 +68,11 @@ Future<void> showSettingsPages(
                   SettingsSection.playlists,
                   'Playlists',
                   Icons.playlist_play_rounded,
+                ),
+                (
+                  SettingsSection.categories,
+                  'Manage categories',
+                  Icons.tune_rounded,
                 ),
                 (
                   SettingsSection.metadata,
@@ -202,6 +208,7 @@ Future<void> showLibrarySettings(
   required bool configured,
   MetadataConsentStore? metadataConsentStore,
   SettingsSection? section,
+  Future<void> Function()? onManageCategories,
   Future<ArtworkCacheStorage?> Function()? onReadArtworkStorage,
   Future<void> Function()? onClearArtworkCache,
   Future<String> Function()? onImportEpgFile,
@@ -224,6 +231,10 @@ Future<void> showLibrarySettings(
   onSaveParentalPin,
   Future<String> Function(String pin)? onUnlockParental,
 }) async {
+  if (section == SettingsSection.categories && onManageCategories != null) {
+    await onManageCategories();
+    return;
+  }
   final epgUrlController = TextEditingController();
   final parentalPinController = TextEditingController();
   String? epgStatus;
@@ -249,6 +260,7 @@ Future<void> showLibrarySettings(
   final dialogSources = List<IptvSource>.of(sources);
   final title = switch (section) {
     SettingsSection.playlists => 'Playlists',
+    SettingsSection.categories => 'Manage categories',
     SettingsSection.metadata => 'Metadata',
     SettingsSection.parental => 'Parental controls',
     SettingsSection.guide => 'Programme guide',
