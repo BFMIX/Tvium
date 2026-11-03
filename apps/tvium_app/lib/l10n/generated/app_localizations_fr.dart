@@ -62,6 +62,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'L’ajout par téléphone est indisponible pour le moment. Vérifiez votre connexion Internet et réessayez.';
 
   @override
+  String get webPlaylistRelayTitle => 'Import Web temporaire';
+
+  @override
+  String get webPlaylistRelayConsent =>
+      'Le navigateur ne peut pas contacter directement certains fournisseurs IPTV. Pour télécharger cette playlist, le relais HTTPS de Tvium recevra temporairement son adresse et ses identifiants éventuels. Le catalogue n’est pas conservé sur le relais.';
+
+  @override
   String get comingLater => 'Prochainement';
 
   @override

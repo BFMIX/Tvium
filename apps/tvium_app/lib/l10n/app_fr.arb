@@ -15,6 +15,8 @@
   "pairingExpired": "Ce code a expiré. Fermez cette fenêtre et réessayez.",
   "pairingUnavailable": "Le jumelage local est indisponible. Connectez cet appareil à votre réseau domestique, puis réessayez.",
   "pairingUnavailableWeb": "L’ajout par téléphone est indisponible pour le moment. Vérifiez votre connexion Internet et réessayez.",
+  "webPlaylistRelayTitle": "Import Web temporaire",
+  "webPlaylistRelayConsent": "Le navigateur ne peut pas contacter directement certains fournisseurs IPTV. Pour télécharger cette playlist, le relais HTTPS de Tvium recevra temporairement son adresse et ses identifiants éventuels. Le catalogue n’est pas conservé sur le relais.",
   "comingLater": "Prochainement",
   "connectProvider": "Connecter votre fournisseur",
   "profileName": "Nom du profil",
