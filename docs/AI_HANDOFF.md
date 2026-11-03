@@ -1,6 +1,6 @@
 # Tvium development handoff
 
-Updated: 2026-10-29. Read `AGENTS.md` and `docs/ROADMAP.md` before changing code.
+Updated: 2026-11-03. Read `AGENTS.md` and `docs/ROADMAP.md` before changing code.
 
 ## Product and privacy
 
@@ -10,6 +10,7 @@ Tvium is a local-first Flutter IPTV player. Users bring their own M3U or Xtream 
 
 - The active development checkout is `/Users/bfmix/Desktop/DEv/Project/Tvium Player` on `codex/tvium-priorities`. Inspect `git status`, `git log`, and remotes at the start of each session. Do not assume a worktree named `tvium-priorities` contains this branch; one similarly named checkout has held a different branch.
 - `origin/main` and `codex/tvium-priorities` have diverged. Do not build from `main` or another checkout and describe it as the latest priority branch. Compare changes and integrate them with tests; a blind merge previously caused extensive analysis failures and was aborted.
+- `origin/main` now includes Web M3U import relay fix `22f2236` (PR #27), deployed to GitHub Pages on 2026-11-03. The separate Netlify production relay was deployed and tested with synthetic URLs; the user's private Tesla playlist and media playback have not been verified. The priority branch does not yet contain this fix or the newer Web QR pairing implementation from `main`. Integrate those changes deliberately before any future Web release from this branch; see `docs/WEB_PLAYLIST_RELAY.md` on `main`.
 - `apps/tvium_app/android/app/src/main/AndroidManifest.xml` and `apps/tvium_app/pubspec.yaml` have pre-existing local edits for the Android renderer and alpha version. Preserve them until reviewed. The priority branch was pushed at `d5b7852` before the next implementation batch. The subsequent compact catalog, detail, player-control, source-entry, and documentation commits are local; inspect `git log` and `git status` for the exact current head. They have not been pushed or released.
 - `dist/local-tests/Tvium-Android-TV-Universal-build16.apk` is the sole retained local APK. It targets both `armeabi-v7a` and `arm64-v8a`. Build numbers must increase when replacing the app on Android TV.
 
