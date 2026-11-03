@@ -62,6 +62,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Phone pairing is unavailable right now. Check your internet connection and try again.';
 
   @override
+  String get webPlaylistRelayTitle => 'Temporary Web import';
+
+  @override
+  String get webPlaylistRelayConsent =>
+      'The browser cannot contact some IPTV providers directly. To download this playlist, Tvium\'s HTTPS relay will temporarily receive its address and any credentials. The relay does not store the catalog.';
+
+  @override
   String get comingLater => 'Coming later';
 
   @override

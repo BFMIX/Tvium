@@ -109,7 +109,35 @@ void main() {
                 (error) => error.message,
                 'message',
                 isNot(contains('secret')),
+              )
+              .having(
+                (error) => error.message,
+                'message',
+                isNot(contains('playlist.example.test')),
               ),
+        ),
+      );
+    });
+
+    test('does not show failed transport URLs or credentials', () async {
+      final client = MockClient((request) async {
+        throw http.ClientException(
+          'Failed to fetch https://playlist.example.test/get.php?password=secret',
+          request.url,
+        );
+      });
+      final source = M3uUrlSource(
+        Uri.parse('https://playlist.example.test/get.php?password=secret'),
+        client: client,
+      );
+      await expectLater(
+        source.readLines().toList(),
+        throwsA(
+          isA<M3uSourceException>().having(
+            (error) => error.message,
+            'message',
+            'Playlist request failed.',
+          ),
         ),
       );
     });

@@ -26,6 +26,9 @@ import '../import/local_playlist_picker.dart';
 import '../import/m3u_import_persistence.dart';
 import '../import/playlist_import_controller.dart';
 import '../import/playlist_import_provider.dart';
+import '../import/playlist_url_source_web.dart'
+    if (dart.library.io) '../import/playlist_url_source_io.dart'
+    as playlist_url_source;
 import '../import/qr_pairing.dart';
 import '../import/qr_pairing_web.dart'
     if (dart.library.io) '../import/qr_pairing_io.dart'
@@ -887,6 +890,27 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     PlaylistImportController controller,
     Uri uri,
   ) async {
+    if (kIsWeb) {
+      final strings = AppLocalizations.of(context);
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(strings.webPlaylistRelayTitle),
+          content: Text(strings.webPlaylistRelayConsent),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(strings.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(strings.addPlaylist),
+            ),
+          ],
+        ),
+      );
+      if (accepted != true || !mounted) return;
+    }
     final candidate = detectXtreamM3u(uri);
     if (candidate != null) {
       try {
@@ -906,7 +930,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
       }
     }
     await controller.importSource(
-      M3uUrlSource(uri),
+      playlist_url_source.createPlaylistUrlSource(uri),
       descriptor: M3uSourceDescriptor.url(
         displayName: uri.host,
         location: uri.toString(),

@@ -188,6 +188,18 @@ abstract class AppLocalizations {
   /// **'Phone pairing is unavailable right now. Check your internet connection and try again.'**
   String get pairingUnavailableWeb;
 
+  /// No description provided for @webPlaylistRelayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Temporary Web import'**
+  String get webPlaylistRelayTitle;
+
+  /// No description provided for @webPlaylistRelayConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'The browser cannot contact some IPTV providers directly. To download this playlist, Tvium\'s HTTPS relay will temporarily receive its address and any credentials. The relay does not store the catalog.'**
+  String get webPlaylistRelayConsent;
+
   /// No description provided for @comingLater.
   ///
   /// In en, this message translates to:

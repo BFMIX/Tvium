@@ -7,6 +7,9 @@ import 'package:tvium_m3u/tvium_m3u.dart';
 import '../artwork/artwork_reference_store.dart';
 import '../sources/source_identity_service.dart';
 import '../xtream/secure_xtream_profile_store.dart';
+import 'playlist_url_source_web.dart'
+    if (dart.library.io) 'playlist_url_source_io.dart'
+    as playlist_url_source;
 
 enum M3uSourceKind { url, file }
 
@@ -253,7 +256,9 @@ final class DefaultM3uPlaybackResolver implements M3uPlaybackResolver {
 
   static M3uSource _defaultSource(M3uSourceDescriptor descriptor) =>
       switch (descriptor.kind) {
-        M3uSourceKind.url => M3uUrlSource(Uri.parse(descriptor.location)),
+        M3uSourceKind.url => playlist_url_source.createPlaylistUrlSource(
+          Uri.parse(descriptor.location),
+        ),
         M3uSourceKind.file => M3uFileSource(descriptor.location),
       };
 }
@@ -300,7 +305,9 @@ final class M3uSourceRefreshService {
 
   static M3uSource _defaultSource(M3uSourceDescriptor descriptor) =>
       switch (descriptor.kind) {
-        M3uSourceKind.url => M3uUrlSource(Uri.parse(descriptor.location)),
+        M3uSourceKind.url => playlist_url_source.createPlaylistUrlSource(
+          Uri.parse(descriptor.location),
+        ),
         M3uSourceKind.file => M3uFileSource(descriptor.location),
       };
 }

@@ -4,7 +4,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
-import 'package:tvium_core/tvium_core.dart';
 
 abstract interface class M3uSource {
   Stream<String> readLines();
@@ -72,9 +71,7 @@ final class M3uUrlSource implements M3uSource {
       final response = await requestClient.send(request).timeout(timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw M3uSourceException(
-          SensitiveDataSanitizer.sanitize(
-            'Playlist request failed (${response.statusCode}) for $uri',
-          ),
+          'Playlist request failed (${response.statusCode})',
         );
       }
       if (response.contentLength case final length? when length > maxBytes) {
@@ -94,10 +91,8 @@ final class M3uUrlSource implements M3uSource {
       rethrow;
     } on TimeoutException {
       throw const M3uSourceException('Playlist request timed out');
-    } on Object catch (error) {
-      throw M3uSourceException(
-        SensitiveDataSanitizer.sanitize('Playlist request failed: $error'),
-      );
+    } on Object {
+      throw const M3uSourceException('Playlist request failed.');
     } finally {
       if (ownsClient) {
         requestClient.close();
