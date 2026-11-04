@@ -9,9 +9,9 @@
   "xtreamCodes": "Xtream Codes",
   "pairWithPhone": "Add with your phone",
   "orAddWithPhone": "Or use your phone",
-  "pairingInstructions": "Scan with a phone on the same trusted home network. The code expires after 10 minutes. Confirm the source here before importing.",
-  "pairingReceived": "Source received. Confirm to add it to this TV.",
-  "pairingExpired": "This pairing session has expired. Close this window and try again.",
+  "pairingInstructions": "Scan with a phone on the same trusted home network. The code expires after 10 minutes.",
+  "pairingReceived": "Source received. Adding your playlist…",
+  "pairingExpired": "This pairing code has expired. Generate a new code.",
   "pairingUnavailable": "Local pairing is unavailable. Connect this device to your home network and try again.",
   "comingLater": "Coming later",
   "connectProvider": "Connect your provider",
@@ -32,7 +32,19 @@
   "networkTimeout": "The server took too long to respond",
   "xtreamConnecting": "Connecting to the server...",
   "xtreamCatalogProgress": "Downloading {section} ({current}/{total})...",
-  "@xtreamCatalogProgress": {"placeholders": {"section": {"type": "String"}, "current": {"type": "int"}, "total": {"type": "int"}}},
+  "@xtreamCatalogProgress": {
+    "placeholders": {
+      "section": {
+        "type": "String"
+      },
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "xtreamLiveCategories": "Live categories",
   "xtreamLiveStreams": "Live TV channels",
   "xtreamVodCategories": "movie categories",
@@ -41,13 +53,25 @@
   "xtreamSeries": "TV series",
   "xtreamSaving": "Saving to the library...",
   "xtreamTimedOutAt": "The server timed out while downloading {section}. Your existing library was kept.",
-  "@xtreamTimedOutAt": {"placeholders": {"section": {"type": "String"}}},
+  "@xtreamTimedOutAt": {
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
   "xtreamRetryExtended": "Retry with a 2-minute limit",
   "xtreamPartialAdded": "Live TV was added. Some movie or series sections timed out and can be refreshed later.",
   "serverUnreachable": "The server is currently unreachable",
   "invalidProviderResponse": "The provider returned an unsupported response",
   "xtreamPlaylistAdded": "Playlist added: {count} items",
-  "@xtreamPlaylistAdded": {"placeholders": {"count": {"type": "int"}}},
+  "@xtreamPlaylistAdded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "webSessionStorageNotice": "On the Web, connection details are kept for this browser session only.",
   "urlHint": "https://example.com/playlist.m3u",
   "showPlaylistUrl": "Show playlist URL",
@@ -58,7 +82,13 @@
   "savingPlaylist": "Saving your library…",
   "cancel": "Cancel",
   "itemsReady": "{count} items ready",
-  "@itemsReady": {"placeholders": {"count": {"type": "int"}}},
+  "@itemsReady": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "liveTv": "LIVE TV",
   "movies": "MOVIES",
   "tvShows": "TV SHOWS",
@@ -71,5 +101,7 @@
   "invalidUrl": "Enter a valid HTTP or HTTPS playlist URL",
   "unknownGroup": "Unclassified",
   "settings": "Settings",
-  "search": "Search"
+  "search": "Search",
+  "playlistAddedSuccess": "Playlist added successfully.",
+  "pairingRetry": "Generate a new code"
 }

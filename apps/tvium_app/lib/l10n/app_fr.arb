@@ -9,9 +9,9 @@
   "xtreamCodes": "Xtream Codes",
   "pairWithPhone": "Ajouter avec votre téléphone",
   "orAddWithPhone": "Ou utilisez votre téléphone",
-  "pairingInstructions": "Scannez avec un téléphone sur le même réseau domestique de confiance. Le code expire après 10 minutes. Confirmez la source ici avant l’import.",
-  "pairingReceived": "Source reçue. Confirmez pour l’ajouter à cette TV.",
-  "pairingExpired": "Ce code a expiré. Fermez cette fenêtre et réessayez.",
+  "pairingInstructions": "Scannez avec un téléphone sur le même réseau domestique de confiance. Le code expire après 10 minutes.",
+  "pairingReceived": "Source reçue. Ajout de votre playlist…",
+  "pairingExpired": "Ce code a expiré. Générez un nouveau code.",
   "pairingUnavailable": "Le jumelage local est indisponible. Connectez cet appareil à votre réseau domestique, puis réessayez.",
   "comingLater": "Prochainement",
   "connectProvider": "Connecter votre fournisseur",
@@ -32,7 +32,19 @@
   "networkTimeout": "Le serveur a mis trop de temps à répondre",
   "xtreamConnecting": "Connexion au serveur...",
   "xtreamCatalogProgress": "Téléchargement de {section} ({current}/{total})...",
-  "@xtreamCatalogProgress": {"placeholders": {"section": {"type": "String"}, "current": {"type": "int"}, "total": {"type": "int"}}},
+  "@xtreamCatalogProgress": {
+    "placeholders": {
+      "section": {
+        "type": "String"
+      },
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "xtreamLiveCategories": "catégories TV",
   "xtreamLiveStreams": "chaînes Live",
   "xtreamVodCategories": "catégories de films",
@@ -41,13 +53,25 @@
   "xtreamSeries": "séries TV",
   "xtreamSaving": "Enregistrement dans la bibliothèque...",
   "xtreamTimedOutAt": "Le serveur a expiré pendant le téléchargement de {section}. La bibliothèque existante a été conservée.",
-  "@xtreamTimedOutAt": {"placeholders": {"section": {"type": "String"}}},
+  "@xtreamTimedOutAt": {
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
   "xtreamRetryExtended": "Réessayer avec un délai de 2 minutes",
   "xtreamPartialAdded": "Les chaînes Live ont été ajoutées. Certaines sections films ou séries ont expiré et pourront être actualisées plus tard.",
   "serverUnreachable": "Le serveur est actuellement inaccessible",
   "invalidProviderResponse": "Le fournisseur a renvoyé une réponse non prise en charge",
   "xtreamPlaylistAdded": "Playlist ajoutée : {count} éléments",
-  "@xtreamPlaylistAdded": {"placeholders": {"count": {"type": "int"}}},
+  "@xtreamPlaylistAdded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "webSessionStorageNotice": "Sur le Web, les informations de connexion sont conservées uniquement pendant cette session du navigateur.",
   "urlHint": "https://exemple.fr/playlist.m3u",
   "showPlaylistUrl": "Afficher l’URL de la playlist",
@@ -58,7 +82,13 @@
   "savingPlaylist": "Enregistrement de votre bibliothèque…",
   "cancel": "Annuler",
   "itemsReady": "{count} éléments prêts",
-  "@itemsReady": {"placeholders": {"count": {"type": "int"}}},
+  "@itemsReady": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "liveTv": "LIVE TV",
   "movies": "FILMS",
   "tvShows": "SÉRIES TV",
@@ -71,5 +101,7 @@
   "invalidUrl": "Saisissez une URL HTTP ou HTTPS valide",
   "unknownGroup": "Non classé",
   "settings": "Réglages",
-  "search": "Rechercher"
+  "search": "Rechercher",
+  "playlistAddedSuccess": "Playlist ajoutée avec succès.",
+  "pairingRetry": "Générer un nouveau code"
 }

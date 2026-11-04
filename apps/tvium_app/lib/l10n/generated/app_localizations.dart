@@ -155,19 +155,19 @@ abstract class AppLocalizations {
   /// No description provided for @pairingInstructions.
   ///
   /// In en, this message translates to:
-  /// **'Scan with a phone on the same trusted home network. The code expires after 10 minutes. Confirm the source here before importing.'**
+  /// **'Scan with a phone on the same trusted home network. The code expires after 10 minutes.'**
   String get pairingInstructions;
 
   /// No description provided for @pairingReceived.
   ///
   /// In en, this message translates to:
-  /// **'Source received. Confirm to add it to this TV.'**
+  /// **'Source received. Adding your playlist…'**
   String get pairingReceived;
 
   /// No description provided for @pairingExpired.
   ///
   /// In en, this message translates to:
-  /// **'This pairing session has expired. Close this window and try again.'**
+  /// **'This pairing code has expired. Generate a new code.'**
   String get pairingExpired;
 
   /// No description provided for @pairingUnavailable.
@@ -505,6 +505,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search'**
   String get search;
+
+  /// No description provided for @playlistAddedSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist added successfully.'**
+  String get playlistAddedSuccess;
+
+  /// No description provided for @pairingRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate a new code'**
+  String get pairingRetry;
 }
 
 class _AppLocalizationsDelegate

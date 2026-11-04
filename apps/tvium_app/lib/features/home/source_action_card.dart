@@ -49,9 +49,11 @@ final class SourceActionCard extends StatelessWidget {
             width: width,
             height: compact ? null : (short ? 128 : 224),
             constraints: BoxConstraints(
-              minHeight: compact ? 86 : (short ? 120 : 152),
+              minHeight: compact ? (short ? 72 : 86) : (short ? 120 : 152),
             ),
-            padding: const EdgeInsets.all(TviumSpacing.md),
+            padding: EdgeInsets.all(
+              compact && short ? TviumSpacing.sm : TviumSpacing.md,
+            ),
             decoration: BoxDecoration(
               color: enabled
                   ? const Color(0xAE163149)
@@ -64,7 +66,11 @@ final class SourceActionCard extends StatelessWidget {
             child: compact
                 ? Row(
                     children: <Widget>[
-                      _SourceIcon(icon: icon, color: theme.colorScheme.primary),
+                      _SourceIcon(
+                        icon: icon,
+                        color: theme.colorScheme.primary,
+                        size: short ? 36 : 48,
+                      ),
                       const SizedBox(width: TviumSpacing.md),
                       Expanded(child: _SourceCopy(title, description)),
                       const Icon(Icons.arrow_forward_rounded, size: 20),

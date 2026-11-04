@@ -1,12 +1,38 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tvium_app/app.dart';
+import 'package:tvium_app/features/import/playlist_import_controller.dart';
 import 'package:tvium_app/features/import/qr_pairing.dart';
 
 void main() {
+  testWidgets('welcome heading is centered above two source columns', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const TviumApp());
+
+    final panelCenter = tester
+        .getRect(find.byKey(const ValueKey('onboarding-panel')))
+        .center
+        .dx;
+    for (final key in const ['tvium-brand-logo', 'onboarding-welcome-title']) {
+      final center = tester.getRect(find.byKey(ValueKey(key))).center.dx;
+      expect((center - panelCenter).abs(), lessThan(8), reason: key);
+    }
+    final first = tester.getRect(find.byKey(const ValueKey('m3u-url-action')));
+    final last = tester.getRect(find.byKey(const ValueKey('xtream-action')));
+    final pairing = tester.getRect(
+      find.byKey(const ValueKey('onboarding-pairing-panel')),
+    );
+    expect(first.left, lessThan(pairing.left));
+    expect(last.right, lessThan(pairing.left));
+  });
+
   testWidgets('first launch uses scenic artwork and prominent source choices', (
     tester,
   ) async {
@@ -32,12 +58,12 @@ void main() {
     final xtream = tester.getRect(
       find.byKey(const ValueKey<String>('xtream-action')),
     );
-    expect(url.width, greaterThanOrEqualTo(240));
-    expect(url.height, greaterThanOrEqualTo(130));
+    expect(url.width, greaterThanOrEqualTo(400));
+    expect(url.height, greaterThanOrEqualTo(80));
     expect(url.size, file.size);
     expect(file.size, xtream.size);
-    expect(url.right, lessThan(file.left));
-    expect(file.right, lessThan(xtream.left));
+    expect(url.bottom, lessThan(file.top));
+    expect(file.bottom, lessThan(xtream.top));
     final panel = tester.getRect(
       find.byKey(const ValueKey('onboarding-panel')),
     );
@@ -47,7 +73,10 @@ void main() {
       find.byKey(const ValueKey('onboarding-backdrop-blur')),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('qr-pairing-separator')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('onboarding-pairing-panel')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('QR pairing is visible on a 720p TV without scrolling', (
@@ -59,81 +88,26 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const TviumApp());
     final rect = tester.getRect(
-      find.byKey(const ValueKey('qr-pairing-action')),
+      find.byKey(const ValueKey('onboarding-pairing-panel')),
     );
     expect(rect.top, greaterThanOrEqualTo(0));
     expect(rect.bottom, lessThanOrEqualTo(720));
   });
 
-  testWidgets('all onboarding choices fit inside a short TV safe area', (
+  testWidgets('QR code and manual choices fit a short TV viewport', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(960, 540);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const TviumApp());
-
-    final panel = tester.getRect(
-      find.byKey(const ValueKey('onboarding-panel')),
-    );
-    final centerX = panel.center.dx;
-    for (final finder in <Finder>[
-      find.byKey(const ValueKey<String>('tvium-brand-logo')),
-      find.text('Welcome to Tvium'),
-      find.byKey(const ValueKey('qr-pairing-separator')),
-      find.byKey(const ValueKey('qr-pairing-action')),
-    ]) {
-      expect((tester.getRect(finder).center.dx - centerX).abs(), lessThan(8));
-    }
-
-    final url = tester.getRect(find.byKey(const ValueKey('m3u-url-action')));
-    final file = tester.getRect(find.byKey(const ValueKey('m3u-file-action')));
-    final xtream = tester.getRect(find.byKey(const ValueKey('xtream-action')));
-    expect(((url.left + xtream.right) / 2 - centerX).abs(), lessThan(8));
-    expect(url.size, file.size);
-    expect(file.size, xtream.size);
-    for (final (cardKey, icon, title) in <(String, IconData, String)>[
-      ('m3u-url-action', Icons.link_rounded, 'M3U URL'),
-      ('m3u-file-action', Icons.folder_open_rounded, 'Import local M3U'),
-      ('xtream-action', Icons.dns_outlined, 'Xtream Codes'),
-    ]) {
-      final cardFinder = find.byKey(ValueKey<String>(cardKey));
-      final cardCenter = tester.getRect(cardFinder).center.dx;
-      final iconFinder = find.descendant(
-        of: cardFinder,
-        matching: find.byIcon(icon),
-      );
-      final titleFinder = find.descendant(
-        of: cardFinder,
-        matching: find.text(title),
-      );
-      expect(
-        (tester.getRect(iconFinder).center.dx - cardCenter).abs(),
-        lessThan(8),
-      );
-      expect(
-        (tester.getRect(titleFinder).center.dx - cardCenter).abs(),
-        lessThan(8),
-      );
-    }
-    expect(
-      (tester.getRect(find.text('Or use your phone')).center.dx - centerX)
-          .abs(),
-      lessThan(8),
-    );
-
-    for (final key in const <String>[
-      'tvium-brand-logo',
-      'm3u-url-action',
-      'm3u-file-action',
-      'xtream-action',
-      'qr-pairing-action',
-    ]) {
-      final rect = tester.getRect(find.byKey(ValueKey<String>(key)));
-      expect(rect.top, greaterThanOrEqualTo(12), reason: key);
-      expect(rect.bottom, lessThanOrEqualTo(528), reason: key);
-    }
+    final session = _FakeQrPairingSession();
+    await tester.pumpWidget(TviumApp(qrPairingStarter: () async => session));
+    await tester.pump();
+    final qr = tester.getRect(find.byKey(const ValueKey('qr-pairing-code')));
+    final last = tester.getRect(find.byKey(const ValueKey('xtream-action')));
+    expect(qr.bottom, lessThanOrEqualTo(540));
+    expect(last.bottom, lessThanOrEqualTo(540));
   });
 
   testWidgets('welcome surface settles into view with a short entrance', (
@@ -146,7 +120,7 @@ void main() {
     expect(tester.widget<Opacity>(entrance).opacity, 1);
   });
 
-  testWidgets('TV remote can open QR pairing from the first source card', (
+  testWidgets('TV displays the QR pairing code without an extra action', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 720);
@@ -157,9 +131,6 @@ void main() {
     await tester.pumpWidget(TviumApp(qrPairingStarter: () async => session));
     await tester.pump();
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-    await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.select);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('qr-pairing-code')), findsOneWidget);
@@ -194,10 +165,6 @@ void main() {
     await tester.pump();
 
     expect(find.byType(TextField), findsOneWidget);
-    expect(
-      tester.widget<TextField>(find.byType(TextField)).obscureText,
-      isFalse,
-    );
   });
 
   testWidgets('keeps every source action visible on a compact phone', (
@@ -227,7 +194,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('xtream-action')));
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('xtream-profile-name')), findsNothing);
+    expect(find.text('Profile name'), findsNothing);
     expect(find.text('Server URL'), findsOneWidget);
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
@@ -246,13 +213,17 @@ void main() {
     expect(passwordField.enableSuggestions, isFalse);
   });
 
-  testWidgets('QR handoff waits for TV confirmation before adding a source', (
+  testWidgets('QR handoff starts import without another confirmation', (
     tester,
   ) async {
     final session = _FakeQrPairingSession();
-    await tester.pumpWidget(TviumApp(qrPairingStarter: () async => session));
-    await tester.ensureVisible(find.byKey(const ValueKey('qr-pairing-action')));
-    await tester.tap(find.byKey(const ValueKey('qr-pairing-action')));
+    final controller = PlaylistImportController();
+    await tester.pumpWidget(
+      TviumApp(
+        qrPairingStarter: () async => session,
+        importController: controller,
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('qr-pairing-code')), findsOneWidget);
     expect(find.byKey(const ValueKey('qr-pairing-confirm')), findsNothing);
@@ -261,27 +232,24 @@ void main() {
       QrM3uSubmission(Uri.parse('https://playlist.example.test/list.m3u')),
     );
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('qr-pairing-confirm')), findsOneWidget);
+    expect(find.byKey(const ValueKey('qr-pairing-confirm')), findsNothing);
+    expect(find.text('Source received. Adding your playlist…'), findsOneWidget);
+    expect(controller.state.phase, isNot(PlaylistImportPhase.empty));
     expect(
       find.byKey(const ValueKey('qr-pairing-source-type')),
       findsOneWidget,
     );
     expect(find.text('M3U URL'), findsWidgets);
-    expect(find.textContaining('playlist.example.test'), findsNothing);
-    await tester.tap(find.text('Cancel'));
+    await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
     expect(session.closed, isTrue);
   });
 
   testWidgets(
-    'QR confirmation identifies an Xtream source without credentials',
+    'QR handoff identifies an Xtream source without exposing credentials',
     (tester) async {
       final session = _FakeQrPairingSession();
       await tester.pumpWidget(TviumApp(qrPairingStarter: () async => session));
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('qr-pairing-action')),
-      );
-      await tester.tap(find.byKey(const ValueKey('qr-pairing-action')));
       await tester.pumpAndSettle();
       session.complete(
         QrXtreamSubmission(

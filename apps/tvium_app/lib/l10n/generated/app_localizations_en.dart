@@ -39,15 +39,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pairingInstructions =>
-      'Scan with a phone on the same trusted home network. The code expires after 10 minutes. Confirm the source here before importing.';
+      'Scan with a phone on the same trusted home network. The code expires after 10 minutes.';
 
   @override
-  String get pairingReceived =>
-      'Source received. Confirm to add it to this TV.';
+  String get pairingReceived => 'Source received. Adding your playlist…';
 
   @override
   String get pairingExpired =>
-      'This pairing session has expired. Close this window and try again.';
+      'This pairing code has expired. Generate a new code.';
 
   @override
   String get pairingUnavailable =>
@@ -230,4 +229,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get search => 'Search';
+
+  @override
+  String get playlistAddedSuccess => 'Playlist added successfully.';
+
+  @override
+  String get pairingRetry => 'Generate a new code';
 }
