@@ -46,12 +46,14 @@ class AppLocalizationsFr extends AppLocalizations {
       'Scannez le code avec votre téléphone. Il expire après 10 minutes. Confirmez la source ici avant l’import.';
 
   @override
-  String get pairingReceived =>
-      'Source reçue. Confirmez pour l’ajouter à cette TV.';
+  String get pairingReceived => 'Source reçue';
+
+  @override
+  String get playlistAddedSuccess => 'Playlist ajoutée avec succès';
 
   @override
   String get pairingExpired =>
-      'Ce code a expiré. Fermez cette fenêtre et réessayez.';
+      'Ce code a expiré. Générez-en un nouveau pour continuer.';
 
   @override
   String get pairingUnavailable =>
@@ -60,16 +62,6 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get pairingUnavailableWeb =>
       'L’ajout par téléphone est indisponible pour le moment. Vérifiez votre connexion Internet et réessayez.';
-
-  @override
-  String get webPlaylistRelayTitle => 'Import Web via le relais Tvium';
-
-  @override
-  String get webPlaylistRelayConsent =>
-      'Tvium Web contacte votre fournisseur via son relais HTTPS. Le relais reçoit l’adresse de la source et ses identifiants pendant l’import ou la lecture. Il ne conserve ni votre catalogue ni le flux.';
-
-  @override
-  String get webRelayContinue => 'Continuer';
 
   @override
   String get comingLater => 'Prochainement';

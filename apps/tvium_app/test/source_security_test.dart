@@ -24,7 +24,7 @@ void main() {
     expect(find.textContaining('private.example.test'), findsNothing);
   });
 
-  testWidgets('conceals a playlist URL until the user reveals it', (
+  testWidgets('shows a playlist URL and lets the user conceal it', (
     tester,
   ) async {
     await tester.pumpWidget(const TviumApp());
@@ -33,7 +33,7 @@ void main() {
 
     expect(
       tester.widget<TextField>(find.byType(TextField)).obscureText,
-      isTrue,
+      isFalse,
     );
 
     await tester.tap(
@@ -43,7 +43,7 @@ void main() {
 
     expect(
       tester.widget<TextField>(find.byType(TextField)).obscureText,
-      isFalse,
+      isTrue,
     );
   });
 }

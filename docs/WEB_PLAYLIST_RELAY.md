@@ -6,13 +6,14 @@ headers. Web M3U and Xtream imports now use the Tvium HTTPS relay. Native apps
 still contact providers directly. Phone pairing transfers source configuration
 and requires a separate catalog fetch.
 
-Before a Web import or Xtream connection test, the user confirms that the
-relay will see the provider address and credentials during the request. The
-browser obtains a short-lived viewer token from pairing and sends the source
+The browser obtains a short-lived viewer token from pairing and sends the source
 URL in a POST body to `/v1/playlist-fetch`. The relay rejects private/local
 IP literals and redirects, streams the response, and does not cache, log, or
 persist the catalog in application code. The provider connection may itself
 be HTTP, so the relay does not provide end-to-end encryption to the provider.
+The app does not interrupt every import with a relay consent dialog. The
+privacy documentation must clearly disclose that this relay receives the
+provider address and credentials for Web imports and playback.
 
 Web playback creates a short-lived, encrypted media URL through
 `/v1/media-session`. `/v1/media/*` relays HLS manifests and their referenced

@@ -167,13 +167,19 @@ abstract class AppLocalizations {
   /// No description provided for @pairingReceived.
   ///
   /// In en, this message translates to:
-  /// **'Source received. Confirm to add it to this TV.'**
+  /// **'Source received'**
   String get pairingReceived;
+
+  /// No description provided for @playlistAddedSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist added successfully'**
+  String get playlistAddedSuccess;
 
   /// No description provided for @pairingExpired.
   ///
   /// In en, this message translates to:
-  /// **'This pairing session has expired. Close this window and try again.'**
+  /// **'This pairing code has expired. Generate a new code to continue.'**
   String get pairingExpired;
 
   /// No description provided for @pairingUnavailable.
@@ -187,24 +193,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Phone pairing is unavailable right now. Check your internet connection and try again.'**
   String get pairingUnavailableWeb;
-
-  /// No description provided for @webPlaylistRelayTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Web import via Tvium relay'**
-  String get webPlaylistRelayTitle;
-
-  /// No description provided for @webPlaylistRelayConsent.
-  ///
-  /// In en, this message translates to:
-  /// **'Tvium Web uses its HTTPS relay to contact your provider. The relay receives the source address and credentials while importing or playing media. It does not store your catalog or stream.'**
-  String get webPlaylistRelayConsent;
-
-  /// No description provided for @webRelayContinue.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue'**
-  String get webRelayContinue;
 
   /// No description provided for @comingLater.
   ///

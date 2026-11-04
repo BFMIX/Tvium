@@ -114,7 +114,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
   final FocusNode _xtreamActionFocus = FocusNode(debugLabel: 'Xtream action');
   var _showUrlField = false;
   var _showXtreamForm = false;
-  var _obscureUrl = true;
+  var _obscureUrl = false;
   String? _selectedGroup;
   XtreamAddedProfile? _xtreamProfile;
   _LibraryEntry? _selectedEntry;
@@ -384,6 +384,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     PlaylistImportState state,
   ) {
     final strings = AppLocalizations.of(context);
+    final shortViewport = MediaQuery.sizeOf(context).height < 650;
     final importing =
         state.phase == PlaylistImportPhase.importing ||
         state.phase == PlaylistImportPhase.saving;
@@ -429,11 +430,15 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
           child: Align(
             alignment: Alignment.center,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(TviumSpacing.lg),
+              padding: EdgeInsets.all(
+                shortViewport ? TviumSpacing.sm : TviumSpacing.lg,
+              ),
               child: Container(
                 key: const ValueKey('onboarding-panel'),
                 constraints: const BoxConstraints(maxWidth: 1020),
-                padding: const EdgeInsets.all(TviumSpacing.xl),
+                padding: EdgeInsets.all(
+                  shortViewport ? TviumSpacing.md : TviumSpacing.xl,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xB8081A2B),
                   border: Border.all(
@@ -451,7 +456,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                           child: TviumBrandLogo(
                             key: const ValueKey<String>('tvium-brand-logo'),
                             semanticLabel: strings.appTitle,
-                            height: 52,
+                            height: shortViewport ? 42 : 52,
                           ),
                         ),
                         Align(
@@ -463,7 +468,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                         ),
                       ],
                     ),
-                    const SizedBox(height: TviumSpacing.lg),
+                    SizedBox(
+                      height: shortViewport ? TviumSpacing.sm : TviumSpacing.lg,
+                    ),
                     Container(
                       width: 48,
                       height: 3,
@@ -472,7 +479,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: TviumSpacing.md),
+                    SizedBox(
+                      height: shortViewport ? TviumSpacing.sm : TviumSpacing.md,
+                    ),
                     Text(
                       strings.welcomeTitle,
                       key: const ValueKey('onboarding-welcome-title'),
@@ -495,167 +504,56 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                    const SizedBox(height: TviumSpacing.xl),
-                    FocusTraversalGroup(
-                      policy: OrderedTraversalPolicy(),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final compact = constraints.maxWidth < 680;
-                          final cardWidth = compact
-                              ? double.infinity
-                              : (constraints.maxWidth -
-                                        2 * TviumSpacing.sm -
-                                        12) /
-                                    3;
-                          final cards = <Widget>[
-                            SourceActionCard(
-                              key: const ValueKey<String>('m3u-url-action'),
-                              title: strings.m3uUrl,
-                              description: strings.analyzePlaylist,
-                              icon: Icons.link_rounded,
-                              focusNode: _urlActionFocus,
-                              autofocus: !compact,
-                              width: cardWidth,
-                              compact: compact,
-                              onActivate: () {
-                                setState(() {
-                                  _showUrlField = true;
-                                  _showXtreamForm = false;
-                                });
-                                _revealOnboardingForm(_urlFieldKey);
-                              },
-                            ),
-                            SourceActionCard(
-                              key: const ValueKey<String>('m3u-file-action'),
-                              title: strings.importLocalM3u,
-                              description: '.m3u · .m3u8',
-                              icon: Icons.folder_open_rounded,
-                              focusNode: _fileActionFocus,
-                              width: cardWidth,
-                              compact: compact,
-                              onActivate: () =>
-                                  unawaited(_pickLocalFile(controller)),
-                            ),
-                            SourceActionCard(
-                              key: const ValueKey<String>('xtream-action'),
-                              title: strings.xtreamCodes,
-                              description: strings.connectProvider,
-                              icon: Icons.dns_outlined,
-                              focusNode: _xtreamActionFocus,
-                              width: cardWidth,
-                              compact: compact,
-                              onActivate: () {
-                                setState(() {
-                                  _showUrlField = false;
-                                  _showXtreamForm = true;
-                                });
-                                _revealOnboardingForm(_xtreamFormKey);
-                              },
-                            ),
-                          ];
-                          if (compact) {
-                            return Column(
-                              spacing: TviumSpacing.sm,
-                              children: cards,
-                            );
-                          }
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            spacing: TviumSpacing.sm,
-                            children: cards,
-                          );
-                        },
-                      ),
+                    SizedBox(
+                      height: shortViewport ? TviumSpacing.sm : TviumSpacing.xl,
                     ),
-                    if (shouldShowQrPairing(
-                      isWeb: kIsWeb,
-                      relay: const String.fromEnvironment(
-                        'TVIUM_PAIRING_RELAY',
-                      ),
-                    )) ...<Widget>[
-                      const SizedBox(height: TviumSpacing.lg),
-                      Row(
-                        key: const ValueKey('qr-pairing-separator'),
-                        children: <Widget>[
-                          const Expanded(child: Divider()),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: TviumSpacing.sm,
-                            ),
-                            child: Text(
-                              strings.orAddWithPhone,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          const Expanded(child: Divider()),
-                        ],
-                      ),
-                      const SizedBox(height: TviumSpacing.sm),
-                      Center(
-                        child: OutlinedButton.icon(
-                          key: const ValueKey('qr-pairing-action'),
-                          onPressed: () =>
-                              unawaited(_showQrPairing(controller)),
-                          icon: const Icon(Icons.qr_code_2_rounded),
-                          label: Text(strings.pairWithPhone),
-                        ),
-                      ),
-                    ],
-                    if (_showUrlField) ...<Widget>[
-                      const SizedBox(height: TviumSpacing.lg),
-                      Row(
-                        key: _urlFieldKey,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Expanded(
-                            child: TextField(
-                              controller: _urlController,
-                              enabled: !importing,
-                              keyboardType: TextInputType.url,
-                              obscureText: _obscureUrl,
-                              enableSuggestions: false,
-                              autocorrect: false,
-                              decoration: InputDecoration(
-                                hintText: strings.urlHint,
-                                prefixIcon: const Icon(Icons.language_rounded),
-                                suffixIcon: IconButton(
-                                  key: const ValueKey<String>(
-                                    'url-visibility-toggle',
-                                  ),
-                                  tooltip: _obscureUrl
-                                      ? strings.showPlaylistUrl
-                                      : strings.hidePlaylistUrl,
-                                  onPressed: () => setState(
-                                    () => _obscureUrl = !_obscureUrl,
-                                  ),
-                                  icon: Icon(
-                                    _obscureUrl
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                  ),
-                                ),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final manual = _buildManualOnboardingOptions(
+                          controller,
+                          importing,
+                          strings,
+                        );
+                        if (constraints.maxWidth < 600) return manual;
+                        final pairing =
+                            shouldShowQrPairing(
+                              isWeb: kIsWeb,
+                              relay: const String.fromEnvironment(
+                                'TVIUM_PAIRING_RELAY',
                               ),
-                              onSubmitted: (_) => _analyzeUrl(controller),
+                            )
+                            ? _OnboardingPairingPanel(
+                                starter: ref.read(qrPairingStarterProvider),
+                                onSubmitted: (proposal) => unawaited(
+                                  _acceptQrSubmission(controller, proposal),
+                                ),
+                              )
+                            : null;
+                        if (pairing == null) return manual;
+                        if (constraints.maxWidth < 800) {
+                          return Column(
+                            children: <Widget>[
+                              manual,
+                              const SizedBox(height: TviumSpacing.lg),
+                              pairing,
+                            ],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Expanded(child: manual),
+                            const SizedBox(width: TviumSpacing.lg),
+                            const SizedBox(
+                              height: 320,
+                              child: VerticalDivider(),
                             ),
-                          ),
-                          const SizedBox(width: TviumSpacing.sm),
-                          FilledButton(
-                            onPressed: importing
-                                ? null
-                                : () => _analyzeUrl(controller),
-                            child: Text(strings.analyzePlaylist),
-                          ),
-                        ],
-                      ),
-                    ],
-                    if (_showXtreamForm) ...<Widget>[
-                      const SizedBox(height: TviumSpacing.lg),
-                      XtreamConnectionForm(
-                        key: _xtreamFormKey,
-                        onPlaylistAdded: (profile) =>
-                            unawaited(_openXtreamLibrary(profile)),
-                      ),
-                    ],
+                            const SizedBox(width: TviumSpacing.lg),
+                            SizedBox(width: 300, child: pairing),
+                          ],
+                        );
+                      },
+                    ),
                     if (importing) ...<Widget>[
                       const SizedBox(height: TviumSpacing.lg),
                       const LinearProgressIndicator(),
@@ -693,6 +591,132 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
+  Widget _buildManualOnboardingOptions(
+    PlaylistImportController controller,
+    bool importing,
+    AppLocalizations strings,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: <Widget>[
+      FocusTraversalGroup(
+        policy: OrderedTraversalPolicy(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 680;
+            final short = MediaQuery.sizeOf(context).height < 650;
+            final cardWidth = compact
+                ? double.infinity
+                : (constraints.maxWidth - 2 * TviumSpacing.sm - 12) / 3;
+            final cards = <Widget>[
+              SourceActionCard(
+                key: const ValueKey<String>('m3u-url-action'),
+                title: strings.m3uUrl,
+                description: strings.analyzePlaylist,
+                icon: Icons.link_rounded,
+                focusNode: _urlActionFocus,
+                autofocus: true,
+                width: cardWidth,
+                compact: compact,
+                short: short,
+                onActivate: () {
+                  setState(() {
+                    _showUrlField = true;
+                    _showXtreamForm = false;
+                  });
+                  _revealOnboardingForm(_urlFieldKey);
+                },
+              ),
+              SourceActionCard(
+                key: const ValueKey<String>('m3u-file-action'),
+                title: strings.importLocalM3u,
+                description: '.m3u · .m3u8',
+                icon: Icons.folder_open_rounded,
+                focusNode: _fileActionFocus,
+                width: cardWidth,
+                compact: compact,
+                short: short,
+                onActivate: () => unawaited(_pickLocalFile(controller)),
+              ),
+              SourceActionCard(
+                key: const ValueKey<String>('xtream-action'),
+                title: strings.xtreamCodes,
+                description: strings.connectProvider,
+                icon: Icons.dns_outlined,
+                focusNode: _xtreamActionFocus,
+                width: cardWidth,
+                compact: compact,
+                short: short,
+                onActivate: () {
+                  setState(() {
+                    _showUrlField = false;
+                    _showXtreamForm = true;
+                  });
+                  _revealOnboardingForm(_xtreamFormKey);
+                },
+              ),
+            ];
+            if (compact) {
+              return Column(spacing: TviumSpacing.sm, children: cards);
+            }
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              spacing: TviumSpacing.sm,
+              children: cards,
+            );
+          },
+        ),
+      ),
+      if (_showUrlField) ...<Widget>[
+        const SizedBox(height: TviumSpacing.lg),
+        Row(
+          key: _urlFieldKey,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: TextField(
+                controller: _urlController,
+                enabled: !importing,
+                keyboardType: TextInputType.url,
+                obscureText: _obscureUrl,
+                enableSuggestions: false,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  hintText: strings.urlHint,
+                  prefixIcon: const Icon(Icons.language_rounded),
+                  suffixIcon: IconButton(
+                    key: const ValueKey<String>('url-visibility-toggle'),
+                    tooltip: _obscureUrl
+                        ? strings.showPlaylistUrl
+                        : strings.hidePlaylistUrl,
+                    onPressed: () => setState(() => _obscureUrl = !_obscureUrl),
+                    icon: Icon(
+                      _obscureUrl
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                  ),
+                ),
+                onSubmitted: (_) => _analyzeUrl(controller),
+              ),
+            ),
+            const SizedBox(width: TviumSpacing.sm),
+            FilledButton(
+              onPressed: importing ? null : () => _analyzeUrl(controller),
+              child: Text(strings.analyzePlaylist),
+            ),
+          ],
+        ),
+      ],
+      if (_showXtreamForm) ...<Widget>[
+        const SizedBox(height: TviumSpacing.lg),
+        XtreamConnectionForm(
+          key: _xtreamFormKey,
+          onPlaylistAdded: (profile) => unawaited(_openXtreamLibrary(profile)),
+        ),
+      ],
+    ],
+  );
+
   void _revealOnboardingForm(GlobalKey key) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final target = key.currentContext;
@@ -708,111 +732,6 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     });
   }
 
-  Future<void> _showQrPairing(PlaylistImportController controller) async {
-    final QrPairingSession session;
-    try {
-      session = await ref.read(qrPairingStarterProvider)();
-    } on Object {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              pairingUnavailableForPlatform(
-                AppLocalizations.of(context),
-                isWeb: kIsWeb,
-              ),
-            ),
-          ),
-        );
-      }
-      return;
-    }
-    if (!mounted) {
-      await session.close();
-      return;
-    }
-    try {
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) {
-          final strings = AppLocalizations.of(dialogContext);
-          return AlertDialog(
-            title: Text(strings.pairWithPhone),
-            content: SizedBox(
-              width: 340,
-              child: FutureBuilder<QrPairingSubmission?>(
-                future: session.submission,
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    if (snapshot.connectionState == ConnectionState.done) {
-                      return Text(strings.pairingExpired);
-                    }
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        QrImageView(
-                          key: const ValueKey('qr-pairing-code'),
-                          data: session.pairingUrl,
-                          size: 250,
-                          backgroundColor: Colors.white,
-                        ),
-                        const SizedBox(height: TviumSpacing.md),
-                        Text(
-                          pairingInstructionsForPlatform(
-                            strings,
-                            isWeb: kIsWeb,
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-                  final proposal = snapshot.data!;
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        Icons.check_circle_outline_rounded,
-                        size: 52,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(height: TviumSpacing.md),
-                      Text(strings.pairingReceived),
-                      const SizedBox(height: TviumSpacing.sm),
-                      Text(
-                        proposal is QrXtreamSubmission
-                            ? strings.xtreamCodes
-                            : strings.m3uUrl,
-                        key: const ValueKey('qr-pairing-source-type'),
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: TviumSpacing.md),
-                      FilledButton(
-                        key: const ValueKey('qr-pairing-confirm'),
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop();
-                          unawaited(_acceptQrSubmission(controller, proposal));
-                        },
-                        child: Text(strings.addPlaylist),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: Text(strings.cancel),
-              ),
-            ],
-          );
-        },
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
   Future<void> _acceptQrSubmission(
     PlaylistImportController controller,
     QrPairingSubmission proposal,
@@ -820,6 +739,9 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     switch (proposal) {
       case QrM3uSubmission(:final url):
         await _importM3uUrl(controller, url);
+        if (mounted && controller.state.phase == PlaylistImportPhase.ready) {
+          _showQrImportSuccess();
+        }
       case QrXtreamSubmission(:final server, :final username, :final password):
         try {
           final profile = await ref
@@ -834,6 +756,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                 ),
               );
+          if (mounted) _showQrImportSuccess();
           if (mounted) await _openXtreamLibrary(profile);
         } on Object {
           if (mounted) {
@@ -845,6 +768,14 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
           }
         }
     }
+  }
+
+  void _showQrImportSuccess() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppLocalizations.of(context).playlistAddedSuccess),
+      ),
+    );
   }
 
   void _analyzeUrl(PlaylistImportController controller) {
@@ -893,27 +824,6 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
     PlaylistImportController controller,
     Uri uri,
   ) async {
-    if (kIsWeb) {
-      final strings = AppLocalizations.of(context);
-      final accepted = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(strings.webPlaylistRelayTitle),
-          content: Text(strings.webPlaylistRelayConsent),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(strings.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(strings.webRelayContinue),
-            ),
-          ],
-        ),
-      );
-      if (accepted != true || !mounted) return;
-    }
     final candidate = detectXtreamM3u(uri);
     if (candidate != null) {
       try {
@@ -1541,6 +1451,166 @@ String _hashParentalPin(String pin) => ParentalPinService().hash(pin);
 bool _verifyParentalPin(({String pin, String digest}) input) =>
     ParentalPinService().verify(input.pin, input.digest);
 
+final class _OnboardingPairingPanel extends StatefulWidget {
+  const _OnboardingPairingPanel({
+    required this.starter,
+    required this.onSubmitted,
+  });
+
+  final Future<QrPairingSession> Function() starter;
+  final ValueChanged<QrPairingSubmission> onSubmitted;
+
+  @override
+  State<_OnboardingPairingPanel> createState() =>
+      _OnboardingPairingPanelState();
+}
+
+final class _OnboardingPairingPanelState
+    extends State<_OnboardingPairingPanel> {
+  late Future<QrPairingSession> _session = widget.starter();
+
+  @override
+  void initState() {
+    super.initState();
+    _observe(_session);
+  }
+
+  void _observe(Future<QrPairingSession> future) {
+    unawaited(
+      future
+          .then((session) => session.submission)
+          .then((proposal) {
+            if (!mounted || !identical(_session, future) || proposal == null) {
+              return;
+            }
+            widget.onSubmitted(proposal);
+          })
+          .catchError((Object _) {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    unawaited(
+      _session.then((value) => value.close()).catchError((Object _) {}),
+    );
+    super.dispose();
+  }
+
+  void _retry() {
+    final previous = _session;
+    setState(() => _session = widget.starter());
+    _observe(_session);
+    unawaited(
+      previous.then((value) => value.close()).catchError((Object _) {}),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
+    final short = MediaQuery.sizeOf(context).height < 650;
+    return Container(
+      key: const ValueKey('onboarding-pairing-panel'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(TviumSpacing.md),
+      decoration: BoxDecoration(
+        color: const Color(0xAE163149),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        borderRadius: BorderRadius.circular(TviumRadius.card),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            strings.pairWithPhone,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: TviumSpacing.sm),
+          FutureBuilder<QrPairingSession>(
+            future: _session,
+            builder: (context, sessionSnapshot) {
+              if (sessionSnapshot.hasError) {
+                return _messageWithRetry(
+                  pairingUnavailableForPlatform(strings, isWeb: kIsWeb),
+                  strings,
+                );
+              }
+              if (!sessionSnapshot.hasData) {
+                return const Padding(
+                  padding: EdgeInsets.all(TviumSpacing.lg),
+                  child: Icon(Icons.qr_code_2_rounded, size: 48),
+                );
+              }
+              final session = sessionSnapshot.data!;
+              return FutureBuilder<QrPairingSubmission?>(
+                future: session.submission,
+                builder: (context, submissionSnapshot) {
+                  final proposal = submissionSnapshot.data;
+                  if (proposal != null) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Icon(
+                          Icons.check_circle_outline_rounded,
+                          size: 44,
+                        ),
+                        const SizedBox(height: TviumSpacing.sm),
+                        Text(strings.pairingReceived),
+                        Text(
+                          proposal is QrXtreamSubmission
+                              ? strings.xtreamCodes
+                              : strings.m3uUrl,
+                          key: const ValueKey('qr-pairing-source-type'),
+                        ),
+                      ],
+                    );
+                  }
+                  if (submissionSnapshot.connectionState ==
+                      ConnectionState.done) {
+                    return _messageWithRetry(strings.pairingExpired, strings);
+                  }
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      QrImageView(
+                        key: const ValueKey('qr-pairing-code'),
+                        data: session.pairingUrl,
+                        size: short ? 160 : 220,
+                        backgroundColor: Colors.white,
+                      ),
+                      const SizedBox(height: TviumSpacing.sm),
+                      Text(
+                        pairingInstructionsForPlatform(strings, isWeb: kIsWeb),
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _messageWithRetry(String message, AppLocalizations strings) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      Text(message, textAlign: TextAlign.center),
+      const SizedBox(height: TviumSpacing.sm),
+      OutlinedButton(
+        key: const ValueKey('qr-pairing-retry'),
+        onPressed: _retry,
+        child: Text(strings.playbackRetry),
+      ),
+    ],
+  );
+}
+
 final class _AddPlaylistDialog extends StatefulWidget {
   const _AddPlaylistDialog({
     required this.onLocalM3u,
@@ -1606,7 +1676,6 @@ final class _AddPlaylistDialogState extends State<_AddPlaylistDialog> {
               key: const ValueKey('add-m3u-url-field'),
               controller: _urlController,
               autofocus: true,
-              obscureText: true,
               enableSuggestions: false,
               autocorrect: false,
               decoration: InputDecoration(

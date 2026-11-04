@@ -14,6 +14,7 @@ final class SourceActionCard extends StatelessWidget {
     this.enabled = true,
     this.width = 250,
     this.compact = false,
+    this.short = false,
     super.key,
   });
 
@@ -26,6 +27,7 @@ final class SourceActionCard extends StatelessWidget {
   final bool enabled;
   final double width;
   final bool compact;
+  final bool short;
 
   @override
   Widget build(BuildContext context) {
@@ -46,8 +48,10 @@ final class SourceActionCard extends StatelessWidget {
           child: Container(
             width: width,
             height: compact ? null : 208,
-            constraints: BoxConstraints(minHeight: compact ? 86 : 152),
-            padding: const EdgeInsets.all(TviumSpacing.md),
+            constraints: BoxConstraints(
+              minHeight: compact ? (short ? 72 : 86) : 152,
+            ),
+            padding: EdgeInsets.all(short ? TviumSpacing.sm : TviumSpacing.md),
             decoration: BoxDecoration(
               color: enabled
                   ? const Color(0xAE163149)
