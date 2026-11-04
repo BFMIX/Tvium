@@ -27,6 +27,7 @@ final class _XtreamConnectionFormState
   var _obscureServer = true;
   var _obscurePassword = true;
   var _processing = false;
+  var _webRelayApproved = false;
   String? _status;
   var _statusIsError = false;
 
@@ -170,6 +171,28 @@ final class _XtreamConnectionFormState
         _statusIsError = true;
       });
       return;
+    }
+
+    if (kIsWeb && !_webRelayApproved) {
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(strings.webPlaylistRelayTitle),
+          content: Text(strings.webPlaylistRelayConsent),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(strings.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(strings.webRelayContinue),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || approved != true) return;
+      _webRelayApproved = true;
     }
 
     setState(() {

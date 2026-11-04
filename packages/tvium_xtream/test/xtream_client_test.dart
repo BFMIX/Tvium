@@ -159,4 +159,28 @@ void main() {
     expect(catalog.warnings.single, isNot(contains('fixture-user')));
     expect(catalog.warnings.single, isNot(contains('fixture-password')));
   });
+
+  test('catalog timeout is independent from authentication timeout', () async {
+    final client = XtreamClient(
+      MockClient((_) async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        return http.Response('[]', 200);
+      }),
+      timeout: const Duration(milliseconds: 1),
+      catalogTimeout: const Duration(milliseconds: 300),
+    );
+
+    await expectLater(
+      client.authenticate(profile, credentials),
+      throwsA(
+        isA<XtreamException>().having(
+          (error) => error.failure,
+          'failure',
+          XtreamFailure.networkTimeout,
+        ),
+      ),
+    );
+    final catalog = await client.loadCatalog(profile, credentials);
+    expect(catalog.liveStreams, isEmpty);
+  });
 }

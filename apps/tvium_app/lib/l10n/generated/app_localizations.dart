@@ -191,14 +191,20 @@ abstract class AppLocalizations {
   /// No description provided for @webPlaylistRelayTitle.
   ///
   /// In en, this message translates to:
-  /// **'Temporary Web import'**
+  /// **'Web import via Tvium relay'**
   String get webPlaylistRelayTitle;
 
   /// No description provided for @webPlaylistRelayConsent.
   ///
   /// In en, this message translates to:
-  /// **'The browser cannot contact some IPTV providers directly. To download this playlist, Tvium\'s HTTPS relay will temporarily receive its address and any credentials. The relay does not store the catalog.'**
+  /// **'Tvium Web uses its HTTPS relay to contact your provider. The relay receives the source address and credentials while importing or playing media. It does not store your catalog or stream.'**
   String get webPlaylistRelayConsent;
+
+  /// No description provided for @webRelayContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get webRelayContinue;
 
   /// No description provided for @comingLater.
   ///
@@ -427,6 +433,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Playback is unavailable. Reconnect this source and try again.'**
   String get playbackUnavailable;
+
+  /// No description provided for @playbackStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get playbackStart;
+
+  /// No description provided for @playbackRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get playbackRetry;
 
   /// No description provided for @importFailed.
   ///

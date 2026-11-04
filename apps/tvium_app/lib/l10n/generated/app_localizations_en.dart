@@ -62,11 +62,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Phone pairing is unavailable right now. Check your internet connection and try again.';
 
   @override
-  String get webPlaylistRelayTitle => 'Temporary Web import';
+  String get webPlaylistRelayTitle => 'Web import via Tvium relay';
 
   @override
   String get webPlaylistRelayConsent =>
-      'The browser cannot contact some IPTV providers directly. To download this playlist, Tvium\'s HTTPS relay will temporarily receive its address and any credentials. The relay does not store the catalog.';
+      'Tvium Web uses its HTTPS relay to contact your provider. The relay receives the source address and credentials while importing or playing media. It does not store your catalog or stream.';
+
+  @override
+  String get webRelayContinue => 'Continue';
 
   @override
   String get comingLater => 'Coming later';
@@ -189,6 +192,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get playbackUnavailable =>
       'Playback is unavailable. Reconnect this source and try again.';
+
+  @override
+  String get playbackStart => 'Play';
+
+  @override
+  String get playbackRetry => 'Try again';
 
   @override
   String get importFailed => 'The playlist could not be imported';

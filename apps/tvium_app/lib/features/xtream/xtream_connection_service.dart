@@ -8,6 +8,9 @@ import 'package:tvium_database/tvium_database.dart';
 import 'package:tvium_xtream/tvium_xtream.dart';
 
 import '../artwork/artwork_reference_store.dart';
+import '../import/web_provider_relay_client.dart'
+    if (dart.library.io) '../import/web_provider_relay_client_io.dart'
+    as provider_relay;
 import '../library/library_bootstrap_controller.dart';
 import '../sources/source_identity_service.dart';
 import 'secure_xtream_profile_store.dart';
@@ -121,7 +124,7 @@ final class DefaultXtreamConnectionService
     Random? random,
     Future<ProfileSourceRepository> Function()? repositoryLoader,
     SourceIdentityService? identityService,
-  }) : _httpClient = httpClient ?? http.Client(),
+  }) : _httpClient = httpClient ?? provider_relay.createProviderHttpClient(),
        _ownsHttpClient = httpClient == null,
        _secretStore = secretStore ?? SecureXtreamProfileStore(),
        _random = random ?? Random.secure(),

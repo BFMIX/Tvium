@@ -1,25 +1,35 @@
-# Temporary browser playlist relay
+# Browser provider relay
 
-The GitHub Pages app cannot fetch an arbitrary IPTV provider directly when the
-provider uses HTTP or omits browser CORS headers. Phone pairing delivers only
-the source configuration; it does not download the playlist.
+GitHub Pages cannot reliably contact arbitrary IPTV providers from a browser:
+HTTP sources can be blocked as mixed content and providers may omit CORS
+headers. Web M3U and Xtream imports now use the Tvium HTTPS relay. Native apps
+still contact providers directly. Phone pairing transfers source configuration
+and requires a separate catalog fetch.
 
-For Web M3U imports, the user must confirm that the Tvium Netlify relay will
-temporarily receive the provider URL and any credentials embedded in it. The
-browser obtains a 10-minute viewer token from the pairing service, then sends
-the URL in a POST body to `/v1/playlist-fetch`. The Edge Function validates the
-same HMAC token as pairing, rejects local/private addresses and redirects,
-fetches once, and streams the response without caching or application logging.
-It does not store playlist data. The M3U client never displays the source URL
-in an error message.
+Before a Web import or Xtream connection test, the user confirms that the
+relay will see the provider address and credentials during the request. The
+browser obtains a short-lived viewer token from pairing and sends the source
+URL in a POST body to `/v1/playlist-fetch`. The relay rejects private/local
+IP literals and redirects, streams the response, and does not cache, log, or
+persist the catalog in application code. The provider connection may itself
+be HTTP, so the relay does not provide end-to-end encryption to the provider.
 
-The relay is intended only for M3U catalog requests. It does not proxy Xtream
-API calls, artwork, EPG, or media playback. Browser playback remains dependent
-on the provider's HTTPS and browser support. The Edge Function has a 40-second
-response-header limit; very slow providers may still fail. This is a temporary
-compatibility path, not proof that every provider works in Tesla's browser.
+Web playback creates a short-lived, encrypted media URL through
+`/v1/media-session`. `/v1/media/*` relays HLS manifests and their referenced
+segments and supports Range requests for direct video files. Provider URLs and
+credentials are absent from these media URLs. The player exposes a direct
+user-gesture Play/Retry control because browsers can reject delayed autoplay.
 
-Deploy the gateway from `services/metadata_gateway` with Netlify CLI and verify
-the Edge Function on a draft deploy using synthetic public URLs before
-publishing it. Then deploy the GitHub Pages app from `main`. Never put a real
-provider URL or credentials in tests, logs, screenshots, or issue comments.
+This is a compatibility path, not a guarantee that every stream plays in every
+browser. Direct MPEG-TS and codecs unsupported by the device remain
+incompatible without transcoding or an HLS alternative from the provider.
+Netlify Edge Functions have a 40-second response-header limit; a provider
+that delays headers beyond that limit can still fail. Monitor relay bandwidth
+and abuse before broad public distribution of media proxying.
+
+Deploy the gateway from `services/metadata_gateway` using the Netlify CLI and
+verify a draft deployment with synthetic public URLs. Deploy the Web app from
+`main` after local checks. The GitHub Pages environment accepts all branches,
+but `.github/workflows/pages.yml` pushes to production automatically only from
+`main`. Avoid manually dispatching a production Pages workflow from a feature
+branch. Never include real provider data in tests, logs, screenshots, or issues.

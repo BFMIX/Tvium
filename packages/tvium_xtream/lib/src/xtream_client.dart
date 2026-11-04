@@ -12,10 +12,15 @@ import 'xtream_profile.dart';
 import 'xtream_series_details.dart';
 
 final class XtreamClient {
-  XtreamClient(this._httpClient, {this.timeout = const Duration(seconds: 15)});
+  XtreamClient(
+    this._httpClient, {
+    this.timeout = const Duration(seconds: 30),
+    this.catalogTimeout = const Duration(seconds: 120),
+  });
 
   final http.Client _httpClient;
   final Duration timeout;
+  final Duration catalogTimeout;
 
   Future<XtreamAccountInfo> authenticate(
     XtreamProfile profile,
@@ -125,6 +130,7 @@ final class XtreamClient {
         action: 'get_series_info',
         extraQueryParameters: <String, String>{'series_id': seriesId},
       ),
+      requestTimeout: catalogTimeout,
     );
     final payload = _decodeObject(response.body);
     final info = _object(payload['info']);
@@ -214,6 +220,7 @@ final class XtreamClient {
   ) async {
     final response = await _get(
       _endpoint(profile, credentials, action: action),
+      requestTimeout: catalogTimeout,
     );
     try {
       final decoded = jsonDecode(response.body);
@@ -226,10 +233,13 @@ final class XtreamClient {
     throw const XtreamException(XtreamFailure.invalidResponse);
   }
 
-  Future<http.Response> _get(Uri endpoint) async {
+  Future<http.Response> _get(
+    Uri endpoint, {
+    required Duration requestTimeout,
+  }) async {
     late http.Response response;
     try {
-      response = await _httpClient.get(endpoint).timeout(timeout);
+      response = await _httpClient.get(endpoint).timeout(requestTimeout);
     } on TimeoutException {
       throw const XtreamException(XtreamFailure.networkTimeout);
     } on Object {

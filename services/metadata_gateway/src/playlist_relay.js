@@ -17,7 +17,7 @@ function reply(status, origin, body) {
   });
 }
 
-function safeTarget(value) {
+export function safeTarget(value) {
   if (typeof value !== 'string' || value.length > 2048) return null;
   let url;
   try { url = new URL(value); } catch { return null; }
@@ -40,7 +40,22 @@ function safeTarget(value) {
   return url;
 }
 
-async function validViewer(header, secret, now) {
+export async function fetchPublicTarget(target, options, fetchImpl) {
+  let current = target;
+  for (let hop = 0; hop <= 3; hop++) {
+    const response = await fetchImpl(current, { ...options, redirect: 'manual' });
+    if (response.status < 300 || response.status >= 400) {
+      return { response, target: current };
+    }
+    const location = response.headers.get('Location');
+    if (!location || hop === 3) return null;
+    current = safeTarget(new URL(location, current).toString());
+    if (!current) return null;
+  }
+  return null;
+}
+
+export async function validViewer(header, secret, now) {
   const match = /^Bearer ([^.]+)\.([A-Za-z0-9_-]{43})$/.exec(header ?? '');
   if (!match || !idPattern.test(match[1]) || !tokenPattern.test(match[2]) ||
       !secret || secret.length < 32) return false;
@@ -78,10 +93,12 @@ export async function handlePlaylistRelay(request, {
   } catch { return reply(400, origin, 'Invalid request'); }
   if (!target) return reply(400, origin, 'Invalid target');
   try {
-    const upstream = await fetchImpl(target, {
+    const result = await fetchPublicTarget(target, {
       method: 'GET', redirect: 'manual', cache: 'no-store',
-      signal: AbortSignal.timeout(35000),
-    });
+      signal: AbortSignal.timeout(120000),
+    }, fetchImpl);
+    if (!result) return reply(502, origin, 'Playlist server unavailable');
+    const upstream = result.response;
     if (upstream.status < 200 || upstream.status >= 300) {
       return reply(502, origin, `Playlist server returned ${upstream.status}`);
     }

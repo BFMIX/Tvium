@@ -51,6 +51,9 @@ import '../xtream/secure_xtream_profile_store.dart';
 import '../xtream/xtream_connection_form.dart';
 import '../xtream/xtream_connection_service.dart';
 import 'source_action_card.dart';
+import 'web_media_relay.dart'
+    if (dart.library.io) 'web_media_relay_io.dart'
+    as media_relay;
 
 typedef PlaybackEngineFactory = PlaybackEngine Function();
 typedef PlaybackViewBuilder = Widget Function(PlaybackEngine engine);
@@ -904,7 +907,7 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(strings.addPlaylist),
+              child: Text(strings.webRelayContinue),
             ),
           ],
         ),
@@ -1374,7 +1377,12 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
         _selectedEntry = entry;
         _playbackError = null;
       });
-      await engine.open(MediaSource(uri: uri, title: entry.name));
+      final playableUri = await media_relay.prepareMediaUri(
+        uri,
+        xtreamLive: entry.kind == MediaKind.live && entry.xtreamItem != null,
+      );
+      if (sessionGeneration != _profileSessionGeneration) return;
+      await engine.open(MediaSource(uri: playableUri, title: entry.name));
       if (sessionGeneration != _profileSessionGeneration) return;
       final resumePosition = _resumePositionFor(previous);
       if (resumePosition > Duration.zero) {
@@ -1382,6 +1390,26 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
       }
       await engine.play();
       if (sessionGeneration != _profileSessionGeneration) return;
+      if (kIsWeb) {
+        Future<void>.delayed(const Duration(seconds: 15), () {
+          if (!mounted ||
+              sessionGeneration != _profileSessionGeneration ||
+              _playbackEngine != engine ||
+              _selectedEntry != entry) {
+            return;
+          }
+          final phase = engine!.currentState.phase;
+          if (phase == PlaybackPhase.opening ||
+              phase == PlaybackPhase.ready ||
+              phase == PlaybackPhase.buffering) {
+            setState(
+              () =>
+                  _playbackError = AppLocalizations.of(context)
+                      .playbackUnavailable,
+            );
+          }
+        });
+      }
       await ref
           .read(userOverlaysControllerProvider(profileId).notifier)
           .recordPlayback(
@@ -1409,6 +1437,11 @@ final class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   void _checkpointPlayback(PlaybackState state) {
+    if (state.phase == PlaybackPhase.failed && mounted) {
+      setState(
+        () => _playbackError = AppLocalizations.of(context).playbackUnavailable,
+      );
+    }
     final locator = _activePlaybackLocator;
     if (!mounted ||
         locator == null ||
@@ -4531,6 +4564,34 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
   bool _fullScreen = false;
   double _volume = 1;
 
+  Widget _webStartOverlay(PlaybackEngine engine) {
+    if (!kIsWeb) return const SizedBox.shrink();
+    return StreamBuilder<PlaybackState>(
+      stream: engine.state,
+      initialData: engine.currentState,
+      builder: (context, snapshot) {
+        final phase = snapshot.data?.phase;
+        if (phase == PlaybackPhase.playing ||
+            phase == PlaybackPhase.ended ||
+            phase == PlaybackPhase.idle) {
+          return const SizedBox.shrink();
+        }
+        return Center(
+          child: FilledButton.icon(
+            key: const ValueKey('web-playback-start'),
+            onPressed: () => unawaited(engine.play()),
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: Text(
+              phase == PlaybackPhase.failed
+                  ? AppLocalizations.of(context).playbackRetry
+                  : AppLocalizations.of(context).playbackStart,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _openFullScreen() async {
     final engine = widget.engine;
     if (engine == null) return;
@@ -4583,6 +4644,7 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
                       fit: StackFit.expand,
                       children: <Widget>[
                         viewBuilder(engine),
+                        _webStartOverlay(engine),
                         if (controlsVisible)
                           Align(
                             alignment: Alignment.bottomCenter,
@@ -4791,6 +4853,7 @@ final class _PlayerPanelState extends ConsumerState<_PlayerPanel> {
                 fit: StackFit.expand,
                 children: <Widget>[
                   ref.watch(playbackViewBuilderProvider)(playbackEngine),
+                  _webStartOverlay(playbackEngine),
                   if (widget.selectedEntry != null)
                     Positioned(
                       top: TviumSpacing.xs,

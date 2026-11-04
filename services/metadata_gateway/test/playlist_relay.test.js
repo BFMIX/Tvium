@@ -60,3 +60,26 @@ test('rejects private hosts, invalid token and other origins', async () => {
   }), options)).status, 403);
   assert.equal(calls, 0);
 });
+
+test('follows public redirects but rejects redirects into private networks', async () => {
+  let calls = 0;
+  const response = await handlePlaylistRelay(
+    request('https://iptv.example.test/start.m3u8'),
+    { secret, now: () => now, fetchImpl: async () => {
+      calls++;
+      if (calls === 1) return new Response(null, {
+        status: 302, headers: { Location: '/catalog.m3u8' },
+      });
+      return new Response('#EXTM3U\n');
+    } },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(calls, 2);
+  const privateRedirect = await handlePlaylistRelay(
+    request('https://iptv.example.test/start.m3u8'),
+    { secret, now: () => now, fetchImpl: async () => new Response(null, {
+      status: 302, headers: { Location: 'http://127.0.0.1/admin' },
+    }) },
+  );
+  assert.equal(privateRedirect.status, 502);
+});
